@@ -1,4 +1,4 @@
-# Ilay for Reddit
+# Lily for reddit
 
 A fast, modern Reddit client for Android, built with Flutter and a Material 3
 Expressive design. You bring your own Reddit API credentials. The app talks
