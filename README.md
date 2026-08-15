@@ -67,7 +67,7 @@ phone.
 ## Install
 
 Download the APK from the
-[latest release](https://github.com/bennybar/LuliReddit/releases/latest) and
+[latest release](https://github.com/Ichiro786/lily-for-reddit/releases/latest) and
 install it. The app checks GitHub for newer releases and can update itself.
 
 (iOS has no public distribution — build and sideload it yourself; see `ios.txt`.)

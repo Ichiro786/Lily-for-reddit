@@ -8,7 +8,7 @@ class RedditConstants {
 
   /// Product identity and fork-owned release source.
   static const String appName = 'Lily for Reddit';
-  static const String githubRepo = 'Ichiro786/LuliReddit';
+  static const String githubRepo = 'Ichiro786/lily-for-reddit';
 
   // Hosts
   static const String authorizeUrl =
