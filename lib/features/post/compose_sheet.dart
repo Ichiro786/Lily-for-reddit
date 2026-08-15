@@ -25,7 +25,7 @@ Future<Comment?> showReplySheet(
     isScrollControlled: true,
     showDragHandle: true,
     sheetAnimationStyle: const AnimationStyle(
-      curve: Curves.easeEmphasized,
+      curve: Cubic(0.2, 0.0, 0.0, 1.0),
       duration: Duration(milliseconds: 400),
     ),
     builder: (ctx) => _ComposeSheet(
