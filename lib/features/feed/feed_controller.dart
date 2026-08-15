@@ -139,15 +139,16 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     if (_forYou) {
       final preview = await _fetchWithRetry(fast: true);
       _lastLoaded = DateTime.now();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_disposed) unawaited(_enrichForYou(preview));
-      });
-      return FeedState(
+      final previewState = FeedState(
         posts: preview.items,
         sort: _sort!,
         time: _time,
         after: preview.after,
       );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed) unawaited(_enrichForYou(previewState));
+      });
+      return previewState;
     }
 
     final listing = await _fetchWithRetry();
@@ -256,7 +257,9 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         !current.hasMore ||
         current.loadingMore ||
         current.hasPending ||
-        _enrichmentInFlight) return;
+        _enrichmentInFlight) {
+      return;
+    }
     state = AsyncData(current.copyWith(loadingMore: true, after: current.after));
     try {
       final listing = await _fetch(after: current.after);

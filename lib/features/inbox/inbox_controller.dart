@@ -7,6 +7,7 @@ import '../../core/providers.dart';
 import '../../models/inbox_item.dart';
 import '../../models/listing.dart';
 import '../auth/auth_controller.dart';
+import '../settings/settings_controller.dart';
 
 class InboxState {
   const InboxState({
