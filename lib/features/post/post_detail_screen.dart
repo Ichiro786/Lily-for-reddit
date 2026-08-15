@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,6 +27,7 @@ import '../settings/settings_controller.dart';
 import 'comments_controller.dart';
 import 'compose_sheet.dart';
 import 'post_actions.dart';
+import 'comment_media_helper.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   const PostDetailScreen({
@@ -855,6 +858,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
   Widget build(BuildContext context) {
     final comment = widget.comment;
     final cs = Theme.of(context).colorScheme;
+    final commentMedia = extractCommentMedia(comment.body);
+    final commentText = commentTextWithoutMedia(comment.body);
     final depth = comment.depth;
     final indent = depth.clamp(0, 6) * 12.0;
 
@@ -973,20 +978,26 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
             ),
           ),
           if (!widget.collapsed) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-              child: MarkdownBody(
-                data: comment.body,
-                selectable: true,
-                styleSheet: widget.markdownStyle,
-                onTapLink: (_, href, __) {
-                  if (href != null) {
-                    launchUrl(Uri.parse(href),
-                        mode: LaunchMode.externalApplication);
-                  }
-                },
+            if (commentText.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                child: MarkdownBody(
+                  data: commentText,
+                  selectable: true,
+                  styleSheet: widget.markdownStyle,
+                  onTapLink: (_, href, __) {
+                    if (href != null) {
+                      launchUrl(Uri.parse(href),
+                          mode: LaunchMode.externalApplication);
+                    }
+                  },
+                ),
               ),
-            ),
+            if (commentMedia.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                child: _CommentMediaList(media: commentMedia),
+              ),
             _actions(cs),
           ] else
             Padding(
@@ -1094,6 +1105,164 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _CommentMediaList extends StatelessWidget {
+  const _CommentMediaList({required this.media});
+
+  final List<CommentMedia> media;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final item in media)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _CommentMediaImage(media: item),
+          ),
+      ],
+    );
+  }
+}
+
+class _CommentMediaImage extends StatelessWidget {
+  const _CommentMediaImage({required this.media});
+
+  final CommentMedia media;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => openImageViewer(context, media.url, title: 'Comment media'),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 300),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (media.isGif)
+              _StaticCommentGif(url: media.url)
+            else
+              CachedNetworkImage(
+                imageUrl: media.url,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                height: 300,
+                placeholder: (_, __) => const SizedBox(
+                  height: 96,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                errorWidget: (_, __, ___) => const SizedBox(
+                  height: 64,
+                  child: Center(child: Icon(Icons.broken_image_outlined)),
+                ),
+              ),
+            if (media.isGif)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.62),
+                  shape: BoxShape.circle,
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: Icon(Icons.play_arrow_rounded,
+                      color: Colors.white, size: 28),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StaticCommentGif extends StatefulWidget {
+  const _StaticCommentGif({required this.url});
+
+  final String url;
+
+  @override
+  State<_StaticCommentGif> createState() => _StaticCommentGifState();
+}
+
+class _StaticCommentGifState extends State<_StaticCommentGif> {
+  ui.Image? _image;
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StaticCommentGif oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _image = null;
+      _error = null;
+      _removeListener();
+      _resolve();
+    }
+  }
+
+  void _resolve() {
+    final stream = CachedNetworkImageProvider(widget.url)
+        .resolve(const ImageConfiguration());
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        stream.removeListener(listener);
+        if (mounted) setState(() => _image = info.image);
+      },
+      onError: (error, stackTrace) {
+        stream.removeListener(listener);
+        if (mounted) setState(() => _error = error);
+      },
+    );
+    _stream = stream;
+    _listener = listener;
+    stream.addListener(listener);
+  }
+
+  void _removeListener() {
+    final stream = _stream;
+    final listener = _listener;
+    if (stream != null && listener != null) stream.removeListener(listener);
+    _stream = null;
+    _listener = null;
+  }
+
+  @override
+  void dispose() {
+    _removeListener();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return const SizedBox(
+        height: 64,
+        child: Center(child: Icon(Icons.broken_image_outlined)),
+      );
+    }
+    if (_image == null) {
+      return const SizedBox(
+        height: 96,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return RawImage(
+      image: _image,
+      fit: BoxFit.contain,
+      width: double.infinity,
+      height: 300,
     );
   }
 }
