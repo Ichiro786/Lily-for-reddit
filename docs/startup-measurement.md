@@ -98,3 +98,15 @@ This removes the following off-screen startup work from the initial Posts route:
 The unread badge request remains unchanged by design and is still part of the separate PR 4 scope. The frontpage feed and retry behavior are also unchanged.
 
 Expected PR 1 metric impact is a smaller amount of first-frame widget/provider work and less startup network contention. `pre-runApp` should be unchanged from PR 2 because PR 3 does not edit `main()`. `first-frame` should improve or remain stable, while `auth-resolution` should remain unchanged. On authenticated launches, `first-content` may improve if the removed off-screen requests were competing for network/auth resources; it should not regress. Compare logged-in Posts launches with PR 2 and PR 3 under identical account, network, and cache conditions.
+
+## PR 4 comparison
+
+Before PR 4, `HomeShell` watched `unreadCountProvider`, which immediately called `getUnreadCount()`, fetched `/message/unread`, and counted the returned listing. That request was part of the initial authenticated Posts build even though Inbox was not selected.
+
+PR 4 keeps the same provider name and existing invalidation call sites, but changes the provider to return the last cached count from `SharedPreferences` immediately, or zero when no cache exists. It then schedules one fresh request after the first Flutter frame. A successful refresh updates Riverpod state and persists the new count. A failed refresh leaves the cached/current value visible and does not surface an error through the badge. This is stale-while-refresh behavior rather than a blocking loading state.
+
+Inbox correctness remains tied to the existing Inbox controller and server operations. Refreshing an Inbox list, marking items read or unread, deleting a message, and marking all read continue to invalidate `unreadCountProvider`; each invalidation now gives the badge a cached value immediately and schedules a fresh count after the next frame. The background polling isolate remains separate because it does not use Riverpod; PR 4 does not redesign notification coordination.
+
+Expected PR 1 metric impact is a reduction in first-frame network/auth contention, not in `pre-runApp`, which is unchanged from PR 2. Compare `first-frame`, `first-content`, and `home-ready-proxy` for PR 3 versus PR 4. Confirm that the initial Posts route no longer waits for `/message/unread`, that a cached badge appears immediately when present, and that Inbox interactions eventually converge to the server count after invalidation.
+
+The persisted badge key is scoped by the active Reddit username when a session exists. This prevents an account switch from displaying the previous account’s cached count; a missing account-specific cache falls back to zero until the deferred refresh completes.
