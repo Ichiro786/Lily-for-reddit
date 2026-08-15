@@ -24,6 +24,10 @@ Future<Comment?> showReplySheet(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
+    sheetAnimationStyle: const AnimationStyle(
+      curve: Curves.easeEmphasized,
+      duration: Duration(milliseconds: 400),
+    ),
     builder: (ctx) => _ComposeSheet(
       ref: ref,
       title: replyingTo == null ? 'Reply' : 'Reply to u/$replyingTo',
@@ -119,9 +123,18 @@ class _ComposeSheet<T> extends StatefulWidget {
 
 class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
   late final _controller = TextEditingController(text: _initialText());
+  late final _focusNode = FocusNode();
   bool _busy = false;
   String? _error;
   MediaAttachment? _media;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
 
   String? _initialText() {
     if (widget.initialText != null) return widget.initialText;
@@ -139,6 +152,7 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -193,7 +207,7 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
           const SizedBox(height: 12),
           TextField(
             controller: _controller,
-            autofocus: true,
+            focusNode: _focusNode,
             minLines: 3,
             maxLines: 8,
             onChanged: _onChanged,
