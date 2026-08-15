@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -108,6 +109,24 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         subreddit: _subreddit, sort: _sort!, time: _time, after: after);
   }
 
+  Future<Listing<Post>> _fetchWithRetry({String? after, bool fast = false}) async {
+    try {
+      return await _fetch(after: after, fast: fast);
+    } on DioException catch (error) {
+      if (!_isRetryableTransport(error)) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      return _fetch(after: after, fast: fast);
+    }
+  }
+
+  bool _isRetryableTransport(DioException error) => switch (error.type) {
+        DioExceptionType.connectionError ||
+        DioExceptionType.connectionTimeout ||
+        DioExceptionType.sendTimeout ||
+        DioExceptionType.receiveTimeout => true,
+        _ => false,
+      };
+
   @override
   Future<FeedState> build(String arg) async {
     ref.onDispose(() => _disposed = true);
@@ -115,15 +134,10 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       _sort = ref.read(settingsControllerProvider).defaultSort;
       _initialized = true;
     }
-    // Retry once: a cold-start request can fail while the token is being
-    // refreshed for the first time.
+    // RedditClient owns token refresh and 401 replay. FeedController only
+    // retries clearly transient transport failures via _fetchWithRetry().
     if (_forYou) {
-      Listing<Post> preview;
-      try {
-        preview = await _fetch(fast: true);
-      } catch (_) {
-        preview = await _fetch(fast: true);
-      }
+      final preview = await _fetchWithRetry(fast: true);
       _lastLoaded = DateTime.now();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!_disposed) unawaited(_enrichForYou(preview));
@@ -136,12 +150,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       );
     }
 
-    Listing<Post> listing;
-    try {
-      listing = await _fetch();
-    } catch (_) {
-      listing = await _fetch();
-    }
+    final listing = await _fetchWithRetry();
     _lastLoaded = DateTime.now();
     return FeedState(
       posts: listing.items,
@@ -179,12 +188,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     if (_disposed || _enrichmentInFlight || !_forYou) return;
     _enrichmentInFlight = true;
     try {
-      Listing<Post> listing;
-      try {
-        listing = await _fetch();
-      } catch (_) {
-        listing = await _fetch();
-      }
+      final listing = await _fetchWithRetry();
       if (_disposed || !_forYou || state.valueOrNull != preview) return;
       final current = state.valueOrNull;
       if (current == null || listing.items.isEmpty) return;
