@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
@@ -67,7 +70,10 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   bool get _forYou =>
       _isFrontpage && ref.read(settingsControllerProvider).forYouFeed;
 
-  Future<Listing<Post>> _fetch({String? after}) {
+  bool _enrichmentInFlight = false;
+  bool _disposed = false;
+
+  Future<Listing<Post>> _fetch({String? after, bool fast = false}) {
     if (_forYou) {
       final history = ref.read(historyControllerProvider);
       final kw = ref.read(keywordStoreProvider.notifier);
@@ -79,6 +85,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         titleScore: kw.scoreTitle,
         titleKeyword: kw.topKeywordIn,
         cursors: after, // null = first page; else the encoded cursor bundle
+        fast: fast,
         excludeIds: after == null
             ? const {}
             : {
@@ -103,12 +110,32 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
 
   @override
   Future<FeedState> build(String arg) async {
+    ref.onDispose(() => _disposed = true);
     if (!_initialized) {
       _sort = ref.read(settingsControllerProvider).defaultSort;
       _initialized = true;
     }
     // Retry once: a cold-start request can fail while the token is being
     // refreshed for the first time.
+    if (_forYou) {
+      Listing<Post> preview;
+      try {
+        preview = await _fetch(fast: true);
+      } catch (_) {
+        preview = await _fetch(fast: true);
+      }
+      _lastLoaded = DateTime.now();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed) unawaited(_enrichForYou(preview));
+      });
+      return FeedState(
+        posts: preview.items,
+        sort: _sort!,
+        time: _time,
+        after: preview.after,
+      );
+    }
+
     Listing<Post> listing;
     try {
       listing = await _fetch();
@@ -146,6 +173,40 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
 
   Future<void> refresh() async {
     state = await AsyncValue.guard(() => build(arg));
+  }
+
+  Future<void> _enrichForYou(FeedState preview) async {
+    if (_disposed || _enrichmentInFlight || !_forYou) return;
+    _enrichmentInFlight = true;
+    try {
+      Listing<Post> listing;
+      try {
+        listing = await _fetch();
+      } catch (_) {
+        listing = await _fetch();
+      }
+      if (_disposed || !_forYou || state.valueOrNull != preview) return;
+      final current = state.valueOrNull;
+      if (current == null || listing.items.isEmpty) return;
+      final currentIds = {for (final p in current.posts) p.id};
+      final changed = listing.items.length != current.posts.length ||
+          listing.items.asMap().entries.any(
+              (e) => e.value.id != current.posts[e.key].id);
+      final hasNew = listing.items.any((p) => !currentIds.contains(p.id));
+      if (changed && hasNew) {
+        _pending = listing.items;
+        _pendingAfter = listing.after;
+        state = AsyncData(current.copyWith(
+            hasPending: true, after: current.after));
+      } else if (listing.after != current.after) {
+        // Keep the visible preview stable while adopting the full cursor bundle.
+        state = AsyncData(current.copyWith(after: listing.after));
+      }
+    } catch (_) {
+      // The preview remains usable when enrichment is unavailable.
+    } finally {
+      _enrichmentInFlight = false;
+    }
   }
 
   // A freshly-fetched first page staged behind the "New posts" pill.
@@ -187,7 +248,11 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
 
   Future<void> loadMore() async {
     final current = state.valueOrNull;
-    if (current == null || !current.hasMore || current.loadingMore) return;
+    if (current == null ||
+        !current.hasMore ||
+        current.loadingMore ||
+        current.hasPending ||
+        _enrichmentInFlight) return;
     state = AsyncData(current.copyWith(loadingMore: true, after: current.after));
     try {
       final listing = await _fetch(after: current.after);

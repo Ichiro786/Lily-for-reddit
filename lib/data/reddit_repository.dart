@@ -49,6 +49,29 @@ extension TopTimeApi on TopTime {
       };
 }
 
+/// Runs request jobs in input order with a small concurrency cap.
+Future<List<T>> _runCapped<T>(
+    List<Future<T> Function()> jobs, {
+    int maxConcurrent = 3,
+  }) async {
+    if (jobs.isEmpty) return const [];
+    final results = List<T?>.filled(jobs.length, null);
+    var next = 0;
+
+    Future<void> worker() async {
+      while (true) {
+        final index = next++;
+        if (index >= jobs.length) return;
+        results[index] = await jobs[index]();
+      }
+    }
+
+    final workerCount =
+        jobs.length < maxConcurrent ? jobs.length : maxConcurrent;
+    await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
+    return [for (final result in results) result as T];
+  }
+
 class RedditRepository {
   RedditRepository(this._client);
   final RedditClient _client;
@@ -90,7 +113,27 @@ class RedditRepository {
     String? Function(String title)? titleKeyword,
     String? cursors, // JSON cursor bundle from a previous page's `after`
     Set<String> excludeIds = const {},
+    bool fast = false,
   }) async {
+    // The preview deliberately uses one lightweight standard best request. It
+    // gives the user usable subscribed-frontpage content while the full local
+    // ranking pipeline discovers subscriptions and enrichment candidates.
+    if (fast && (cursors == null || cursors.isEmpty)) {
+      final preview = await getPosts(sort: PostSort.best, limit: 25);
+      final items = [
+        for (final post in preview.items)
+          if (!post.stickied &&
+              !muted.contains(post.subreddit.toLowerCase()))
+            post.copyWith(feedReason: 'From your frontpage'),
+      ];
+      return Listing(
+        items: items,
+        after: preview.after == null
+            ? null
+            : jsonEncode(<String, String>{'best': preview.after!}),
+      );
+    }
+
     // Your communities are the backbone of the feed.
     List<Subreddit> mySubs = const [];
     try {
@@ -110,8 +153,14 @@ class RedditRepository {
         .map((e) => e.key)
         .toList();
 
-    Future<Listing<Post>> safe(Future<Listing<Post>> f) =>
-        f.catchError((_) => const Listing<Post>(items: []));
+    Future<Listing<Post>> safe(
+        Future<Listing<Post>> Function() request) async {
+      try {
+        return await request();
+      } catch (_) {
+        return const Listing<Post>(items: []);
+      }
+    }
 
     // Candidate generation, multi-signal:
     //  • /best       — your subscription frontpage (the bulk; paginated)
@@ -131,32 +180,38 @@ class RedditRepository {
     final popularAfter = prev['popular'] as String?;
 
     final bestF = (firstPage || bestAfter != null)
-        ? safe(getPosts(
+        ? safe(() => getPosts(
             sort: PostSort.best, limit: firstPage ? 100 : 50, after: bestAfter))
         : Future.value(const Listing<Post>(items: []));
     final risingF = (firstPage || risingAfter != null)
-        ? safe(getPosts(
+        ? safe(() => getPosts(
             sort: PostSort.rising, limit: 25, after: risingAfter))
         : Future.value(const Listing<Post>(items: []));
     final popularF = (firstPage || popularAfter != null)
-        ? safe(getPosts(
+        ? safe(() => getPosts(
             subreddit: 'popular',
             sort: PostSort.hot,
             limit: firstPage ? 20 : 15,
             after: popularAfter))
         : Future.value(const Listing<Post>(items: []));
-    final extraF = <Future<Listing<Post>>>[
+    final extraJobs = <Future<Listing<Post>> Function()>[
       if (firstPage) ...[
         for (final f in favourites.take(8))
-          safe(getPosts(subreddit: f, sort: PostSort.hot, limit: 10)),
+          () => getPosts(subreddit: f, sort: PostSort.hot, limit: 10),
         for (final s in topInterest)
           if (!favourites.contains(s))
-            safe(getPosts(subreddit: s, sort: PostSort.hot, limit: 8)),
+            () => getPosts(subreddit: s, sort: PostSort.hot, limit: 8),
       ],
     ];
 
-    final results =
-        await Future.wait([bestF, risingF, popularF, ...extraF]);
+    // Base sources stay concurrent. Enrichment requests run after them with a
+    // small cap so the background stage does not overwhelm the client.
+    final baseResults = await Future.wait([bestF, risingF, popularF]);
+    final extraResults = await _runCapped(
+      [for (final job in extraJobs) () => safe(job)],
+      maxConcurrent: 3,
+    );
+    final results = [...baseResults, ...extraResults];
     final best = results[0], rising = results[1], popular = results[2];
 
     final ids = <String>{...excludeIds};
