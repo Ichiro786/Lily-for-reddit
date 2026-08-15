@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../core/route_observer.dart';
+import '../../core/startup_metrics.dart';
 import '../../core/widgets/error_view.dart';
 import '../../data/reddit_repository.dart';
 import '../history/history_store.dart';
@@ -150,7 +152,11 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               }
               index -= 1;
               if (index < posts.length) {
-                return PostCard(post: posts[index]);
+                final post = posts[index];
+                if (widget.feedKey.isEmpty && index == 0) {
+                  return _StartupFirstPostVisibility(post: post);
+                }
+                return PostCard(post: post);
               }
               // footer
               return Padding(
@@ -199,7 +205,26 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   }
 }
 
-/// Tappable pill shown when a fresh feed page is staged after returning to a
+class _StartupFirstPostVisibility extends StatelessWidget {
+  const _StartupFirstPostVisibility({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    return VisibilityDetector(
+      key: ValueKey<String>('startup-first-post-${post.id}'),
+      onVisibilityChanged: (info) {
+        if (info.visibleFraction > 0) {
+          StartupMetrics.instance.markFirstFeedItemVisible();
+        }
+      },
+      child: PostCard(post: post),
+    );
+  }
+}
+
+/// Tappable pill shown when a fresh page is staged after returning to a
 /// stale feed — applies it and scrolls to top.
 class _NewPostsPill extends StatelessWidget {
   const _NewPostsPill({required this.onTap});

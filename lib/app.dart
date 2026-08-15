@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/deep_links.dart';
+import 'core/startup_metrics.dart';
 import 'core/theme/app_theme.dart';
 import 'features/notifications/notification_service.dart';
 import 'features/settings/settings_controller.dart';
@@ -26,6 +27,11 @@ class _LuliAppState extends ConsumerState<LuliApp> {
   @override
   void initState() {
     super.initState();
+    final startup = StartupMetrics.instance;
+    startup.startFrameTimings();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      startup.markFirstFlutterFrame();
+    });
     _linkSub = _appLinks.uriLinkStream.listen(_handleLink);
     _appLinks.getInitialLink().then((uri) {
       if (uri != null) _handleLink(uri);

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/route_observer.dart';
+import 'core/startup_metrics.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_screen.dart';
 import 'features/compose/compose_post_screen.dart';
@@ -24,6 +25,8 @@ import 'models/post.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
+  final startup = StartupMetrics.instance;
+  var authMarked = false;
   ref.listen(authControllerProvider, (_, __) => refresh.value++);
   ref.onDispose(refresh.dispose);
 
@@ -34,6 +37,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
       if (auth.isLoading) return null;
+      if (!authMarked) {
+        authMarked = true;
+        startup.markAuthResolved();
+      }
       final loggedIn = auth.valueOrNull != null;
       final atLogin = state.matchedLocation == '/login';
       if (!loggedIn) return atLogin ? null : '/login';

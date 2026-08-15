@@ -5,11 +5,14 @@ import 'package:workmanager/workmanager.dart';
 
 import 'app.dart';
 import 'core/analytics.dart';
+import 'core/startup_metrics.dart';
 import 'core/storage/secure_store.dart';
 import 'features/notifications/inbox_poller.dart';
 import 'features/settings/settings_controller.dart';
 
 void main() async {
+  final startup = StartupMetrics.instance;
+  startup.markMainEntered();
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   await Analytics.init();
@@ -32,6 +35,7 @@ void main() async {
     await registerInboxPolling();
   }
 
+  startup.markRunAppCalled();
   runApp(
     ProviderScope(
       overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
