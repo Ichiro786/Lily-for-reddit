@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:workmanager/workmanager.dart';
 
 import 'app.dart';
-import 'core/analytics.dart';
+import 'core/deferred_startup.dart';
 import 'core/startup_metrics.dart';
-import 'core/storage/secure_store.dart';
-import 'features/notifications/inbox_poller.dart';
 import 'features/settings/settings_controller.dart';
 
 void main() async {
@@ -15,25 +14,6 @@ void main() async {
   startup.markMainEntered();
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  await Analytics.init();
-
-  // Anonymous: which login method this install uses (api = official OAuth key,
-  // website = the no-API-key/"Hydra" session, or logged_out).
-  final store = SecureStore();
-  final username = await store.username;
-  final loginMethod = (username == null || username.isEmpty)
-      ? 'logged_out'
-      : (await store.authMode) == 'web'
-          ? 'website'
-          : 'api';
-  Analytics.track('app_started', {'login_method': loginMethod});
-
-  // Background inbox notifications (opt-in). Initializing WorkManager is cheap;
-  // we only register the periodic poll if the user has turned it on.
-  await Workmanager().initialize(inboxCallbackDispatcher);
-  if (prefs.getBool(kNotifyInboxPref) ?? false) {
-    await registerInboxPolling();
-  }
 
   startup.markRunAppCalled();
   runApp(
@@ -42,4 +22,11 @@ void main() async {
       child: const LuliApp(),
     ),
   );
+
+  // Analytics, telemetry-only secure-storage reads, WorkManager, and optional
+  // polling registration do not affect the initial UI or auth decision. Start
+  // them after the first frame; each service handles its own failure.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(startDeferredStartupServices(prefs));
+  });
 }

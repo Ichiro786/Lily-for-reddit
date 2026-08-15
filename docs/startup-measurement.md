@@ -64,3 +64,21 @@ Capture at least one run for each scenario: logged-out launch, logged-in standar
 ## Limitations
 
 The sandbox used to prepare PR 1 does not contain Flutter/Dart tooling or an attached Android device, so timings cannot be collected here. Before comparing PR 1 with later optimization PRs, run the same scenarios on a representative low-end Android device and retain the raw log excerpts.
+
+## PR 2 comparison
+
+PR 2 changes the critical path in one way: `SharedPreferences.getInstance()` remains awaited because the existing `sharedPrefsProvider` override must be available when the root app is built. Analytics initialization, the telemetry-only username/auth-mode lookup, WorkManager initialization, and optional inbox-poll registration now begin from a post-frame callback through `startDeferredStartupServices()`.
+
+Auth/session resolution remains in `AuthController` and the existing router redirect. PR 2 does not add a second auth gate, change login routing, or allow deferred service failures to affect the UI. The expected measurement change is a shorter `run_app_called - main_entered` interval, while `auth_resolved` and feed markers should retain their existing semantics.
+
+For a before/after comparison, collect PR 1 and PR 2 runs under the same device, build mode, account state, network condition, and cache state. Compare these values:
+
+| Metric | Expected PR 2 behavior |
+|---|---|
+| `pre-runApp` | Should decrease because four optional/telemetry tasks no longer block `runApp()`. |
+| `first-frame` | Should remain stable or improve; deferred services must not block the first Flutter frame. |
+| `auth-resolution` | Should remain functionally unchanged because `AuthController` still owns session resolution. |
+| `first-content` | May move independently of deferred services; use it to detect any unexpected interaction with the initial feed. |
+| `home-ready-proxy` | Should remain comparable; investigate any regression before proceeding to PR 3. |
+
+The deferred coordinator logs failures under `luli.startup.deferred` and intentionally treats them as non-fatal. A successful baseline run should also confirm that opted-in inbox polling is still registered after startup and that analytics events continue to be emitted when analytics is enabled.
