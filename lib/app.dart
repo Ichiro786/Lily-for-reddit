@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/deep_links.dart';
 import 'core/startup_metrics.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/auth_controller.dart';
+import 'features/inbox/inbox_controller.dart';
 import 'features/notifications/notification_service.dart';
 import 'features/settings/settings_controller.dart';
 import 'router.dart';
@@ -20,22 +22,22 @@ class LuliApp extends ConsumerStatefulWidget {
   ConsumerState<LuliApp> createState() => _LuliAppState();
 }
 
-class _LuliAppState extends ConsumerState<LuliApp> {
+class _LuliAppState extends ConsumerState<LuliApp>
+    with WidgetsBindingObserver {
   final _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSub;
+  bool _resumeRefreshScheduled = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final startup = StartupMetrics.instance;
     startup.startFrameTimings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       startup.markFirstFlutterFrame();
     });
     _linkSub = _appLinks.uriLinkStream.listen(_handleLink);
-    _appLinks.getInitialLink().then((uri) {
-      if (uri != null) _handleLink(uri);
-    });
 
     // Tapping an inbox notification deep-links to the comment/message.
     NotificationService.onSelectRoute = (route) {
@@ -52,7 +54,24 @@ class _LuliAppState extends ConsumerState<LuliApp> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || _resumeRefreshScheduled) return;
+    _resumeRefreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resumeRefreshScheduled = false;
+      if (!mounted) return;
+      // Revalidate auth and sync inbox after resume, but do it after the frame
+      // so returning to the app never blocks the visible UI. The unread provider
+      // keeps its cached value and schedules its own stale-while-refresh fetch.
+      ref.invalidate(authControllerProvider);
+      ref.invalidate(inboxControllerProvider);
+      ref.invalidate(unreadCountProvider);
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _linkSub?.cancel();
     super.dispose();
   }
