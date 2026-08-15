@@ -1,8 +1,12 @@
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../../models/inbox_item.dart';
 import '../../models/listing.dart';
+import '../auth/auth_controller.dart';
 
 class InboxState {
   const InboxState({
@@ -119,7 +123,64 @@ final inboxControllerProvider =
     AsyncNotifierProviderFamily<InboxController, InboxState, String>(
         InboxController.new);
 
-/// Unread message count for the bottom-nav badge.
-final unreadCountProvider = FutureProvider.autoDispose<int>((ref) async {
-  return ref.watch(redditRepositoryProvider).getUnreadCount();
-});
+/// SharedPreferences key for the last known unread badge value.
+const String kUnreadCountCachePref = 'unreadCountCache';
+
+/// Unread badge value with stale-while-refresh behavior.
+///
+/// The cached value (or zero when there is no cache) is returned immediately.
+/// A fresh `/message/unread` request is scheduled after the first frame, so the
+/// initial Posts route never waits for the badge network request.
+class UnreadCountController extends AutoDisposeAsyncNotifier<int> {
+  bool _refreshScheduled = false;
+  bool _refreshInFlight = false;
+  bool _disposed = false;
+
+  @override
+  int build() {
+    ref.onDispose(() => _disposed = true);
+    final username = ref.watch(authControllerProvider).valueOrNull?.username;
+    final cached = ref
+        .read(sharedPrefsProvider)
+        .getInt(_cacheKey(username));
+    _scheduleRefresh();
+    return cached != null && cached >= 0 ? cached : 0;
+  }
+
+  String _cacheKey(String? username) => username == null || username.isEmpty
+      ? kUnreadCountCachePref
+      : '$kUnreadCountCachePref.$username';
+
+  void _scheduleRefresh() {
+    if (_refreshScheduled) return;
+    _refreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed) return;
+      unawaited(refresh());
+    });
+  }
+
+  Future<void> refresh() async {
+    if (_disposed || _refreshInFlight) return;
+    _refreshInFlight = true;
+    try {
+      final count =
+          await ref.read(redditRepositoryProvider).getUnreadCount();
+      if (_disposed) return;
+      state = AsyncData(count);
+      final username = ref.read(authControllerProvider).valueOrNull?.username;
+      await ref
+          .read(sharedPrefsProvider)
+          .setInt(_cacheKey(username), count);
+    } catch (_) {
+      // Keep the cached/current value visible. The next invalidation or app
+      // start will schedule another refresh without blocking the UI.
+    } finally {
+      _refreshInFlight = false;
+    }
+  }
+}
+
+final unreadCountProvider =
+    AsyncNotifierProvider.autoDispose<UnreadCountController, int>(
+        UnreadCountController.new);
