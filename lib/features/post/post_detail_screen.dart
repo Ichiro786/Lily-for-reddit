@@ -55,6 +55,21 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   List<int> _matchIndices = []; // list indices (ci + 1) of matching comments
   int _matchPos = 0;
   String? _currentMatchId;
+  MarkdownStyleSheet? _commentMarkdownStyle;
+  ThemeData? _commentMarkdownTheme;
+
+  MarkdownStyleSheet _getCommentMarkdownStyle(BuildContext context) {
+    final theme = Theme.of(context);
+    if (_commentMarkdownStyle == null ||
+        !identical(_commentMarkdownTheme, theme)) {
+      _commentMarkdownTheme = theme;
+      _commentMarkdownStyle = MarkdownStyleSheet(
+        p: theme.textTheme.bodyMedium
+            ?.copyWith(fontSize: 15, height: 1.45),
+      );
+    }
+    return _commentMarkdownStyle!;
+  }
 
   @override
   void dispose() {
@@ -279,6 +294,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         ),
         data: (thread) {
           final flat = _flatten(thread.comments, thread.collapsed);
+          final commentMarkdownStyle = _getCommentMarkdownStyle(context);
           _flat = flat;
           final list = RefreshIndicator(
             onRefresh: notifier.refresh,
@@ -299,6 +315,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 return _CommentTile(
                   key: ValueKey(c.fullname),
                   comment: c,
+                  markdownStyle: commentMarkdownStyle,
                   highlighted: _currentMatchId == c.fullname,
                   isOwn: c.author == username,
                   opAuthor: thread.post.author,
@@ -766,6 +783,7 @@ class _CommentTile extends ConsumerStatefulWidget {
   const _CommentTile({
     super.key,
     required this.comment,
+    required this.markdownStyle,
     required this.isOwn,
     required this.opAuthor,
     required this.collapsed,
@@ -779,6 +797,7 @@ class _CommentTile extends ConsumerStatefulWidget {
   });
 
   final Comment comment;
+  final MarkdownStyleSheet markdownStyle;
   final bool isOwn;
   final String opAuthor;
   final bool collapsed;
@@ -959,12 +978,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               child: MarkdownBody(
                 data: comment.body,
                 selectable: true,
-                styleSheet: MarkdownStyleSheet(
-                  p: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontSize: 15, height: 1.45),
-                ),
+                styleSheet: widget.markdownStyle,
                 onTapLink: (_, href, __) {
                   if (href != null) {
                     launchUrl(Uri.parse(href),

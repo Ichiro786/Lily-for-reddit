@@ -124,9 +124,11 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           // Auto-hide already-read items in the For You feed (live: rebuilds
           // when history changes).
           if (settings.autoHideReadForYou) {
-            final seen = {for (final e in ref.watch(historyControllerProvider)) e.id};
+            ref.watch(historyControllerProvider);
+            final history = ref.read(historyControllerProvider.notifier);
             posts = posts
-                .where((p) => !(p.feedReason != null && seen.contains(p.id)))
+                .where((p) =>
+                    !(p.feedReason != null && history.containsId(p.id)))
                 .toList();
           }
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
