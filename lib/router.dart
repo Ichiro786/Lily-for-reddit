@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/deep_links.dart';
 import 'core/route_observer.dart';
 import 'core/startup_metrics.dart';
 import 'features/auth/auth_controller.dart';
+import 'features/settings/settings_controller.dart' show sharedPrefsProvider;
 import 'features/auth/login_screen.dart';
 import 'features/compose/compose_post_screen.dart';
 import 'features/history/history_screen.dart';
@@ -35,6 +37,16 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     observers: [appRouteObserver],
     redirect: (context, state) {
+      // Map Reddit URLs delivered by the OS to an in-app route. This keeps
+      // cold-start deep links inside go_router instead of triggering a route
+      // exception or a second navigation from app_links.
+      final host = state.uri.host.toLowerCase();
+      if (host == 'redd.it' ||
+          host == 'reddit.com' ||
+          host.endsWith('.reddit.com')) {
+        return routeForRedditUrl(state.uri) ?? '/';
+      }
+
       final auth = ref.read(authControllerProvider);
       if (auth.isLoading) return null;
       if (!authMarked) {
@@ -43,10 +55,35 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       final loggedIn = auth.valueOrNull != null;
       final atLogin = state.matchedLocation == '/login';
-      if (!loggedIn) return atLogin ? null : '/login';
+      if (!loggedIn) {
+        // A transient secure-storage read should not bounce a known account to
+        // login. Explicit logout clears this marker in AuthController.
+        final hasAccount =
+            ref.read(sharedPrefsProvider).getBool(kHasAccountPref) ?? false;
+        if (hasAccount) return atLogin ? '/' : null;
+        return atLogin ? null : '/login';
+      }
       if (atLogin) return '/';
       return null;
     },
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Page not found', style: TextStyle(fontSize: 18)),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => context.go('/'),
+                child: const Text('Home'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeShell()),
