@@ -6,9 +6,9 @@
 class RedditConstants {
   RedditConstants._();
 
-  /// App version (keep in sync with pubspec) + GitHub repo for in-app updates.
-  static const String appVersion = '1.0.24';
-  static const String githubRepo = 'bennybar/LuliReddit';
+  /// Product identity and fork-owned release source.
+  static const String appName = 'Lily for Reddit';
+  static const String githubRepo = 'Ichiro786/LuliReddit';
 
   // Hosts
   static const String authorizeUrl =
@@ -60,6 +60,6 @@ class RedditConstants {
   /// User-Agent. Reddit requires a unique, descriptive UA per its API rules.
   static String userAgent(String? username) {
     final who = (username == null || username.isEmpty) ? 'anonymous' : username;
-    return 'android:com.bennybar.luli_for_reddit:1.0.24 (by /u/$who)';
+    return 'android:com.bennybar.luli_for_reddit:LilyForReddit (by /u/$who)';
   }
 }

@@ -64,7 +64,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         icon: const Icon(Icons.notifications_active_outlined),
         title: const Text('Get notified of replies?'),
         content: const Text(
-            'Ilay can check your Reddit inbox in the background (about every 15 '
+            'Lily for Reddit can check your Reddit inbox in the background (about every 15 '
             'minutes) and notify you of replies, mentions and messages.\n\n'
             'It uses simple polling — no Firebase or tracking. You can change '
             'this anytime in Settings.'),
@@ -96,7 +96,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       builder: (ctx) => AlertDialog(
         title: Text('Update available — v${info.version}'),
         content: const Text(
-            'A newer version of Ilay is available on GitHub.'),
+            'A newer version of Lily for Reddit is available on GitHub.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx), child: const Text('Later')),

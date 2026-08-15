@@ -161,7 +161,7 @@ Future<List<_UnreadItem>?> _fetchUnread(SecureStore store) async {
         : (subject.isNotEmpty ? subject : 'Message from u/$author');
     final snippet = rawBody.length > 140
         ? '${rawBody.substring(0, 140)}…'
-        : (rawBody.isEmpty ? 'Open Ilay to read' : rawBody);
+        : (rawBody.isEmpty ? 'Open Lily for Reddit to read' : rawBody);
 
     // Deep-link target for comment replies/mentions (t1_): jump to the comment.
     String? route;

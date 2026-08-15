@@ -37,6 +37,14 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
+      - name: Read fork version
+        id: app_version
+        shell: bash
+        run: |
+          version=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+)\+[0-9]+$/\1/p' pubspec.yaml)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Analyze Flutter code
         run: flutter analyze
 
@@ -64,7 +72,7 @@ jobs:
             -keyalg RSA \
             -keysize 2048 \
             -validity 1 \
-            -dname "CN=CI,O=LuliReddit,C=US"
+            -dname "CN=CI,O=Lily for Reddit,C=US"
           cat > android/key.properties <<EOF
           storeFile=$CI_KEYSTORE
           storePassword=changeit
@@ -75,10 +83,13 @@ jobs:
       - name: Build Flutter debug APK
         run: flutter build apk --debug
 
+      - name: Name Lily debug APK
+        run: cp build/app/outputs/flutter-apk/app-debug.apk build/app/outputs/flutter-apk/lily-for-reddit-debug.apk
+
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: luli-reddit-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: lily-for-reddit-debug-apk-v${{ steps.app_version.outputs.version }}-run-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/lily-for-reddit-debug.apk
           if-no-files-found: error
           retention-days: 14
