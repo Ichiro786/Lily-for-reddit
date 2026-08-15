@@ -487,6 +487,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                   if (url != null)
                     CachedNetworkImage(
                       imageUrl: url,
+                      memCacheHeight: height.toInt(),
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
                           Container(color: cs.surfaceContainerHighest),
@@ -532,6 +533,8 @@ class _PostCardState extends ConsumerState<PostCard> {
             if (url != null && !blur)
               CachedNetworkImage(
                 imageUrl: url,
+                memCacheWidth: size.toInt(),
+                memCacheHeight: size.toInt(),
                 fit: BoxFit.cover,
                 placeholder: (_, __) =>
                     Container(color: cs.surfaceContainerHighest),
@@ -665,6 +668,9 @@ class _PostCardState extends ConsumerState<PostCard> {
             p.previewHeight! > 0)
         ? p.previewWidth! / p.previewHeight!
         : 16 / 9;
+    final renderAspect = aspect.clamp(0.5, 2.0).toDouble();
+    final cacheWidth = MediaQuery.sizeOf(context).width.toInt();
+    final cacheHeight = (cacheWidth / renderAspect).ceil();
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: ClipRRect(
@@ -672,13 +678,15 @@ class _PostCardState extends ConsumerState<PostCard> {
         child: GestureDetector(
           onTap: _openMedia,
           child: AspectRatio(
-            aspectRatio: aspect.clamp(0.5, 2.0),
+            aspectRatio: renderAspect,
             child: Stack(
               fit: StackFit.expand,
               children: [
                 if (url != null)
                   CachedNetworkImage(
                     imageUrl: url,
+                    memCacheWidth: cacheWidth,
+                    memCacheHeight: cacheHeight,
                     fit: BoxFit.cover,
                     placeholder: (_, __) =>
                         Container(color: cs.surfaceContainerHighest),
@@ -730,6 +738,8 @@ class _PostCardState extends ConsumerState<PostCard> {
                       left: Radius.circular(16)),
                   child: CachedNetworkImage(
                     imageUrl: p.thumbnailUrl!,
+                    memCacheWidth: 72,
+                    memCacheHeight: 72,
                     width: 72,
                     height: 72,
                     fit: BoxFit.cover,

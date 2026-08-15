@@ -44,15 +44,18 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
   static const _base = 'history';
   static const _cap = 500;
   late String _key;
+  final _idSet = <String>{};
 
   @override
   List<HistoryEntry> build() {
     _key = userScopedPrefsKey(ref, _base); // per-account
     final raw = ref.read(sharedPrefsProvider).getStringList(_key) ?? const [];
-    return [
+    final entries = [
       for (final s in raw)
         HistoryEntry.fromJson(jsonDecode(s) as Map<String, dynamic>),
     ];
+    _rebuildIndex(entries);
+    return entries;
   }
 
   void markViewed(Post p) {
@@ -65,11 +68,13 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
     final list = [entry, ...state.where((e) => e.id != p.id)];
     if (list.length > _cap) list.removeRange(_cap, list.length);
     state = list;
+    _rebuildIndex(state);
     _persist();
   }
 
   void removeViewed(String id) {
     state = state.where((e) => e.id != id).toList();
+    _idSet.remove(id);
     _persist();
   }
 
@@ -79,12 +84,22 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
     final cutoff =
         DateTime.now().millisecondsSinceEpoch - age.inMilliseconds;
     state = state.where((e) => e.viewedAt >= cutoff).toList();
+    _rebuildIndex(state);
     _persist();
   }
 
   void clear() {
     state = [];
+    _idSet.clear();
     _persist();
+  }
+
+  bool containsId(String id) => _idSet.contains(id);
+
+  void _rebuildIndex(Iterable<HistoryEntry> entries) {
+    _idSet
+      ..clear()
+      ..addAll(entries.map((e) => e.id));
   }
 
   void _persist() {
@@ -100,5 +115,7 @@ final historyControllerProvider =
 
 /// Whether a post id has been viewed (for dimming in feeds).
 final historyContainsProvider = Provider.family<bool, String>((ref, id) {
-  return ref.watch(historyControllerProvider).any((e) => e.id == id);
+  // Watch the state for invalidation, then answer from the controller's index.
+  ref.watch(historyControllerProvider);
+  return ref.read(historyControllerProvider.notifier).containsId(id);
 });
