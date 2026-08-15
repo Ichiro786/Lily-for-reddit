@@ -12,6 +12,7 @@ val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
+val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
 
 android {
     namespace = "com.bennybar.luli_for_reddit"
@@ -50,6 +51,14 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            versionNameSuffix = if (ciRunNumber != null) {
+                "-debug.$ciRunNumber"
+            } else {
+                "-debug"
+            }
+        }
+
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
             // Release-only optimization; debug/profile behavior is unchanged.

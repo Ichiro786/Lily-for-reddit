@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/rate_limit.dart';
 import '../../core/providers.dart';
-import '../../core/reddit_constants.dart';
 import '../../data/reddit_repository.dart';
 import '../auth/auth_controller.dart';
 import '../notifications/inbox_poller.dart';
@@ -336,10 +335,10 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ),
           const ListTile(
             leading: Icon(Icons.link_rounded),
-            title: Text('Open reddit links in Ilay'),
+            title: Text('Open reddit links in Lily for Reddit'),
             subtitle: Text(
                 'Already supported via the Android "open with" chooser. To make '
-                'Ilay the verified default, enable it under system app settings '
+                'Lily for Reddit the verified default, enable it under system app settings '
                 '› Open by default.'),
           ),
           ListTile(
@@ -414,12 +413,14 @@ class _SettingsListState extends ConsumerState<SettingsList> {
   Future<void> _checkUpdatesNow(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(const SnackBar(content: Text('Checking…')));
-    final info = await UpdateChecker().check();
+    final checker = UpdateChecker();
+    final currentVersion = await checker.currentVersion();
+    final info = await checker.check(installedVersion: currentVersion);
     if (!context.mounted) return;
     if (info == null) {
       messenger.showSnackBar(SnackBar(
           content: Text(
-              "You're on the latest version (${RedditConstants.appVersion}).")));
+              "You're on the latest version ($currentVersion).")));
       return;
     }
     showDialog(

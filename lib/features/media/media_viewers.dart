@@ -116,9 +116,9 @@ Future<void> saveMediaToGallery(BuildContext context, String url,
       onReceiveProgress: (got, total) => progress.value = (got, total),
     );
     if (isVideo) {
-      await Gal.putVideo(path, album: 'Ilay');
+      await Gal.putVideo(path, album: 'Lily for Reddit');
     } else {
-      await Gal.putImage(path, album: 'Ilay');
+      await Gal.putImage(path, album: 'Lily for Reddit');
     }
     nav.pop();
     messenger.showSnackBar(

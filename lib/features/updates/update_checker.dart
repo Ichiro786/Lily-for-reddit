@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/reddit_constants.dart';
 
@@ -14,15 +15,24 @@ class UpdateInfo {
 class UpdateChecker {
   final Dio _dio = Dio();
 
-  Future<UpdateInfo?> check() async {
+  Future<String> currentVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    return info.version;
+  }
+
+  Future<UpdateInfo?> check({String? installedVersion}) async {
     try {
       final res = await _dio.get(
         'https://api.github.com/repos/${RedditConstants.githubRepo}/releases/latest',
         options: Options(headers: {'Accept': 'application/vnd.github+json'}),
       );
       final data = res.data as Map<String, dynamic>;
-      final tag = (data['tag_name'] as String? ?? '').replaceFirst('v', '').trim();
-      if (tag.isEmpty || !_isNewer(tag, RedditConstants.appVersion)) return null;
+      final tag = normalizeReleaseVersion(data['tag_name'] as String? ?? '');
+      final current = normalizeReleaseVersion(
+          installedVersion ?? await currentVersion());
+      if (tag.isEmpty || current.isEmpty || !isNewerReleaseVersion(tag, current)) {
+        return null;
+      }
       // Pick the LARGEST .apk — that's the universal build (installs on any
       // device). Releases also carry smaller per-ABI split APKs for F-Droid.
       final assets = (data['assets'] as List?) ?? const [];
@@ -49,7 +59,14 @@ class UpdateChecker {
     }
   }
 
-  bool _isNewer(String a, String b) {
+  /// Accepts tags such as `v1.2.0`, `1.2.0`, and `lily-v1.2.0`, while keeping
+  /// the app-facing comparison on the three-part semantic version only.
+  static String normalizeReleaseVersion(String raw) {
+    final match = RegExp(r'(\d+\.\d+\.\d+)').firstMatch(raw.trim());
+    return match?.group(1) ?? '';
+  }
+
+  static bool isNewerReleaseVersion(String a, String b) {
     final pa = a.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     final pb = b.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     for (var i = 0; i < 3; i++) {
