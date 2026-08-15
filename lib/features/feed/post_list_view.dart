@@ -7,6 +7,7 @@ import '../../core/route_observer.dart';
 import '../../core/startup_metrics.dart';
 import '../../core/widgets/error_view.dart';
 import '../../data/reddit_repository.dart';
+import '../../models/post.dart';
 import '../history/history_store.dart';
 import '../settings/settings_controller.dart';
 import 'feed_controller.dart';
