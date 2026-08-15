@@ -34,6 +34,10 @@ class HomeShell extends ConsumerStatefulWidget {
 class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = 0;
 
+  // Posts is created directly by build(). Other tabs stay null until first
+  // selection, then remain mounted so their scroll and provider state survive.
+  final List<Widget?> _tabWidgets = List<Widget?>.filled(4, null);
+
   bool _chrome = true;
 
   @override
@@ -109,6 +113,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
   }
 
+  Widget _createTab(int index) {
+    switch (index) {
+      case 1:
+        return const ExploreScreen();
+      case 2:
+        return const InboxScreen();
+      case 3:
+        return const AccountTab();
+      default:
+        throw ArgumentError.value(index, 'index', 'Only tabs 1-3 are lazy.');
+    }
+  }
+
   bool _onScroll(UserScrollNotification n) {
     if (n.depth != 0) return false;
     final m = n.metrics;
@@ -138,13 +155,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         onNotification: _onScroll,
         child: SafeArea(
           bottom: false,
-          child: IndexedStack(
+          child: _LazyKeepAliveTabHost(
             index: _index,
-            children: [
+            tabs: [
               _FrontpageTab(chromeVisible: _chrome),
-              const ExploreScreen(),
-              const InboxScreen(),
-              const AccountTab(),
+              _tabWidgets[1],
+              _tabWidgets[2],
+              _tabWidgets[3],
             ],
           ),
         ),
@@ -168,12 +185,41 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               return;
             }
             setState(() {
+              if (i != 0) _tabWidgets[i] ??= _createTab(i);
               _index = i;
               _chrome = true; // always reveal chrome when switching tabs
             });
           },
         ),
       ),
+    );
+  }
+}
+
+/// Keeps initialized tabs mounted while creating non-selected tabs on demand.
+/// Offstage preserves each tab's element/state tree; TickerMode avoids running
+/// animations for tabs that are not currently visible.
+class _LazyKeepAliveTabHost extends StatelessWidget {
+  const _LazyKeepAliveTabHost({required this.index, required this.tabs});
+
+  final int index;
+  final List<Widget?> tabs;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < tabs.length; i++)
+          Offstage(
+            key: ValueKey<int>(i),
+            offstage: i != index,
+            child: TickerMode(
+              enabled: i == index,
+              child: tabs[i] ?? const SizedBox.shrink(),
+            ),
+          ),
+      ],
     );
   }
 }

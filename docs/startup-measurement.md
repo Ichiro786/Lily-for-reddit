@@ -82,3 +82,19 @@ For a before/after comparison, collect PR 1 and PR 2 runs under the same device,
 | `home-ready-proxy` | Should remain comparable; investigate any regression before proceeding to PR 3. |
 
 The deferred coordinator logs failures under `luli.startup.deferred` and intentionally treats them as non-fatal. A successful baseline run should also confirm that opted-in inbox polling is still registered after startup and that analytics events continue to be emitted when analytics is enabled.
+
+## PR 3 comparison
+
+PR 3 replaces the eager home `IndexedStack` children with four stable tab slots. Posts is the only real child created initially. Explore, Inbox, and Account occupy inert `SizedBox.shrink()` placeholders until their bottom-navigation index is first selected. Once created, each tab remains mounted in its keyed slot and is wrapped with `Offstage` plus `TickerMode` so scroll positions, provider state, and normal revisit behavior remain intact while inactive animations are paused.
+
+This removes the following off-screen startup work from the initial Posts route:
+
+| Tab | Work no longer triggered before first selection |
+|---|---|
+| Explore | `subscribedSubredditsProvider` and its subscription-list request. |
+| Inbox | The four `_InboxList` provider watches for `inbox`, `unread`, `messages`, and `sent`. |
+| Account | `myMultiredditsProvider` and its custom-feed request. |
+
+The unread badge request remains unchanged by design and is still part of the separate PR 4 scope. The frontpage feed and retry behavior are also unchanged.
+
+Expected PR 1 metric impact is a smaller amount of first-frame widget/provider work and less startup network contention. `pre-runApp` should be unchanged from PR 2 because PR 3 does not edit `main()`. `first-frame` should improve or remain stable, while `auth-resolution` should remain unchanged. On authenticated launches, `first-content` may improve if the removed off-screen requests were competing for network/auth resources; it should not regress. Compare logged-in Posts launches with PR 2 and PR 3 under identical account, network, and cache conditions.
