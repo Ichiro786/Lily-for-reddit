@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -28,33 +30,78 @@ class _InlineVideoState extends State<InlineVideo> {
   bool _ready = false;
   bool _muted = true;
   bool _visible = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final c = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-    _c = c;
-    c.setLooping(true);
-    c.setVolume(0);
-    c.initialize().then((_) {
-      if (!mounted) return;
-      setState(() => _ready = true);
-      if (_visible) c.play();
-    }).catchError((_) {});
-  }
+  bool _initializing = false;
+  int _generation = 0;
 
   void _onVisibility(VisibilityInfo info) {
     final visible = info.visibleFraction > 0.6;
     if (visible == _visible) return;
     _visible = visible;
+    if (visible) {
+      unawaited(_initializeIfVisible());
+      return;
+    }
+
     final c = _c;
-    if (c == null || !_ready) return;
-    visible ? c.play() : c.pause();
+    if (c == null) return;
+    if (!_ready) {
+      // Initialization has started but the card left the viewport. Dispose the
+      // controller now so a fast fling does not keep a decoder/network request
+      // alive for an item the user did not actually see.
+      _cancelInitialization(c);
+    } else {
+      c.pause();
+    }
+  }
+
+  Future<void> _initializeIfVisible() async {
+    if (!mounted || !_visible || _c != null || _initializing) return;
+    _initializing = true;
+    final generation = ++_generation;
+    final c = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    _c = c;
+    c.setLooping(true);
+    c.setVolume(0);
+
+    try {
+      await c.initialize();
+      final active = mounted &&
+          _visible &&
+          generation == _generation &&
+          identical(_c, c);
+      if (!active) return;
+      _ready = true;
+      setState(() {});
+      await c.play();
+    } catch (_) {
+      if (generation == _generation && identical(_c, c)) {
+        _c = null;
+        _ready = false;
+        if (mounted) setState(() {});
+        await c.dispose();
+      }
+    } finally {
+      if (generation == _generation && identical(_c, c)) {
+        _initializing = false;
+      }
+    }
+  }
+
+  void _cancelInitialization(VideoPlayerController c) {
+    _generation++;
+    _initializing = false;
+    _c = null;
+    _ready = false;
+    unawaited(c.dispose());
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _c?.dispose();
+    _generation++;
+    final c = _c;
+    _c = null;
+    if (c != null) unawaited(c.dispose());
     super.dispose();
   }
 
