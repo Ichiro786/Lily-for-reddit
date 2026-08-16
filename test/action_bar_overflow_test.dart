@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
+import 'package:luli_for_reddit/data/reddit_repository.dart';
 import 'package:luli_for_reddit/features/feed/post_card.dart';
 import 'package:luli_for_reddit/features/feed/post_overrides.dart';
 import 'package:luli_for_reddit/features/history/history_store.dart';
@@ -15,7 +16,7 @@ class _TestSettingsController extends SettingsController {
         themeMode: ThemeMode.light,
         amoled: false,
         useDynamicColor: false,
-        seedColor: AppTheme.seed,
+        seedColor: 0xFF6750A4,
         blurNsfw: true,
         defaultSort: PostSort.best,
         postDisplay: PostDisplay.large,
