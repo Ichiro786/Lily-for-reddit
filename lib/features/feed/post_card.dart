@@ -122,7 +122,13 @@ class _PostCardState extends ConsumerState<PostCard> {
     };
     // Dim already-viewed posts when history tracking is on.
     if (seen && settings.trackHistory) {
-      card = Opacity(opacity: 0.55, child: card);
+      card = ColorFiltered(
+        colorFilter: ColorFilter.mode(
+          Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.45),
+          BlendMode.srcOver,
+        ),
+        child: card,
+      );
     }
     // "Why you're seeing this" banner (For You feed only).
     final reason = widget.post.feedReason;
