@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luli_for_reddit/core/root_messenger.dart';
 
 void main() {
-  testWidgets('root snackbar dismisses after its standard duration',
+  testWidgets('root snackbar dismisses after its display duration',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -17,6 +17,7 @@ void main() {
       duration: Duration(milliseconds: 200),
     ));
     await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('Tune saved'), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 500));
