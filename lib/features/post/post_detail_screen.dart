@@ -1352,6 +1352,7 @@ class _VotePill extends StatelessWidget {
     final down = likes == false;
     final countColor = up ? votes.up : (down ? votes.down : cs.onSurfaceVariant);
     return Container(
+      constraints: const BoxConstraints(maxWidth: 130),
       decoration: BoxDecoration(
           color: cs.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(999)),
@@ -1365,8 +1366,13 @@ class _VotePill extends StatelessWidget {
             icon: Icon(Icons.arrow_upward_rounded,
                 color: up ? votes.up : cs.onSurfaceVariant),
           ),
-          Text(compactNumber(score),
-              style: TextStyle(fontWeight: FontWeight.w700, color: countColor)),
+          Flexible(
+            child: Text(
+              compactNumber(score),
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w700, color: countColor),
+            ),
+          ),
           IconButton(
             onPressed: onDown,
             visualDensity: VisualDensity.compact,
