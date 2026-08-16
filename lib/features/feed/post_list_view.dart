@@ -134,6 +134,9 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(
             controller: _scroll,
+            cacheExtent: 1500,
+            addAutomaticKeepAlives: false,
+            addRepaintBoundaries: false,
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -157,9 +160,11 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               if (index < posts.length) {
                 final post = posts[index];
                 if (widget.feedKey.isEmpty && index == 0) {
-                  return _StartupFirstPostVisibility(post: post);
+                  return RepaintBoundary(
+                    child: _StartupFirstPostVisibility(post: post),
+                  );
                 }
-                return PostCard(post: post);
+                return RepaintBoundary(child: PostCard(post: post));
               }
               // footer
               return Padding(
