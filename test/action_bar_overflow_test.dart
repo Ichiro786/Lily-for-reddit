@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:luli_for_reddit/features/feed/post_card.dart';
+import 'package:luli_for_reddit/features/settings/settings_controller.dart';
 import 'package:luli_for_reddit/models/post.dart';
 
 void main() {
@@ -11,6 +13,9 @@ void main() {
     tester.view.devicePixelRatio = 2.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
 
     final post = Post.fromData({
       'id': 'test_overflow',
@@ -23,6 +28,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
         child: MaterialApp(
           home: Scaffold(
             body: Center(
