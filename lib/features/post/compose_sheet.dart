@@ -24,6 +24,7 @@ Future<Comment?> showReplySheet(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
+    requestFocus: false,
     sheetAnimationStyle: const AnimationStyle(
       curve: Cubic(0.2, 0.0, 0.0, 1.0),
       duration: Duration(milliseconds: 400),
