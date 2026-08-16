@@ -74,7 +74,11 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   bool _enrichmentInFlight = false;
   bool _disposed = false;
 
-  Future<Listing<Post>> _fetch({String? after, bool fast = false}) {
+  Future<Listing<Post>> _fetch({
+    String? after,
+    bool fast = false,
+    Listing<Post>? bestSeed,
+  }) {
     if (_forYou) {
       final history = ref.read(historyControllerProvider);
       final kw = ref.read(keywordStoreProvider.notifier);
@@ -87,6 +91,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         titleKeyword: kw.topKeywordIn,
         cursors: after, // null = first page; else the encoded cursor bundle
         fast: fast,
+        bestSeed: bestSeed,
         excludeIds: after == null
             ? const {}
             : {
@@ -109,13 +114,17 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         subreddit: _subreddit, sort: _sort!, time: _time, after: after);
   }
 
-  Future<Listing<Post>> _fetchWithRetry({String? after, bool fast = false}) async {
+  Future<Listing<Post>> _fetchWithRetry({
+    String? after,
+    bool fast = false,
+    Listing<Post>? bestSeed,
+  }) async {
     try {
-      return await _fetch(after: after, fast: fast);
+      return await _fetch(after: after, fast: fast, bestSeed: bestSeed);
     } on DioException catch (error) {
       if (!_isRetryableTransport(error)) rethrow;
       await Future<void>.delayed(const Duration(milliseconds: 250));
-      return _fetch(after: after, fast: fast);
+      return _fetch(after: after, fast: fast, bestSeed: bestSeed);
     }
   }
 
@@ -146,7 +155,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         after: preview.after,
       );
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_disposed) unawaited(_enrichForYou(previewState));
+        if (!_disposed) unawaited(_enrichForYou(previewState, preview));
       });
       return previewState;
     }
@@ -185,11 +194,12 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     state = await AsyncValue.guard(() => build(arg));
   }
 
-  Future<void> _enrichForYou(FeedState preview) async {
+  Future<void> _enrichForYou(
+      FeedState preview, Listing<Post> bestSeed) async {
     if (_disposed || _enrichmentInFlight || !_forYou) return;
     _enrichmentInFlight = true;
     try {
-      final listing = await _fetchWithRetry();
+      final listing = await _fetchWithRetry(bestSeed: bestSeed);
       if (_disposed || !_forYou || state.valueOrNull != preview) return;
       final current = state.valueOrNull;
       if (current == null || listing.items.isEmpty) return;

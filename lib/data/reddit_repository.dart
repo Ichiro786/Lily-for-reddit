@@ -114,6 +114,8 @@ class RedditRepository {
     String? cursors, // JSON cursor bundle from a previous page's `after`
     Set<String> excludeIds = const {},
     bool fast = false,
+    // Reuses the already-fetched first-page best listing during enrichment.
+    Listing<Post>? bestSeed,
   }) async {
     // The preview deliberately uses one lightweight standard best request. It
     // gives the user usable subscribed-frontpage content while the full local
@@ -179,10 +181,14 @@ class RedditRepository {
     final risingAfter = prev['rising'] as String?;
     final popularAfter = prev['popular'] as String?;
 
-    final bestF = (firstPage || bestAfter != null)
-        ? safe(() => getPosts(
-            sort: PostSort.best, limit: firstPage ? 100 : 50, after: bestAfter))
-        : Future.value(const Listing<Post>(items: []));
+    final bestF = bestSeed != null
+        ? Future.value(bestSeed)
+        : (firstPage || bestAfter != null)
+            ? safe(() => getPosts(
+                sort: PostSort.best,
+                limit: firstPage ? 100 : 50,
+                after: bestAfter))
+            : Future.value(const Listing<Post>(items: []));
     final risingF = (firstPage || risingAfter != null)
         ? safe(() => getPosts(
             sort: PostSort.rising, limit: 25, after: risingAfter))
