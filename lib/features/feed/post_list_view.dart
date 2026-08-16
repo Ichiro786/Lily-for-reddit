@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -134,7 +135,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(
             controller: _scroll,
-            scrollCacheExtent: 1500,
+            scrollCacheExtent: const ScrollCacheExtent.pixels(1500),
             addAutomaticKeepAlives: false,
             addRepaintBoundaries: false,
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
