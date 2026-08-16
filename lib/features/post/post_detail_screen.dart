@@ -306,7 +306,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               itemPositionsListener: _itemPositions,
               // Prebuild roughly two comment screens to reduce visible work
               // during fast scrolling without retaining the whole thread.
-              cacheExtent: 600,
+              minCacheExtent: 600,
               padding: const EdgeInsets.only(top: 6, bottom: 96),
               itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
               itemBuilder: (context, index) {
