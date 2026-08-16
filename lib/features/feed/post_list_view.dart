@@ -134,7 +134,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(
             controller: _scroll,
-            cacheExtent: 1500,
+            scrollCacheExtent: 1500,
             addAutomaticKeepAlives: false,
             addRepaintBoundaries: false,
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
