@@ -862,6 +862,7 @@ class _VotePill extends StatelessWidget {
     final countColor = up ? votes.up : (down ? votes.down : cs.onSurfaceVariant);
     // Bloom "split" votes: a soft pill holding up / count / down.
     return Container(
+      constraints: const BoxConstraints(maxWidth: 130),
       decoration: BoxDecoration(
           color: cs.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(999)),
@@ -869,8 +870,13 @@ class _VotePill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _miniBtn(Icons.arrow_upward_rounded, up ? votes.up : cs.onSurfaceVariant, onUp),
-          Text(compactNumber(score),
-              style: TextStyle(fontWeight: FontWeight.w700, color: countColor)),
+          Flexible(
+            child: Text(
+              compactNumber(score),
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.w700, color: countColor),
+            ),
+          ),
           _miniBtn(Icons.arrow_downward_rounded,
               down ? votes.down : cs.onSurfaceVariant, onDown),
         ],
@@ -903,13 +909,19 @@ class _ActionChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 18, color: cs.onSurfaceVariant),
-              const SizedBox(width: 6),
-              Text(label, style: TextStyle(color: cs.onSurfaceVariant)),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                ),
+              ),
             ],
           ),
         ),
