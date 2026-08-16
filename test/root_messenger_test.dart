@@ -16,7 +16,8 @@ void main() {
     await tester.pump();
     expect(find.text('Tune saved'), findsOneWidget);
 
-    await tester.pump(const Duration(seconds: 4));
+    // The four-second display timer starts after the entrance animation.
+    await tester.pump(const Duration(seconds: 4, milliseconds: 500));
     await tester.pumpAndSettle();
     expect(find.text('Tune saved'), findsNothing);
   });
