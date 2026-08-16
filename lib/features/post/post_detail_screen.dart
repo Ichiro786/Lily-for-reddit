@@ -1027,89 +1027,122 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
     final up = _likes == true;
     final down = _likes == false;
     final scoreColor = up ? votes.up : (down ? votes.down : cs.onSurfaceVariant);
-    return Row(
-      children: [
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          iconSize: 18,
-          onPressed: () => _vote(1),
-          icon: Icon(Icons.arrow_upward_rounded,
-              color: up ? votes.up : cs.onSurfaceVariant),
-        ),
-        Flexible(
-          child: Text(
-            widget.comment.scoreHidden ? '–' : compactNumber(_score),
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w700, color: scoreColor),
-          ),
-        ),
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          iconSize: 18,
-          onPressed: () => _vote(-1),
-          icon: Icon(Icons.arrow_downward_rounded,
-              color: down ? votes.down : cs.onSurfaceVariant),
-        ),
-        Flexible(
-          child: _CommentActionBtn(
-            icon: Icons.reply_rounded,
-            label: 'Reply',
-            onTap: widget.onReply,
-          ),
-        ),
-        const Spacer(),
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          iconSize: 18,
-          tooltip: 'Collapse thread',
-          onPressed: widget.onToggle,
-          color: cs.onSurfaceVariant,
-          icon: const Icon(Icons.unfold_less_rounded),
-        ),
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          iconSize: 18,
-          onPressed: _toggleSave,
-          color: _saved ? cs.primary : cs.onSurfaceVariant,
-          icon: Icon(_saved
-              ? Icons.bookmark_rounded
-              : Icons.bookmark_border_rounded),
-        ),
-        PopupMenuButton<String>(
-          icon: Icon(Icons.more_horiz_rounded,
-              size: 18, color: cs.onSurfaceVariant),
-          padding: EdgeInsets.zero,
-          onSelected: (v) {
-            switch (v) {
-              case 'copy':
-                Clipboard.setData(ClipboardData(text: widget.comment.body));
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Copied')));
-              case 'share':
-                shareUrl(context, 'https://reddit.com${widget.comment.permalink}');
-              case 'edit':
-                widget.onEdit();
-              case 'delete':
-                widget.onDelete();
-              case 'block':
-                confirmBlockUser(context, ref, widget.comment.author);
-            }
-          },
-          itemBuilder: (_) => [
-            const PopupMenuItem(value: 'copy', child: Text('Copy text')),
-            if (widget.comment.permalink.isNotEmpty)
-              const PopupMenuItem(value: 'share', child: Text('Share')),
-            if (widget.isOwn) ...[
-              const PopupMenuItem(value: 'edit', child: Text('Edit')),
-              const PopupMenuItem(value: 'delete', child: Text('Delete')),
-            ],
-            if (!widget.isOwn && widget.comment.author != '[deleted]')
-              PopupMenuItem(
-                  value: 'block', child: Text('Block u/${widget.comment.author}')),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 380;
+        final row = Row(
+          mainAxisSize: isNarrow ? MainAxisSize.min : MainAxisSize.max,
+          children: [
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              onPressed: () => _vote(1),
+              icon: Icon(Icons.arrow_upward_rounded,
+                  color: up ? votes.up : cs.onSurfaceVariant),
+            ),
+            if (isNarrow)
+              Text(
+                widget.comment.scoreHidden ? '–' : compactNumber(_score),
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: scoreColor),
+              )
+            else
+              Flexible(
+                child: Text(
+                  widget.comment.scoreHidden ? '–' : compactNumber(_score),
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: scoreColor),
+                ),
+              ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              onPressed: () => _vote(-1),
+              icon: Icon(Icons.arrow_downward_rounded,
+                  color: down ? votes.down : cs.onSurfaceVariant),
+            ),
+            if (isNarrow)
+              _CommentActionBtn(
+                icon: Icons.reply_rounded,
+                label: 'Reply',
+                onTap: widget.onReply,
+              )
+            else
+              Flexible(
+                child: _CommentActionBtn(
+                  icon: Icons.reply_rounded,
+                  label: 'Reply',
+                  onTap: widget.onReply,
+                ),
+              ),
+            if (isNarrow) const SizedBox(width: 8) else const Spacer(),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              tooltip: 'Collapse thread',
+              onPressed: widget.onToggle,
+              color: cs.onSurfaceVariant,
+              icon: const Icon(Icons.unfold_less_rounded),
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              onPressed: _toggleSave,
+              color: _saved ? cs.primary : cs.onSurfaceVariant,
+              icon: Icon(_saved
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded),
+            ),
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_horiz_rounded,
+                  size: 18, color: cs.onSurfaceVariant),
+              padding: EdgeInsets.zero,
+              onSelected: (v) {
+                switch (v) {
+                  case 'copy':
+                    Clipboard.setData(ClipboardData(text: widget.comment.body));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Copied')));
+                  case 'share':
+                    shareUrl(context,
+                        'https://reddit.com${widget.comment.permalink}');
+                  case 'edit':
+                    widget.onEdit();
+                  case 'delete':
+                    widget.onDelete();
+                  case 'block':
+                    confirmBlockUser(context, ref, widget.comment.author);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'copy', child: Text('Copy text')),
+                if (widget.comment.permalink.isNotEmpty)
+                  const PopupMenuItem(value: 'share', child: Text('Share')),
+                if (widget.isOwn) ...[
+                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+                if (!widget.isOwn && widget.comment.author != '[deleted]')
+                  PopupMenuItem(
+                      value: 'block',
+                      child: Text('Block u/${widget.comment.author}')),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+        return isNarrow
+            ? SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: row,
+              )
+            : row;
+      },
     );
   }
 }

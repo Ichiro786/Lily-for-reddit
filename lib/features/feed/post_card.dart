@@ -785,38 +785,65 @@ class _PostCardState extends ConsumerState<PostCard> {
     final score = ov?.score ?? widget.post.score;
     final saved = ov?.saved ?? widget.post.saved;
     final numComments = ov?.numComments ?? widget.post.numComments;
-    return Row(
-      children: [
-        Flexible(
-          child: _VotePill(
-            score: score,
-            likes: likes,
-            onUp: () => _vote(1),
-            onDown: () => _vote(-1),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: _ActionChip(
-            icon: Icons.mode_comment_outlined,
-            label: compactNumber(numComments),
-            onTap: _openDetail,
-          ),
-        ),
-        const Spacer(),
-        _ReadToggle(post: widget.post),
-        IconButton(
-          onPressed: _toggleSave,
-          icon: Icon(saved
-              ? Icons.bookmark_rounded
-              : Icons.bookmark_border_rounded),
-          color: saved ? cs.primary : null,
-        ),
-        IconButton(
-          onPressed: () => showPostActionsSheet(context, ref, widget.post),
-          icon: const Icon(Icons.more_vert_rounded),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 380;
+        final row = Row(
+          mainAxisSize: isNarrow ? MainAxisSize.min : MainAxisSize.max,
+          children: [
+            if (isNarrow)
+              _VotePill(
+                score: score,
+                likes: likes,
+                onUp: () => _vote(1),
+                onDown: () => _vote(-1),
+              )
+            else
+              Flexible(
+                child: _VotePill(
+                  score: score,
+                  likes: likes,
+                  onUp: () => _vote(1),
+                  onDown: () => _vote(-1),
+                ),
+              ),
+            const SizedBox(width: 8),
+            if (isNarrow)
+              _ActionChip(
+                icon: Icons.mode_comment_outlined,
+                label: compactNumber(numComments),
+                onTap: _openDetail,
+              )
+            else
+              Flexible(
+                child: _ActionChip(
+                  icon: Icons.mode_comment_outlined,
+                  label: compactNumber(numComments),
+                  onTap: _openDetail,
+                ),
+              ),
+            if (isNarrow) const SizedBox(width: 8) else const Spacer(),
+            _ReadToggle(post: widget.post),
+            IconButton(
+              onPressed: _toggleSave,
+              icon: Icon(saved
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded),
+              color: saved ? cs.primary : null,
+            ),
+            IconButton(
+              onPressed: () => showPostActionsSheet(context, ref, widget.post),
+              icon: const Icon(Icons.more_vert_rounded),
+            ),
+          ],
+        );
+        return isNarrow
+            ? SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: row,
+              )
+            : row;
+      },
     );
   }
 }
