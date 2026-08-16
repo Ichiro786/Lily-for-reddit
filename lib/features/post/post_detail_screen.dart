@@ -304,6 +304,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             child: ScrollablePositionedList.builder(
               itemScrollController: _itemScroll,
               itemPositionsListener: _itemPositions,
+              // Prebuild roughly two comment screens to reduce visible work
+              // during fast scrolling without retaining the whole thread.
+              minCacheExtent: 600,
               padding: const EdgeInsets.only(top: 6, bottom: 96),
               itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
               itemBuilder: (context, index) {
@@ -315,8 +318,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   );
                 }
                 final c = flat[index - 1];
-                return _CommentTile(
-                  key: ValueKey(c.fullname),
+                return RepaintBoundary(
+                  child: _CommentTile(
+                    key: ValueKey(c.fullname),
                   comment: c,
                   markdownStyle: commentMarkdownStyle,
                   highlighted: _currentMatchId == c.fullname,
@@ -355,6 +359,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       notifier.removeComment(c.fullname);
                     }
                   },
+                ),
                 );
               },
             ),
@@ -820,6 +825,34 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
   late bool? _likes = widget.comment.likes;
   late int _score = widget.comment.score;
   late bool _saved = widget.comment.saved;
+  final Map<String, Widget> _markdownWidgets = <String, Widget>{};
+  bool _headerPressed = false;
+
+  @override
+  void didUpdateWidget(covariant _CommentTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.comment.id != widget.comment.id ||
+        oldWidget.comment.body != widget.comment.body ||
+        oldWidget.markdownStyle != widget.markdownStyle) {
+      _markdownWidgets.remove(widget.comment.id);
+    }
+  }
+
+  Widget _markdownBody(String text) {
+    return _markdownWidgets.putIfAbsent(
+      widget.comment.id,
+      () => MarkdownBody(
+        data: text,
+        selectable: true,
+        styleSheet: widget.markdownStyle,
+        onTapLink: (_, href, __) {
+          if (href != null) {
+            launchUrl(Uri.parse(href), mode: LaunchMode.externalApplication);
+          }
+        },
+      ),
+    );
+  }
 
   Future<void> _vote(int dir) async {
     final current = _likes == true ? 1 : (_likes == false ? -1 : 0);
@@ -926,13 +959,29 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                   children: [
                     // Long-press collapses the whole subtree; tap re-expands a
                     // collapsed comment (so a tap can't accidentally collapse).
-                    InkWell(
+                    GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: widget.collapsed ? widget.onToggle : null,
+            onTapDown: widget.collapsed
+                ? (_) => setState(() => _headerPressed = true)
+                : null,
+            onTapUp: widget.collapsed
+                ? (_) => setState(() => _headerPressed = false)
+                : null,
+            onTapCancel: widget.collapsed
+                ? () => setState(() => _headerPressed = false)
+                : null,
             onLongPress: () {
+              _headerPressed = false;
               HapticFeedback.selectionClick();
               widget.onToggle();
             },
-            child: Padding(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              color: _headerPressed
+                  ? cs.onSurface.withValues(alpha: 0.08)
+                  : Colors.transparent,
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Row(
                 children: [
@@ -975,23 +1024,14 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                         size: 16, color: cs.onSurfaceVariant),
                 ],
               ),
+              ),
             ),
           ),
           if (!widget.collapsed) ...[
             if (commentText.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                child: MarkdownBody(
-                  data: commentText,
-                  selectable: true,
-                  styleSheet: widget.markdownStyle,
-                  onTapLink: (_, href, __) {
-                    if (href != null) {
-                      launchUrl(Uri.parse(href),
-                          mode: LaunchMode.externalApplication);
-                    }
-                  },
-                ),
+                child: _markdownBody(commentText),
               ),
             if (commentMedia.isNotEmpty)
               Padding(
