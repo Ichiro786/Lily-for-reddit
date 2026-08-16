@@ -929,7 +929,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       onRight: () => _vote(1),
       onLeft: () => _vote(-1),
       child: Container(
-        margin: EdgeInsets.fromLTRB(10 + indent, 0, 10, 8),
+        margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
         decoration: BoxDecoration(
           color: widget.highlighted
               ? cs.primaryContainer
@@ -946,17 +946,26 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Colored depth edge (only on replies).
-              if (depth > 0)
-                Container(width: 4, color: edge.withValues(alpha: 0.9)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
+          children: [
+            if (depth > 0)
+              Positioned.fill(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    SizedBox(width: indent),
+                    Container(
+                      width: 4,
+                      color: edge.withValues(alpha: 0.9),
+                    ),
+                  ],
+                ),
+              ),
+            Padding(
+              padding: EdgeInsets.only(left: depth * 12.0 + 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                     // Long-press collapses the whole subtree; tap re-expands a
                     // collapsed comment (so a tap can't accidentally collapse).
                     GestureDetector(
@@ -1054,9 +1063,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
             ),
                   ],
                 ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
