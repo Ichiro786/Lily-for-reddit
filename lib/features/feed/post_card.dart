@@ -282,9 +282,8 @@ class _PostCardState extends ConsumerState<PostCard> {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
     return Card(
-      child: InkWell(
+      child: GestureDetector(
         onTap: _openDetail,
-        borderRadius: BorderRadius.circular(28),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
           child: Column(
@@ -331,9 +330,8 @@ class _PostCardState extends ConsumerState<PostCard> {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
     return Card(
-      child: InkWell(
+      child: GestureDetector(
         onTap: _openDetail,
-        borderRadius: BorderRadius.circular(28),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
           child: Column(
@@ -381,9 +379,8 @@ class _PostCardState extends ConsumerState<PostCard> {
     final cs = Theme.of(context).colorScheme;
     final thumb = _thumb(cs, 88);
     return Card(
-      child: InkWell(
+      child: GestureDetector(
         onTap: _openDetail,
-        borderRadius: BorderRadius.circular(28),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 6, 4),
           child: Column(
@@ -489,6 +486,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                   if (url != null)
                     CachedNetworkImage(
                       imageUrl: url,
+                      memCacheWidth: 600,
                       memCacheHeight: height.toInt(),
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
@@ -535,7 +533,7 @@ class _PostCardState extends ConsumerState<PostCard> {
             if (url != null && !blur)
               CachedNetworkImage(
                 imageUrl: url,
-                memCacheWidth: size.toInt(),
+                memCacheWidth: 600,
                 memCacheHeight: size.toInt(),
                 fit: BoxFit.cover,
                 placeholder: (_, __) =>
@@ -687,7 +685,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                 if (url != null)
                   CachedNetworkImage(
                     imageUrl: url,
-                    memCacheWidth: cacheWidth,
+                    memCacheWidth: 600,
                     memCacheHeight: cacheHeight,
                     fit: BoxFit.cover,
                     placeholder: (_, __) =>
@@ -725,9 +723,8 @@ class _PostCardState extends ConsumerState<PostCard> {
     final p = widget.post;
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: InkWell(
+      child: GestureDetector(
         onTap: _openMedia,
-        borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
               color: cs.surfaceContainerHighest,
@@ -740,7 +737,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                       left: Radius.circular(16)),
                   child: CachedNetworkImage(
                     imageUrl: p.thumbnailUrl!,
-                    memCacheWidth: 72,
+                    memCacheWidth: 600,
                     memCacheHeight: 72,
                     width: 72,
                     height: 72,
@@ -905,8 +902,7 @@ class _ActionChip extends StatelessWidget {
     return Material(
       color: cs.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+      child: GestureDetector(
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
