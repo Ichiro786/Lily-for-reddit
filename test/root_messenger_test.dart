@@ -12,12 +12,14 @@ void main() {
       ),
     );
 
-    showRootSnackBar(const SnackBar(content: Text('Tune saved')));
+    showRootSnackBar(const SnackBar(
+      content: Text('Tune saved'),
+      duration: Duration(milliseconds: 200),
+    ));
     await tester.pump();
     expect(find.text('Tune saved'), findsOneWidget);
 
-    // The four-second display timer starts after the entrance animation.
-    await tester.pump(const Duration(seconds: 4, milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
     expect(find.text('Tune saved'), findsNothing);
   });
