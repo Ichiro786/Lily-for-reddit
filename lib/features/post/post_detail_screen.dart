@@ -1036,10 +1036,13 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           icon: Icon(Icons.arrow_upward_rounded,
               color: up ? votes.up : cs.onSurfaceVariant),
         ),
-        Text(
-          widget.comment.scoreHidden ? '–' : compactNumber(_score),
-          style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w700, color: scoreColor),
+        Flexible(
+          child: Text(
+            widget.comment.scoreHidden ? '–' : compactNumber(_score),
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700, color: scoreColor),
+          ),
         ),
         IconButton(
           visualDensity: VisualDensity.compact,
@@ -1048,10 +1051,12 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           icon: Icon(Icons.arrow_downward_rounded,
               color: down ? votes.down : cs.onSurfaceVariant),
         ),
-        _CommentActionBtn(
-          icon: Icons.reply_rounded,
-          label: 'Reply',
-          onTap: widget.onReply,
+        Flexible(
+          child: _CommentActionBtn(
+            icon: Icons.reply_rounded,
+            label: 'Reply',
+            onTap: widget.onReply,
+          ),
         ),
         const Spacer(),
         IconButton(

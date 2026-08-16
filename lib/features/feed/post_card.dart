@@ -787,17 +787,21 @@ class _PostCardState extends ConsumerState<PostCard> {
     final numComments = ov?.numComments ?? widget.post.numComments;
     return Row(
       children: [
-        _VotePill(
-          score: score,
-          likes: likes,
-          onUp: () => _vote(1),
-          onDown: () => _vote(-1),
+        Flexible(
+          child: _VotePill(
+            score: score,
+            likes: likes,
+            onUp: () => _vote(1),
+            onDown: () => _vote(-1),
+          ),
         ),
         const SizedBox(width: 8),
-        _ActionChip(
-          icon: Icons.mode_comment_outlined,
-          label: compactNumber(numComments),
-          onTap: _openDetail,
+        Flexible(
+          child: _ActionChip(
+            icon: Icons.mode_comment_outlined,
+            label: compactNumber(numComments),
+            onTap: _openDetail,
+          ),
         ),
         const Spacer(),
         _ReadToggle(post: widget.post),
