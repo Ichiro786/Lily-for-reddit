@@ -10,6 +10,7 @@ import 'core/deep_links.dart';
 import 'core/startup_metrics.dart';
 import 'core/theme/app_theme.dart';
 import 'core/reddit_constants.dart';
+import 'core/root_messenger.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/inbox/inbox_controller.dart';
 import 'features/notifications/notification_service.dart';
@@ -87,6 +88,7 @@ class _LuliAppState extends ConsumerState<LuliApp>
       builder: (lightDynamic, darkDynamic) {
         final useDynamic = settings.useDynamicColor;
         return MaterialApp.router(
+          scaffoldMessengerKey: rootScaffoldMessengerKey,
           title: RedditConstants.appName,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(

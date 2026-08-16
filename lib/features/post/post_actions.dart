@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers.dart';
+import '../../core/root_messenger.dart';
 import '../../core/share.dart';
 import '../../core/widgets/tap_guard.dart';
 import '../../models/post.dart';
@@ -362,7 +363,7 @@ void _snack(ScaffoldMessengerState messenger, String msg) {
 /// Snackbar for a personalization change, with a "Manage" action that opens the
 /// Manage For You screen where it can be reviewed/undone.
 void _snackManage(BuildContext context, String msg) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+  showRootSnackBar(SnackBar(
     content: Text(msg),
     action: SnackBarAction(
       label: 'Manage',
