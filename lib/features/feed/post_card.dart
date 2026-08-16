@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/analytics.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/root_messenger.dart';
 import '../../core/widgets/tap_guard.dart';
 import 'inline_video.dart';
 import 'post_overrides.dart';
@@ -196,14 +197,15 @@ class _PostCardState extends ConsumerState<PostCard> {
     final sub = widget.post.subreddit;
     final muted = ref.read(mutedSubsProvider.notifier).contains(sub);
     final interest = ref.read(interestStoreProvider.notifier);
-    void toast(String msg) =>
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(msg),
-          action: SnackBarAction(
-            label: 'Manage',
-            onPressed: () => context.push('/manage_for_you'),
+    void toast(String msg) => showRootSnackBar(
+          SnackBar(
+            content: Text(msg),
+            action: SnackBarAction(
+              label: 'Manage',
+              onPressed: () => context.push('/manage_for_you'),
+            ),
           ),
-        ));
+        );
 
     showModalBottomSheet(
       context: context,
