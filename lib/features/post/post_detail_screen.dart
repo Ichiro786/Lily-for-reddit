@@ -309,7 +309,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               itemPositionsListener: _itemPositions,
               // Prebuild roughly two comment screens to reduce visible work
               // during fast scrolling without retaining the whole thread.
-              minCacheExtent: 600,
+              minCacheExtent: 2500,
+              addRepaintBoundaries: false,
+              addAutomaticKeepAlives: false,
               padding: const EdgeInsets.only(top: 6, bottom: 96),
               itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
               itemBuilder: (context, index) {
@@ -666,39 +668,44 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             final score = ov?.score ?? p.score;
             final saved = ov?.saved ?? p.saved;
             final numComments = ov?.numComments ?? p.numComments;
-            return Row(
-              children: [
-                _VotePill(
-                    score: score,
-                    likes: likes,
-                    onUp: () => _vote(1),
-                    onDown: () => _vote(-1)),
-                const SizedBox(width: 8),
-                Chip(
-                  avatar: const Icon(Icons.mode_comment_outlined, size: 18),
-                  label: Text(compactNumber(numComments)),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () async {
-                    final overrides =
-                        ref.read(postOverridesProvider.notifier);
-                    final next = !overrides.effective(p).saved;
-                    overrides.setSaved(p, next);
-                    try {
-                      await ref
-                          .read(redditRepositoryProvider)
-                          .setSaved(p.fullname, next);
-                    } catch (_) {
-                      overrides.setSaved(p, !next);
-                    }
-                  },
-                  color: saved ? cs.primary : null,
-                  icon: Icon(saved
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_border_rounded),
-                ),
-              ],
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _VotePill(
+                      score: score,
+                      likes: likes,
+                      onUp: () => _vote(1),
+                      onDown: () => _vote(-1)),
+                  const SizedBox(width: 8),
+                  Chip(
+                    avatar: const Icon(Icons.mode_comment_outlined, size: 18),
+                    label: Text(compactNumber(numComments)),
+                  ),
+                  const SizedBox(width: 16),
+                  IconButton(
+                    onPressed: () async {
+                      final overrides =
+                          ref.read(postOverridesProvider.notifier);
+                      final next = !overrides.effective(p).saved;
+                      overrides.setSaved(p, next);
+                      try {
+                        await ref
+                            .read(redditRepositoryProvider)
+                            .setSaved(p.fullname, next);
+                      } catch (_) {
+                        overrides.setSaved(p, !next);
+                      }
+                    },
+                    color: saved ? cs.primary : null,
+                    icon: Icon(saved
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded),
+                  ),
+                ],
+              ),
             );
           }),
           const Divider(height: 24),
@@ -955,21 +962,22 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                   : Colors.transparent,
               child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Row(
-                children: [
-                  _AuthorDot(name: comment.author, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _AuthorDot(name: comment.author, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
                       'u/${comment.author}',
-                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: nameColor,
                       ),
                     ),
-                  ),
                   if (comment.author == widget.opAuthor &&
                       comment.author != '[deleted]') ...[
                     const SizedBox(width: 6),
@@ -990,11 +998,11 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                   Text('· ${timeAgo(comment.created)}',
                       style:
                           TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-                  const Spacer(),
                   if (widget.collapsed)
                     Icon(Icons.unfold_more_rounded,
                         size: 16, color: cs.onSurfaceVariant),
                 ],
+              ),
               ),
               ),
             ),
@@ -1039,8 +1047,12 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
     final up = _likes == true;
     final down = _likes == false;
     final scoreColor = up ? votes.up : (down ? votes.down : cs.onSurfaceVariant);
-    return Row(
-      children: [
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
         IconButton(
           visualDensity: VisualDensity.compact,
           iconSize: 18,
@@ -1065,7 +1077,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           label: 'Reply',
           onTap: widget.onReply,
         ),
-        const Spacer(),
+        const SizedBox(width: 16),
         IconButton(
           visualDensity: VisualDensity.compact,
           iconSize: 18,
@@ -1116,7 +1128,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                   value: 'block', child: Text('Block u/${widget.comment.author}')),
           ],
         ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -575,25 +575,28 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Widget _header(ColorScheme cs) {
     final p = widget.post;
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: () => context.push('/r/${p.subreddit}'),
-          child: CircleAvatar(
-            radius: 14,
-            backgroundColor: cs.secondaryContainer,
-            child: Text(
-              p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: cs.onSecondaryContainer),
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => context.push('/r/${p.subreddit}'),
+            child: CircleAvatar(
+              radius: 14,
+              backgroundColor: cs.secondaryContainer,
+              child: Text(
+                p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSecondaryContainer),
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: GestureDetector(
+          const SizedBox(width: 10),
+          GestureDetector(
             onTap: () => context.push('/r/${p.subreddit}'),
             child: RichText(
               maxLines: 1,
@@ -613,23 +616,23 @@ class _PostCardState extends ConsumerState<PostCard> {
               ),
             ),
           ),
-        ),
-        if (p.stickied)
-          Icon(Icons.push_pin_rounded, size: 16, color: cs.primary),
-        if (p.over18)
-          Container(
-            margin: const EdgeInsets.only(left: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-                color: cs.errorContainer,
-                borderRadius: BorderRadius.circular(6)),
-            child: Text('NSFW',
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: cs.onErrorContainer)),
-          ),
-      ],
+          if (p.stickied)
+            Icon(Icons.push_pin_rounded, size: 16, color: cs.primary),
+          if (p.over18)
+            Container(
+              margin: const EdgeInsets.only(left: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(6)),
+              child: Text('NSFW',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: cs.onErrorContainer)),
+            ),
+        ],
+      ),
     );
   }
 
@@ -791,34 +794,39 @@ class _PostCardState extends ConsumerState<PostCard> {
     final score = ov?.score ?? widget.post.score;
     final saved = ov?.saved ?? widget.post.saved;
     final numComments = ov?.numComments ?? widget.post.numComments;
-    return Row(
-      children: [
-        _VotePill(
-          score: score,
-          likes: likes,
-          onUp: () => _vote(1),
-          onDown: () => _vote(-1),
-        ),
-        const SizedBox(width: 8),
-        _ActionChip(
-          icon: Icons.mode_comment_outlined,
-          label: compactNumber(numComments),
-          onTap: _openDetail,
-        ),
-        const Spacer(),
-        _ReadToggle(post: widget.post),
-        IconButton(
-          onPressed: _toggleSave,
-          icon: Icon(saved
-              ? Icons.bookmark_rounded
-              : Icons.bookmark_border_rounded),
-          color: saved ? cs.primary : null,
-        ),
-        IconButton(
-          onPressed: () => showPostActionsSheet(context, ref, widget.post),
-          icon: const Icon(Icons.more_vert_rounded),
-        ),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _VotePill(
+            score: score,
+            likes: likes,
+            onUp: () => _vote(1),
+            onDown: () => _vote(-1),
+          ),
+          const SizedBox(width: 8),
+          _ActionChip(
+            icon: Icons.mode_comment_outlined,
+            label: compactNumber(numComments),
+            onTap: _openDetail,
+          ),
+          const SizedBox(width: 16),
+          _ReadToggle(post: widget.post),
+          IconButton(
+            onPressed: _toggleSave,
+            icon: Icon(saved
+                ? Icons.bookmark_rounded
+                : Icons.bookmark_border_rounded),
+            color: saved ? cs.primary : null,
+          ),
+          IconButton(
+            onPressed: () => showPostActionsSheet(context, ref, widget.post),
+            icon: const Icon(Icons.more_vert_rounded),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -876,12 +884,9 @@ class _VotePill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _miniBtn(Icons.arrow_upward_rounded, up ? votes.up : cs.onSurfaceVariant, onUp),
-          Flexible(
-            child: Text(
-              compactNumber(score),
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontWeight: FontWeight.w700, color: countColor),
-            ),
+          Text(
+            compactNumber(score),
+            style: TextStyle(fontWeight: FontWeight.w700, color: countColor),
           ),
           _miniBtn(Icons.arrow_downward_rounded,
               down ? votes.down : cs.onSurfaceVariant, onDown),
@@ -921,12 +926,9 @@ class _ActionChip extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: cs.onSurfaceVariant),
               const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: cs.onSurfaceVariant),
-                ),
+              Text(
+                label,
+                style: TextStyle(color: cs.onSurfaceVariant),
               ),
             ],
           ),
