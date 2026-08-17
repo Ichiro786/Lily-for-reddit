@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -8,7 +9,6 @@ import '../../core/startup_metrics.dart';
 import '../../core/widgets/error_view.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
-import '../history/history_store.dart';
 import '../settings/settings_controller.dart';
 import 'feed_controller.dart';
 import 'post_card.dart';
@@ -119,21 +119,12 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           ],
         ),
         data: (state) {
+          final posts = ref.watch(filteredFeedPostsProvider(widget.feedKey));
           final settings = ref.watch(settingsControllerProvider);
-          var posts = state.posts;
-          // Auto-hide already-read items in the For You feed (live: rebuilds
-          // when history changes).
-          if (settings.autoHideReadForYou) {
-            ref.watch(historyControllerProvider);
-            final history = ref.read(historyControllerProvider.notifier);
-            posts = posts
-                .where((p) =>
-                    !(p.feedReason != null && history.containsId(p.id)))
-                .toList();
-          }
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(
             controller: _scroll,
+            scrollCacheExtent: const ScrollCacheExtent.pixels(1500),
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -157,9 +148,14 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               if (index < posts.length) {
                 final post = posts[index];
                 if (widget.feedKey.isEmpty && index == 0) {
-                  return _StartupFirstPostVisibility(post: post);
+                  return RepaintBoundary(
+                    child: _StartupFirstPostVisibility(post: post),
+                  );
                 }
-                return PostCard(post: post);
+                return RepaintBoundary(
+                  key: ValueKey(post.id),
+                  child: PostCard(post: post),
+                );
               }
               // footer
               return Padding(
@@ -215,14 +211,16 @@ class _StartupFirstPostVisibility extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return VisibilityDetector(
-      key: ValueKey<String>('startup-first-post-${post.id}'),
-      onVisibilityChanged: (info) {
-        if (info.visibleFraction > 0) {
-          StartupMetrics.instance.markFirstFeedItemVisible();
-        }
-      },
-      child: PostCard(post: post),
+    return RepaintBoundary(
+      child: VisibilityDetector(
+        key: ValueKey<String>('startup-first-post-${post.id}'),
+        onVisibilityChanged: (info) {
+          if (info.visibleFraction > 0) {
+            StartupMetrics.instance.markFirstFeedItemVisible();
+          }
+        },
+        child: PostCard(post: post),
+      ),
     );
   }
 }

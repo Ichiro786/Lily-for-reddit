@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter/rendering.dart';
 import '../../core/route_observer.dart';
 import '../../models/listing.dart';
 
@@ -140,6 +140,7 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
       onRefresh: _load,
       child: ListView.separated(
         controller: _scroll,
+        scrollCacheExtent: const ScrollCacheExtent.pixels(1200),
         padding: widget.padding,
         itemCount: _items.length + 1,
         separatorBuilder: (_, __) => const SizedBox(height: 8),

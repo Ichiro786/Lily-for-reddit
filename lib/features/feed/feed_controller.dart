@@ -287,3 +287,22 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
 final feedControllerProvider =
     AsyncNotifierProviderFamily<FeedController, FeedState, String>(
         FeedController.new);
+
+final filteredFeedPostsProvider = Provider.family<List<Post>, String>((ref, feedKey) {
+  final asyncState = ref.watch(feedControllerProvider(feedKey));
+  final state = asyncState.valueOrNull;
+  if (state == null) return const [];
+
+  final settings = ref.watch(settingsControllerProvider);
+  final posts = state.posts;
+
+  if (settings.autoHideReadForYou) {
+    ref.watch(historyControllerProvider);
+    final history = ref.read(historyControllerProvider.notifier);
+    return posts
+        .where((p) => !(p.feedReason != null && history.containsId(p.id)))
+        .toList();
+  }
+
+  return posts;
+});
