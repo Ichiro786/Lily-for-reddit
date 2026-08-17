@@ -7,6 +7,7 @@ import '../../core/providers.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import 'comment_media_helper.dart';
+import 'interactive_spoiler.dart';
 
 class PostThread {
   const PostThread({
@@ -222,7 +223,10 @@ final flattenedCommentPresentationProvider =
         markdownBody: body.isEmpty
             ? null
             : MarkdownBody(
-                data: body,
+                data: normalizeRedditSpoilers(body),
+                builders: const {
+                  'spoiler': RedditSpoilerBuilder(),
+                },
                 selectable: true,
                 styleSheet: args.$2,
                 onTapLink: (_, href, __) {

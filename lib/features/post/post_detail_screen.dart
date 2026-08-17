@@ -28,6 +28,7 @@ import 'comments_controller.dart';
 import 'compose_sheet.dart';
 import 'post_actions.dart';
 import 'comment_media_helper.dart';
+import 'interactive_spoiler.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   const PostDetailScreen({
@@ -336,6 +337,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   loadingMore: thread.loadingMore.contains(c.fullname),
                   onToggle: () => notifier.toggleCollapse(c.id),
                   onLoadMore: () => notifier.loadMore(c),
+                  onOpenThread: () {
+                    final focusId = c.moreChildren.isNotEmpty
+                        ? c.moreChildren.first
+                        : c.id;
+                    context.push(
+                      '/comments/${Uri.encodeComponent(thread.post.subreddit)}/${thread.post.id}?comment=${Uri.encodeComponent(focusId)}',
+                    );
+                  },
                   onReply: () async {
                     final reply = await showReplySheet(context, ref,
                         parentFullname: c.fullname,
@@ -651,7 +660,10 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
           ],
           if (p.isSelf && p.selftext.isNotEmpty)
             MarkdownBody(
-              data: p.selftext,
+              data: normalizeRedditSpoilers(p.selftext),
+              builders: const {
+                'spoiler': RedditSpoilerBuilder(),
+              },
               selectable: true,
               onTapLink: (_, href, __) {
                 if (href != null) {
@@ -804,6 +816,7 @@ class _CommentTile extends ConsumerStatefulWidget {
     required this.loadingMore,
     required this.onToggle,
     required this.onLoadMore,
+    required this.onOpenThread,
     required this.onReply,
     required this.onEdit,
     required this.onDelete,
@@ -819,6 +832,7 @@ class _CommentTile extends ConsumerStatefulWidget {
   final bool highlighted; // current in-post search match
   final VoidCallback onToggle;
   final VoidCallback onLoadMore;
+  final VoidCallback onOpenThread;
   final VoidCallback onReply;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -882,7 +896,11 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
         child: Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: widget.loadingMore ? null : widget.onLoadMore,
+            onPressed: widget.loadingMore
+                ? null
+                : (comment.moreChildren.isNotEmpty
+                    ? widget.onOpenThread
+                    : widget.onLoadMore),
             icon: widget.loadingMore
                 ? const SizedBox(
                     width: 16,
@@ -1174,17 +1192,17 @@ class _CommentMediaImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final cacheWidth =
-        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
-    final cacheHeight = (300 * dpr).round().clamp(1, 1080).toInt();
+    const cacheWidth = 600;
+    const cacheHeight = 600;
     return GestureDetector(
       onTap: () => openImageViewer(context, media.url, title: 'Comment media'),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 300),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
             if (media.isGif)
               _StaticCommentGif(
                 url: media.url,
@@ -1220,7 +1238,8 @@ class _CommentMediaImage extends StatelessWidget {
                       color: Colors.white, size: 28),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );

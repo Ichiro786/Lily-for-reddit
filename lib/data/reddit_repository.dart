@@ -403,6 +403,7 @@ class RedditRepository {
         if (focusCommentId != null) ...{
           'comment': focusCommentId,
           'context': 3,
+          'depth': 10,
         },
       },
     );

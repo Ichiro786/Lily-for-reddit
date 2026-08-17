@@ -9,6 +9,10 @@ class CommentMedia {
 final _commentUrlPattern = RegExp(r'https?://[^\s<>()\[\]"]+');
 final _commentMarkdownMediaPattern = RegExp(
     r'!\[[^\]]*\]\(\s*(https?://[^\s<>()\[\]"]+)\s*\)');
+final _inlineGifPattern = RegExp(
+  r'!\[gif\]\((?:giphy\|([^)|\s]+)|emote\|([^)|\s]+))\)',
+  caseSensitive: false,
+);
 final _trailingPunctuation = RegExp(r'[.,!?;:]+$');
 
 /// Returns whether [rawUrl] points to an image-like Reddit comment resource.
@@ -39,6 +43,15 @@ bool isCommentGifUrl(String rawUrl) {
   return path.endsWith('.gif') || path.endsWith('.gifv');
 }
 
+/// Resolves Reddit's inline GIF token forms to a direct Giphy URL.
+String? resolveInlineGifToken(String token) {
+  final match = _inlineGifPattern.firstMatch(token.trim());
+  if (match == null) return null;
+  final id = match.group(1) ?? match.group(2);
+  if (id == null || id.isEmpty) return null;
+  return 'https://giphy.com/media/$id/giphy.gif';
+}
+
 /// Converts a GIFV URL to its image equivalent where the host supports it.
 String normalizedCommentMediaUrl(String rawUrl) {
   final uri = Uri.tryParse(rawUrl.trim());
@@ -48,10 +61,18 @@ String normalizedCommentMediaUrl(String rawUrl) {
   return uri.replace(path: path).toString();
 }
 
-/// Extracts unique image/GIF URLs from Markdown or plain comment text.
+/// Extracts unique image/GIF URLs and inline GIF tokens from a comment.
 List<CommentMedia> extractCommentMedia(String body) {
   final seen = <String>{};
   final media = <CommentMedia>[];
+
+  for (final match in _inlineGifPattern.allMatches(body)) {
+    final url = resolveInlineGifToken(match.group(0)!);
+    if (url != null && seen.add(url)) {
+      media.add(CommentMedia(url: url, isGif: true));
+    }
+  }
+
   for (final match in _commentUrlPattern.allMatches(body)) {
     final raw = match.group(0)!.replaceFirst(_trailingPunctuation, '');
     if (!isCommentMediaUrl(raw)) continue;
@@ -63,9 +84,10 @@ List<CommentMedia> extractCommentMedia(String body) {
   return media;
 }
 
-/// Removes URLs that are rendered separately below the comment body.
+/// Removes URLs and inline GIF tokens that are rendered separately below text.
 String commentTextWithoutMedia(String body) {
-  var text = body.replaceAll(_commentMarkdownMediaPattern, '');
+  var text = body.replaceAll(_inlineGifPattern, '');
+  text = text.replaceAll(_commentMarkdownMediaPattern, '');
   text = text.replaceAllMapped(_commentUrlPattern, (match) {
     final raw = match.group(0)!.replaceFirst(_trailingPunctuation, '');
     return isCommentMediaUrl(raw) ? '' : match.group(0)!;
