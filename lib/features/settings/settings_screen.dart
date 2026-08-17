@@ -7,9 +7,13 @@ import '../../core/network/rate_limit.dart';
 import '../../core/providers.dart';
 import '../../data/reddit_repository.dart';
 import '../auth/auth_controller.dart';
+import '../feed/feed_controller.dart';
+import '../inbox/inbox_controller.dart';
+import '../multireddit/multireddit_providers.dart';
 import '../notifications/inbox_poller.dart';
 import '../notifications/notification_service.dart';
 import '../updates/update_checker.dart';
+import 'backup_service.dart';
 import 'settings_controller.dart';
 
 const _accentSwatches = <Color>[
@@ -320,6 +324,21 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             },
           ),
           const Divider(),
+          _section(context, 'Data & Backup'),
+          ListTile(
+            leading: const Icon(Icons.backup_rounded),
+            title: const Text('Export backup'),
+            subtitle: const Text(
+                'Share a JSON backup of settings, credentials, and accounts'),
+            onTap: () => _exportBackup(context, ref),
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings_backup_restore_rounded),
+            title: const Text('Restore backup'),
+            subtitle: const Text('Paste a previously exported JSON backup'),
+            onTap: () => _restoreBackup(context, ref),
+          ),
+          const Divider(),
           _section(context, 'About'),
           SwitchListTile(
             secondary: const Icon(Icons.system_update_rounded),
@@ -407,6 +426,107 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             child: Center(child: Text('No settings found')),
           ),
       ],
+    );
+  }
+
+  Future<void> _exportBackup(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(backupServiceProvider).exportBackup();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Backup exported successfully')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Backup export failed: $error')),
+      );
+    }
+  }
+
+  Future<String?> _requestBackupJson(BuildContext context) async {
+    final controller = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Paste backup JSON'),
+          content: SizedBox(
+            width: 560,
+            child: TextField(
+              controller: controller,
+              autofocus: true,
+              minLines: 8,
+              maxLines: 16,
+              keyboardType: TextInputType.multiline,
+              decoration: const InputDecoration(
+                hintText: '{ "schema_version": 1, ... }',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _restoreBackup(BuildContext context, WidgetRef ref) async {
+    final json = await _requestBackupJson(context);
+    if (!context.mounted || json == null || json.trim().isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Restore settings and API keys?'),
+        content: const Text(
+            'This will overwrite current preferences, credentials, and saved '
+            'account configurations on this device.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || confirmed != true) return;
+
+    final result = await ref.read(backupServiceProvider).importBackup(json);
+    if (!context.mounted) return;
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+      return;
+    }
+
+    ref.invalidate(settingsControllerProvider);
+    ref.invalidate(authControllerProvider);
+    ref.invalidate(accountsProvider);
+    ref.invalidate(authModeProvider);
+    ref.read(redditRepositoryProvider).clearSubsCache();
+    ref.invalidate(feedControllerProvider);
+    ref.invalidate(inboxControllerProvider);
+    ref.invalidate(unreadCountProvider);
+    ref.invalidate(myMultiredditsProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(result.message)),
     );
   }
 

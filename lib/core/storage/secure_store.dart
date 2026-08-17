@@ -18,6 +18,7 @@ class SecureStore {
 
   // Keys
   static const _kClientId = 'client_id';
+  static const _kClientSecret = 'client_secret';
   static const _kRedirectUri = 'redirect_uri';
   static const _kGiphyKey = 'giphy_api_key';
   static const _kAccessToken = 'access_token';
@@ -36,15 +37,18 @@ class SecureStore {
 
   // --- API credentials ---
   Future<String?> get clientId => read(_kClientId);
+  Future<String?> get clientSecret => read(_kClientSecret);
   Future<String?> get redirectUri => read(_kRedirectUri);
   Future<String?> get giphyKey => read(_kGiphyKey);
 
   Future<void> saveCredentials({
     required String clientId,
     required String redirectUri,
+    String? clientSecret,
     String? giphyKey,
   }) async {
     await _write(_kClientId, clientId);
+    await _write(_kClientSecret, clientSecret);
     await _write(_kRedirectUri, redirectUri);
     await _write(_kGiphyKey, (giphyKey != null && giphyKey.isEmpty) ? null : giphyKey);
   }
@@ -184,5 +188,69 @@ class SecureStore {
   }
 
   /// Full wipe — credentials and session.
+  /// Returns the sensitive values needed for a portable backup. Callers should
+  /// only write this data to a user-selected local/share destination.
+  Future<Map<String, dynamic>> exportBackupData() async {
+    return {
+      'client_id': await clientId,
+      'client_secret': await clientSecret,
+      'redirect_uri': await redirectUri,
+      'giphy_api_key': await giphyKey,
+    };
+  }
+
+  /// Returns the active session and all saved account configurations.
+  Future<Map<String, dynamic>> exportAuthData() async {
+    return {
+      'auth_mode': await authMode,
+      'username': await username,
+      'access_token': await accessToken,
+      'refresh_token': await refreshToken,
+      'token_expiry': (await tokenExpiry)?.toIso8601String(),
+      'web_cookie': await webCookie,
+      'web_modhash': await webModhash,
+      'accounts': await _accountsMap(),
+    };
+  }
+
+  Future<void> restoreBackupData(Map<String, dynamic> data) async {
+    await _write(_kClientId, data['client_id'] as String?);
+    await _write(_kClientSecret, data['client_secret'] as String?);
+    await _write(_kRedirectUri, data['redirect_uri'] as String?);
+    await _write(_kGiphyKey, data['giphy_api_key'] as String?);
+  }
+
+  Future<void> restoreAuthData(Map<String, dynamic> data) async {
+    await _write(_kAuthMode, data['auth_mode'] as String?);
+    await _write(_kUsername, data['username'] as String?);
+    await _write(_kAccessToken, data['access_token'] as String?);
+    await _write(_kRefreshToken, data['refresh_token'] as String?);
+    await _write(_kWebCookie, data['web_cookie'] as String?);
+    await _write(_kWebModhash, data['web_modhash'] as String?);
+
+    final expiry = data['token_expiry'];
+    if (expiry == null) {
+      await _write(_kTokenExpiry, null);
+    } else if (expiry is String && DateTime.tryParse(expiry) != null) {
+      await _write(_kTokenExpiry,
+          DateTime.parse(expiry).millisecondsSinceEpoch.toString());
+    } else {
+      throw const FormatException('Invalid token expiry in backup');
+    }
+
+    final accounts = data['accounts'];
+    if (accounts is Map) {
+      final normalized = <String, Map<String, dynamic>>{};
+      for (final entry in accounts.entries) {
+        if (entry.value is! Map) {
+          throw const FormatException('Invalid account entry in backup');
+        }
+        normalized[entry.key.toString()] =
+            Map<String, dynamic>.from(entry.value as Map);
+      }
+      await _saveAccounts(normalized);
+    }
+  }
+
   Future<void> clearAll() => _storage.deleteAll();
 }
