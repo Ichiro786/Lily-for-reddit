@@ -224,7 +224,7 @@ final flattenedCommentPresentationProvider =
             ? null
             : MarkdownBody(
                 data: normalizeRedditSpoilers(body),
-                builders: const {
+                builders: {
                   'spoiler': RedditSpoilerBuilder(),
                 },
                 selectable: true,

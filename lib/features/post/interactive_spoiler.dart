@@ -44,7 +44,7 @@ class _InteractiveSpoilerState extends State<InteractiveSpoiler> {
 }
 
 class RedditSpoilerBuilder extends MarkdownElementBuilder {
-  const RedditSpoilerBuilder();
+  RedditSpoilerBuilder();
 
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {

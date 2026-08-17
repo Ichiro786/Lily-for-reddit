@@ -661,7 +661,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
           if (p.isSelf && p.selftext.isNotEmpty)
             MarkdownBody(
               data: normalizeRedditSpoilers(p.selftext),
-              builders: const {
+              builders: {
                 'spoiler': RedditSpoilerBuilder(),
               },
               selectable: true,
