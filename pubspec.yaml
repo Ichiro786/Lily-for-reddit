@@ -3,7 +3,7 @@ description: "Lily for Reddit — a Material 3 Expressive Reddit client built wi
 publish_to: 'none'
 
 # Fork-owned build numbering starts above the upstream release line for upgrade safety.
-version: 1.0.0+1000
+version: 1.0.1+1001
 
 environment:
   sdk: ^3.9.2
