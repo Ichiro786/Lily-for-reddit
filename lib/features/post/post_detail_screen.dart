@@ -296,7 +296,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           ),
         ),
         data: (thread) {
-          final flat = ref.watch(flattenedCommentsProvider(widget.arg));
+          final flat = ref.watch(flattenedCommentsProvider(key));
           final commentMarkdownStyle = _getCommentMarkdownStyle(context);
           _flat = flat;
           final list = RefreshIndicator(

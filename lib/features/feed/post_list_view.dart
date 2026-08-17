@@ -8,7 +8,6 @@ import '../../core/startup_metrics.dart';
 import '../../core/widgets/error_view.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
-import '../history/history_store.dart';
 import '../settings/settings_controller.dart';
 import 'feed_controller.dart';
 import 'post_card.dart';
@@ -124,7 +123,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(
             controller: _scroll,
-            cacheExtent: 1500,
+            scrollCacheExtent: 1500,
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
