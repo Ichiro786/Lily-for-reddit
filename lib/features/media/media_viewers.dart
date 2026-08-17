@@ -809,7 +809,7 @@ class _VideoViewerState extends State<_VideoViewer>
                               tooltip: 'Download',
                               onPressed: () => saveMediaToGallery(
                                 context,
-                                downloadUrl!,
+                                downloadUrl,
                                 isVideo: true,
                               ),
                             ),
