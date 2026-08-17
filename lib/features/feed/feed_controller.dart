@@ -11,6 +11,7 @@ import '../../models/post.dart';
 import '../history/history_store.dart';
 import '../history/interest_store.dart';
 import '../settings/settings_controller.dart';
+import 'feed_ranker.dart';
 
 class FeedState {
   const FeedState({
@@ -137,6 +138,24 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         _ => false,
       };
 
+  bool get _shouldFilterViewedForYou {
+    final settings = ref.read(settingsControllerProvider);
+    return _filterReadOnNextBuild &&
+        settings.trackHistory &&
+        settings.autoHideReadForYou;
+  }
+
+  Future<List<Post>> _rankForYouPosts(Iterable<Post> posts) {
+    final history = ref.read(historyControllerProvider);
+    return FeedRanker.rank(
+      posts,
+      now: DateTime.now(),
+      affinityBySubreddit: ref.read(interestStoreProvider),
+      viewedIds: {for (final entry in history) entry.id},
+      filterViewed: _shouldFilterViewedForYou,
+    );
+  }
+
   List<Post> _filterReadPostsOnRefresh(List<Post> posts) {
     if (!_filterReadOnNextBuild) return posts;
     final settings = ref.read(settingsControllerProvider);
@@ -160,7 +179,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       final preview = await _fetchWithRetry(fast: true);
       _lastLoaded = DateTime.now();
       final previewState = FeedState(
-        posts: _filterReadPostsOnRefresh(preview.items),
+        posts: await _rankForYouPosts(preview.items),
         sort: _sort!,
         time: _time,
         after: preview.after,
@@ -219,13 +238,14 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       if (_disposed || !_forYou || state.valueOrNull != preview) return;
       final current = state.valueOrNull;
       if (current == null || listing.items.isEmpty) return;
+      final rankedItems = await _rankForYouPosts(listing.items);
       final currentIds = {for (final p in current.posts) p.id};
-      final changed = listing.items.length != current.posts.length ||
-          listing.items.asMap().entries.any(
+      final changed = rankedItems.length != current.posts.length ||
+          rankedItems.asMap().entries.any(
               (e) => e.value.id != current.posts[e.key].id);
-      final hasNew = listing.items.any((p) => !currentIds.contains(p.id));
+      final hasNew = rankedItems.any((p) => !currentIds.contains(p.id));
       if (changed && hasNew) {
-        _pending = listing.items;
+        _pending = rankedItems;
         _pendingAfter = listing.after;
         state = AsyncData(current.copyWith(
             hasPending: true, after: current.after));
@@ -289,8 +309,11 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     state = AsyncData(current.copyWith(loadingMore: true, after: current.after));
     try {
       final listing = await _fetch(after: current.after);
+      final nextItems = _forYou
+          ? await _rankForYouPosts(listing.items)
+          : listing.items;
       state = AsyncData(current.copyWith(
-        posts: [...current.posts, ...listing.items],
+        posts: [...current.posts, ...nextItems],
         after: listing.after,
         loadingMore: false,
       ));
