@@ -1,12 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import 'comment_media_helper.dart';
+import '../../ui/components/interactive_spoiler.dart';
+
+class _RedditSpoilerBuilder extends MarkdownElementBuilder {
+  static final _spoilerPattern = RegExp(r'^!\s*([\s\S]*?)\s*!<\s*$');
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    if (element.tag != 'blockquote') return null;
+    final match = _spoilerPattern.firstMatch(element.textContent.trim());
+    if (match == null) return null;
+    final text = match.group(1)?.trim();
+    if (text == null || text.isEmpty) return null;
+    return InteractiveSpoiler(
+      text: text,
+      textStyle: preferredStyle ?? parentStyle,
+    );
+  }
+}
 
 class PostThread {
   const PostThread({
@@ -225,6 +249,9 @@ final flattenedCommentPresentationProvider =
                 data: body,
                 selectable: true,
                 styleSheet: args.$2,
+                builders: <String, MarkdownElementBuilder>{
+                  'blockquote': _RedditSpoilerBuilder(),
+                },
                 onTapLink: (_, href, __) {
                   if (href != null) {
                     launchUrl(Uri.parse(href),
