@@ -296,8 +296,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           ),
         ),
         data: (thread) {
-          final flat = _flatten(thread.comments, thread.collapsed);
           final commentMarkdownStyle = _getCommentMarkdownStyle(context);
+          final presentations = ref.watch(
+            flattenedCommentPresentationProvider((key, commentMarkdownStyle)),
+          );
+          final flat = [for (final presentation in presentations) presentation.comment];
           _flat = flat;
           final list = RefreshIndicator(
             onRefresh: notifier.refresh,
@@ -317,12 +320,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     child: Center(child: Text('No comments yet')),
                   );
                 }
-                final c = flat[index - 1];
+                final presentation = presentations[index - 1];
+                final c = presentation.comment;
                 return RepaintBoundary(
                   child: _CommentTile(
                     key: ValueKey(c.fullname),
                   comment: c,
-                  markdownStyle: commentMarkdownStyle,
+                  markdownBody: presentation.markdownBody,
                   highlighted: _currentMatchId == c.fullname,
                   isOwn: c.author == username,
                   opAuthor: thread.post.author,
@@ -791,7 +795,7 @@ class _CommentTile extends ConsumerStatefulWidget {
   const _CommentTile({
     super.key,
     required this.comment,
-    required this.markdownStyle,
+    required this.markdownBody,
     required this.isOwn,
     required this.opAuthor,
     required this.collapsed,
@@ -805,7 +809,7 @@ class _CommentTile extends ConsumerStatefulWidget {
   });
 
   final Comment comment;
-  final MarkdownStyleSheet markdownStyle;
+  final Widget? markdownBody;
   final bool isOwn;
   final String opAuthor;
   final bool collapsed;
@@ -825,34 +829,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
   late bool? _likes = widget.comment.likes;
   late int _score = widget.comment.score;
   late bool _saved = widget.comment.saved;
-  final Map<String, Widget> _markdownWidgets = <String, Widget>{};
   bool _headerPressed = false;
 
-  @override
-  void didUpdateWidget(covariant _CommentTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.comment.id != widget.comment.id ||
-        oldWidget.comment.body != widget.comment.body ||
-        oldWidget.markdownStyle != widget.markdownStyle) {
-      _markdownWidgets.remove(widget.comment.id);
-    }
-  }
-
-  Widget _markdownBody(String text) {
-    return _markdownWidgets.putIfAbsent(
-      widget.comment.id,
-      () => MarkdownBody(
-        data: text,
-        selectable: true,
-        styleSheet: widget.markdownStyle,
-        onTapLink: (_, href, __) {
-          if (href != null) {
-            launchUrl(Uri.parse(href), mode: LaunchMode.externalApplication);
-          }
-        },
-      ),
-    );
-  }
 
   Future<void> _vote(int dir) async {
     final current = _likes == true ? 1 : (_likes == false ? -1 : 0);
@@ -892,7 +870,6 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
     final comment = widget.comment;
     final cs = Theme.of(context).colorScheme;
     final commentMedia = extractCommentMedia(comment.body);
-    final commentText = commentTextWithoutMedia(comment.body);
     final depth = comment.depth;
     final indent = depth.clamp(0, 6) * 12.0;
 
@@ -965,9 +942,10 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               padding: EdgeInsets.only(
                 left: (depth * 12.0 + 8.0).clamp(8.0, 80.0),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: ClipRect(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     // Long-press collapses the whole subtree; tap re-expands a
                     // collapsed comment (so a tap can't accidentally collapse).
                     GestureDetector(
@@ -998,7 +976,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                 children: [
                   _AuthorDot(name: comment.author, size: 20),
                   const SizedBox(width: 8),
-                  Flexible(
+                  Expanded(
                     child: Text(
                       'u/${comment.author}',
                       overflow: TextOverflow.ellipsis,
@@ -1039,10 +1017,10 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
             ),
           ),
           if (!widget.collapsed) ...[
-            if (commentText.isNotEmpty)
+            if (widget.markdownBody != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                child: _markdownBody(commentText),
+                child: widget.markdownBody!,
               ),
             if (commentMedia.isNotEmpty)
               Padding(
@@ -1065,6 +1043,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
             ),
                   ],
                 ),
+              ),
             ),
           ],
         ),

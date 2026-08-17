@@ -1,8 +1,12 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
+import 'comment_media_helper.dart';
 
 class PostThread {
   const PostThread({
@@ -194,3 +198,51 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
 final commentsControllerProvider =
     AsyncNotifierProvider.autoDispose.family<CommentsController, PostThread, String>(
         CommentsController.new);
+
+class FlattenedComment {
+  const FlattenedComment({required this.comment, required this.markdownBody});
+
+  final Comment comment;
+  final Widget? markdownBody;
+}
+
+final flattenedCommentPresentationProvider =
+    Provider.autoDispose.family<List<FlattenedComment>, (String, MarkdownStyleSheet)>(
+        (ref, args) {
+  final asyncThread = ref.watch(commentsControllerProvider(args.$1));
+  final thread = asyncThread.valueOrNull;
+  if (thread == null) return const [];
+
+  final out = <FlattenedComment>[];
+  void walk(Comment comment) {
+    final body = commentTextWithoutMedia(comment.body);
+    out.add(
+      FlattenedComment(
+        comment: comment,
+        markdownBody: body.isEmpty
+            ? null
+            : MarkdownBody(
+                data: body,
+                selectable: true,
+                styleSheet: args.$2,
+                onTapLink: (_, href, __) {
+                  if (href != null) {
+                    launchUrl(Uri.parse(href),
+                        mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+      ),
+    );
+    if (!comment.isMore && !thread.collapsed.contains(comment.id)) {
+      for (final reply in comment.replies) {
+        walk(reply);
+      }
+    }
+  }
+
+  for (final comment in thread.comments) {
+    walk(comment);
+  }
+  return out;
+});
