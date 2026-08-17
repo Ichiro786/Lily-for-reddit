@@ -953,7 +953,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(width: indent),
+                    SizedBox(width: (depth * 12.0).clamp(0.0, 72.0)),
                     Container(
                       width: 4,
                       color: edge.withValues(alpha: 0.9),
@@ -962,7 +962,9 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                 ),
               ),
             Padding(
-              padding: EdgeInsets.only(left: depth * 12.0 + 8.0),
+              padding: EdgeInsets.only(
+                left: (depth * 12.0 + 8.0).clamp(8.0, 80.0),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
