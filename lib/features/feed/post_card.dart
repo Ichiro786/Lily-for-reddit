@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -9,6 +10,7 @@ import '../../core/analytics.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/root_messenger.dart';
+import '../../core/storage/interaction_vault.dart';
 import '../../core/widgets/tap_guard.dart';
 import 'inline_video.dart';
 import 'post_overrides.dart';
@@ -32,6 +34,8 @@ class PostCard extends ConsumerStatefulWidget {
 }
 
 class _PostCardState extends ConsumerState<PostCard> {
+  String? _dwellPostId;
+
   // Vote / score / saved / comment-count live in the shared post-overrides
   // store (keyed by post id) so the card stays in sync with the post-detail
   // screen and survives scrolling.
@@ -42,6 +46,15 @@ class _PostCardState extends ConsumerState<PostCard> {
     final overrides = ref.read(postOverridesProvider.notifier);
     final current = _ov.likes == true ? 1 : (_ov.likes == false ? -1 : 0);
     final target = current == dir ? 0 : dir;
+    ref.read(interactionVaultProvider.notifier).recordUpvote(
+          widget.post.id,
+          target == 1,
+        );
+    if (target == -1) {
+      ref.read(interactionVaultProvider.notifier).recordDismissal(widget.post.id);
+    } else if (current == -1) {
+      ref.read(interactionVaultProvider.notifier).recordDismissal(widget.post.id, false);
+    }
     overrides.setVote(widget.post, target);
     // Learn: upvoting a community raises its affinity; downvoting lowers it.
     if (target == 1) {
@@ -61,6 +74,7 @@ class _PostCardState extends ConsumerState<PostCard> {
   Future<void> _toggleSave() async {
     final overrides = ref.read(postOverridesProvider.notifier);
     final next = !_ov.saved;
+    ref.read(interactionVaultProvider.notifier).recordSave(widget.post.id, next);
     overrides.setSaved(widget.post, next);
     ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, next ? 3 : -3);
     if (next) {
@@ -76,6 +90,7 @@ class _PostCardState extends ConsumerState<PostCard> {
   void _openDetail() {
     Analytics.track('post_opened');
     if (ref.read(settingsControllerProvider).trackHistory) {
+      ref.read(interactionVaultProvider.notifier).recordCommentOpened(widget.post.id);
       ref.read(historyControllerProvider.notifier).markViewed(widget.post);
       ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 0.5);
     }
@@ -191,13 +206,22 @@ class _PostCardState extends ConsumerState<PostCard> {
         ],
       );
     }
-    return GestureDetector(
-      onLongPress: _showTuneSheet,
-      child: SwipeActions(
-        enabled: swipeActions,
-        onRight: () => _vote(1),
-        onLeft: () => _vote(-1),
-        child: card,
+    return VisibilityDetector(
+      key: ValueKey<String>('dwell-${widget.post.id}'),
+      onVisibilityChanged: (info) {
+        if (info.visibleFraction >= 0.6 && _dwellPostId != widget.post.id) {
+          _dwellPostId = widget.post.id;
+          ref.read(interactionVaultProvider.notifier).recordDwell(widget.post.id);
+        }
+      },
+      child: GestureDetector(
+        onLongPress: _showTuneSheet,
+        child: SwipeActions(
+          enabled: swipeActions,
+          onRight: () => _vote(1),
+          onLeft: () => _vote(-1),
+          child: card,
+        ),
       ),
     );
   }

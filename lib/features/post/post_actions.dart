@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers.dart';
+import '../../core/storage/interaction_vault.dart';
 import '../../core/root_messenger.dart';
 import '../../core/share.dart';
 import '../../core/widgets/tap_guard.dart';
@@ -42,6 +43,7 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
             onTap: () async {
               final messenger = ScaffoldMessenger.of(context);
               final repo = ref.read(redditRepositoryProvider);
+              ref.read(interactionVaultProvider.notifier).recordDismissal(post.id);
               Navigator.pop(ctx);
               try {
                 await repo.setHidden(post.fullname, true);
@@ -52,6 +54,9 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
                     label: 'Undo',
                     onPressed: () async {
                       try {
+                        ref
+                            .read(interactionVaultProvider.notifier)
+                            .recordDismissal(post.id, false);
                         await repo.setHidden(post.fullname, false);
                       } catch (_) {/* best effort */}
                     },
@@ -148,6 +153,7 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
             subtitle: Text('Show less from r/${post.subreddit} in For You'),
             onTap: () {
               Navigator.pop(ctx);
+              ref.read(interactionVaultProvider.notifier).recordDismissal(post.id);
               ref.read(interestStoreProvider.notifier).bump(post.subreddit, -5);
               ref.read(keywordStoreProvider.notifier).bumpTitle(post.title, -2);
               _snackManage(context, "We'll show less like this");
