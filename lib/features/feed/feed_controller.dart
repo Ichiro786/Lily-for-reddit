@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import '../../core/storage/interaction_vault.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/listing.dart';
 import '../../models/post.dart';
@@ -83,11 +84,15 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   }) {
     if (_forYou) {
       final history = ref.read(historyControllerProvider);
+      final vault = ref.read(interactionVaultProvider);
       final kw = ref.read(keywordStoreProvider.notifier);
       return _repo.getForYouFeed(
         interest: ref.read(interestStoreProvider),
         muted: ref.read(mutedSubsProvider),
-        seen: {for (final e in history) e.id},
+        seen: {
+          for (final e in history) e.id,
+          ...vault.seenPosts.keys,
+        },
         impressions: ref.read(impressionStoreProvider),
         titleScore: kw.scoreTitle,
         titleKeyword: kw.topKeywordIn,
@@ -147,12 +152,18 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
 
   Future<List<Post>> _rankForYouPosts(Iterable<Post> posts) {
     final history = ref.read(historyControllerProvider);
+    final vault = ref.read(interactionVaultProvider);
     return FeedRanker.rank(
       posts,
       now: DateTime.now(),
       affinityBySubreddit: ref.read(interestStoreProvider),
-      viewedIds: {for (final entry in history) entry.id},
+      viewedIds: {
+        for (final entry in history) entry.id,
+        ...vault.seenPosts.keys,
+      },
+      interactionsByPostId: vault.interactedPosts,
       filterViewed: _shouldFilterViewedForYou,
+      filterInteracted: true,
     );
   }
 
@@ -277,10 +288,13 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     try {
       final listing = await _fetch();
       _lastLoaded = DateTime.now();
+      final pending = _forYou
+          ? await _rankForYouPosts(listing.items)
+          : listing.items;
       final currentIds = {for (final p in cur.posts) p.id};
-      final hasNew = listing.items.any((p) => !currentIds.contains(p.id));
+      final hasNew = pending.any((p) => !currentIds.contains(p.id));
       if (hasNew) {
-        _pending = listing.items;
+        _pending = pending;
         _pendingAfter = listing.after;
         state = AsyncData(cur.copyWith(hasPending: true, after: cur.after));
       }
