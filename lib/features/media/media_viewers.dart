@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:chewie/chewie.dart';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
@@ -181,16 +182,11 @@ class _SavingDialog extends StatelessWidget {
 /// Floating translucent controls (close + download + share + open) over a scrim.
 class _ViewerControls extends StatelessWidget {
   const _ViewerControls(
-      {this.title,
-      this.sourceUrl,
-      this.center,
-      this.downloadUrl,
-      this.downloadIsVideo = false});
+      {this.title, this.sourceUrl, this.center, this.downloadUrl});
   final String? title;
   final String? sourceUrl;
   final String? center;
   final String? downloadUrl;
-  final bool downloadIsVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -232,7 +228,7 @@ class _ViewerControls extends StatelessWidget {
                       ? CupertinoIcons.cloud_download
                       : Icons.download_rounded,
                   onTap: () => saveMediaToGallery(context, downloadUrl!,
-                      isVideo: downloadIsVideo),
+                      isVideo: false),
                 ),
                 const SizedBox(width: 4),
               ],
@@ -464,53 +460,401 @@ class _VideoViewer extends StatefulWidget {
   State<_VideoViewer> createState() => _VideoViewerState();
 }
 
-class _VideoViewerState extends State<_VideoViewer> {
+class _VideoViewerState extends State<_VideoViewer>
+    with SingleTickerProviderStateMixin {
   VideoPlayerController? _video;
-  ChewieController? _chewie;
   String? _error;
+  bool _hudVisible = true;
+  bool _isFullscreen = true;
+  bool _seekForward = true;
+  String? _seekFeedback;
+  Timer? _hudTimer;
+  Timer? _seekFeedbackTimer;
+  late final AnimationController _seekAnimation;
+  late final Animation<double> _seekOpacity;
+  late final Animation<double> _seekScale;
 
   @override
   void initState() {
     super.initState();
+    _seekAnimation = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _seekOpacity = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 0, end: 1),
+        weight: 18,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<double>(1),
+        weight: 55,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1, end: 0),
+        weight: 27,
+      ),
+    ]).animate(_seekAnimation);
+    _seekScale = Tween<double>(begin: 0.78, end: 1).animate(
+      CurvedAnimation(parent: _seekAnimation, curve: Curves.easeOutBack),
+    );
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
     _init();
   }
 
   Future<void> _init() async {
+    VideoPlayerController? video;
     try {
-      final v = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-      await v.initialize();
-      if (!mounted) return;
-      setState(() {
-        _video = v;
-        _chewie = ChewieController(
-          videoPlayerController: v,
-          autoPlay: true,
-          looping: true,
-          aspectRatio: v.value.aspectRatio,
-          // Lift the control bar above the home indicator / our top buttons.
-          controlsSafeAreaMinimum:
-              const EdgeInsets.only(left: 8, right: 8, bottom: 28, top: 56),
-          // iOS gets the larger, touch-friendly Cupertino scrubber/buttons.
-          customControls: Platform.isIOS
-              ? const CupertinoControls(
-                  backgroundColor: Color(0xB2000000),
-                  iconColor: Colors.white,
-                )
-              : const MaterialControls(),
-        );
-      });
+      video = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      await video.initialize();
+      await video.setLooping(true);
+      await video.play();
+      if (!mounted) {
+        await video.dispose();
+        return;
+      }
+      video.addListener(_onVideoChanged);
+      setState(() => _video = video);
+      _scheduleHudHide();
     } catch (e) {
+      await video?.dispose();
       if (mounted) setState(() => _error = '$e');
     }
   }
 
+  void _onVideoChanged() {
+    final video = _video;
+    if (!mounted || video == null) return;
+    setState(() {});
+    if (video.value.isPlaying && _hudVisible && _hudTimer == null) {
+      _scheduleHudHide();
+    } else if (!video.value.isPlaying) {
+      _cancelHudAutoHide();
+    }
+  }
+
+  void _scheduleHudHide() {
+    _hudTimer?.cancel();
+    if (!_hudVisible || _video?.value.isPlaying != true) {
+      _hudTimer = null;
+      return;
+    }
+    _hudTimer = Timer(const Duration(seconds: 3), () {
+      _hudTimer = null;
+      if (!mounted || _video?.value.isPlaying != true) return;
+      setState(() => _hudVisible = false);
+    });
+  }
+
+  void _cancelHudAutoHide() {
+    _hudTimer?.cancel();
+    _hudTimer = null;
+  }
+
+  void _showHud({bool autoHide = true}) {
+    if (!_hudVisible) setState(() => _hudVisible = true);
+    if (autoHide && _video?.value.isPlaying == true) {
+      _scheduleHudHide();
+    } else if (!autoHide) {
+      _cancelHudAutoHide();
+    }
+  }
+
+  void _toggleHud() {
+    if (_hudVisible) {
+      _cancelHudAutoHide();
+      setState(() => _hudVisible = false);
+    } else {
+      _showHud();
+    }
+  }
+
+  Future<void> _togglePlayback() async {
+    final video = _video;
+    if (video == null) return;
+    if (video.value.isPlaying) {
+      await video.pause();
+      _cancelHudAutoHide();
+      if (mounted) setState(() => _hudVisible = true);
+    } else {
+      await video.play();
+      if (mounted) {
+        setState(() => _hudVisible = true);
+        _scheduleHudHide();
+      }
+    }
+  }
+
+  Future<void> _seekBy(int seconds) async {
+    final video = _video;
+    if (video == null || !video.value.isInitialized) return;
+    final durationMs = video.value.duration.inMilliseconds;
+    final targetMs = (video.value.position.inMilliseconds + seconds * 1000)
+        .clamp(0, durationMs)
+        .toInt();
+    await video.seekTo(Duration(milliseconds: targetMs));
+    if (!mounted) return;
+    _seekFeedbackTimer?.cancel();
+    setState(() {
+      _seekForward = seconds > 0;
+      _seekFeedback = seconds > 0 ? '>> 10s' : '<< 10s';
+    });
+    _seekAnimation.forward(from: 0);
+    _seekFeedbackTimer = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) setState(() => _seekFeedback = null);
+    });
+  }
+
+  void _toggleFullscreen() {
+    setState(() => _isFullscreen = !_isFullscreen);
+    SystemChrome.setEnabledSystemUIMode(
+      _isFullscreen ? SystemUiMode.immersive : SystemUiMode.edgeToEdge,
+    );
+    _showHud();
+  }
+
+  void _seekStart(double _) {
+    _cancelHudAutoHide();
+    _showHud(autoHide: false);
+  }
+
+  void _seekChanged(double value) {
+    final video = _video;
+    if (video == null) return;
+    unawaited(video.seekTo(Duration(milliseconds: value.round())));
+  }
+
+  void _seekEnd(double _) {
+    if (_video?.value.isPlaying == true) _scheduleHudHide();
+  }
+
   @override
   void dispose() {
+    _hudTimer?.cancel();
+    _seekFeedbackTimer?.cancel();
+    _seekAnimation.dispose();
+    final video = _video;
+    if (video != null) {
+      video.removeListener(_onVideoChanged);
+      video.dispose();
+    }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    _chewie?.dispose();
-    _video?.dispose();
     super.dispose();
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
+  }
+
+  Widget _circleAction({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.48),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _bottomControls(BuildContext context) {
+    final video = _video!;
+    final value = video.value;
+    final durationMs = value.duration.inMilliseconds.toDouble();
+    final positionMs = value.position.inMilliseconds
+        .clamp(0, value.duration.inMilliseconds)
+        .toDouble();
+    final bufferedMs = value.buffered.isEmpty
+        ? 0.0
+        : value.buffered.last.end.inMilliseconds
+            .clamp(0, value.duration.inMilliseconds)
+            .toDouble();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 12, 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.52),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: value.isPlaying ? 'Pause' : 'Play',
+            onPressed: _togglePlayback,
+            icon: Icon(
+              value.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              color: Colors.white,
+            ),
+          ),
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 4.5,
+                activeTrackColor: Colors.white,
+                secondaryActiveTrackColor: Colors.white.withValues(alpha: 0.5),
+                inactiveTrackColor: Colors.white.withValues(alpha: 0.24),
+                thumbColor: Colors.white,
+                overlayColor: Colors.white.withValues(alpha: 0.16),
+                thumbShape:
+                    const RoundSliderThumbShape(enabledThumbRadius: 6),
+                overlayShape:
+                    const RoundSliderOverlayShape(overlayRadius: 16),
+              ),
+              child: Slider(
+                min: 0,
+                max: durationMs > 0 ? durationMs : 1,
+                value: positionMs
+                    .clamp(0, durationMs > 0 ? durationMs : 1)
+                    .toDouble(),
+                secondaryTrackValue: bufferedMs,
+                onChangeStart: _seekStart,
+                onChanged: _seekChanged,
+                onChangeEnd: _seekEnd,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${_formatDuration(value.position)} / ${_formatDuration(value.duration)}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _hud(BuildContext context) {
+    final canDownload = widget.downloadUrl != null &&
+        !widget.downloadUrl!.contains('.m3u8');
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: !_hudVisible,
+        child: AnimatedOpacity(
+          opacity: _hudVisible ? 1 : 0,
+          duration: const Duration(milliseconds: 220),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0, 0.22, 0.76, 1],
+                        colors: [
+                          Colors.black.withValues(alpha: 0.62),
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.78),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                left: 16,
+                right: 16,
+                child: SafeArea(
+                  bottom: false,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _circleAction(
+                        icon: Icons.close,
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      ),
+                      Row(
+                        children: [
+                          _circleAction(
+                            icon: _isFullscreen
+                                ? Icons.fullscreen_exit_rounded
+                                : Icons.fullscreen_rounded,
+                            tooltip: _isFullscreen
+                                ? 'Exit fullscreen'
+                                : 'Enter fullscreen',
+                            onPressed: _toggleFullscreen,
+                          ),
+                          if (canDownload) ...[
+                            const SizedBox(width: 10),
+                            _circleAction(
+                              icon: Icons.download_rounded,
+                              tooltip: 'Download',
+                              onPressed: () => saveMediaToGallery(
+                                context,
+                                widget.downloadUrl!,
+                                isVideo: true,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: SafeArea(
+                  top: false,
+                  child: _bottomControls(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _gestureOverlay() {
+    return Positioned.fill(
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onDoubleTap: () => _seekBy(-10),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleHud,
+              child: const SizedBox.expand(),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onDoubleTap: () => _seekBy(10),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _errorView(BuildContext context) {
@@ -542,26 +886,61 @@ class _VideoViewerState extends State<_VideoViewer> {
 
   @override
   Widget build(BuildContext context) {
+    final video = _video;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           Center(
             child: _error != null
                 ? _errorView(context)
-                : _chewie == null
+                : video == null
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : Chewie(controller: _chewie!),
+                    : AspectRatio(
+                        aspectRatio: video.value.aspectRatio,
+                        child: VideoPlayer(video),
+                      ),
           ),
-          _ViewerControls(
-            title: widget.title,
-            sourceUrl: widget.url,
-            downloadUrl: (widget.downloadUrl != null &&
-                    !widget.downloadUrl!.contains('.m3u8'))
-                ? widget.downloadUrl
-                : null,
-            downloadIsVideo: true,
-          ),
+          if (video != null) _gestureOverlay(),
+          if (_seekFeedback != null)
+            Positioned(
+              top: 0,
+              bottom: 0,
+              left: _seekForward ? null : 24,
+              right: _seekForward ? 24 : null,
+              child: Center(
+                child: IgnorePointer(
+                  child: FadeTransition(
+                    opacity: _seekOpacity,
+                    child: ScaleTransition(
+                      scale: _seekScale,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.56),
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 12),
+                          child: Text(
+                            _seekFeedback!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          _hud(context),
           const _EdgeBack(),
         ],
       ),
