@@ -182,16 +182,11 @@ class _SavingDialog extends StatelessWidget {
 /// Floating translucent controls (close + download + share + open) over a scrim.
 class _ViewerControls extends StatelessWidget {
   const _ViewerControls(
-      {this.title,
-      this.sourceUrl,
-      this.center,
-      this.downloadUrl,
-      this.downloadIsVideo = false});
+      {this.title, this.sourceUrl, this.center, this.downloadUrl});
   final String? title;
   final String? sourceUrl;
   final String? center;
   final String? downloadUrl;
-  final bool downloadIsVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +228,7 @@ class _ViewerControls extends StatelessWidget {
                       ? CupertinoIcons.cloud_download
                       : Icons.download_rounded,
                   onTap: () => saveMediaToGallery(context, downloadUrl!,
-                      isVideo: downloadIsVideo),
+                      isVideo: false),
                 ),
                 const SizedBox(width: 4),
               ],
