@@ -307,9 +307,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             child: ScrollablePositionedList.builder(
               itemScrollController: _itemScroll,
               itemPositionsListener: _itemPositions,
-              // Prebuild roughly two comment screens to reduce visible work
-              // during fast scrolling without retaining the whole thread.
-              minCacheExtent: 2500,
+              // Keep a balanced look-ahead window: enough to avoid pop-in
+              // without building an excessive number of off-screen tiles.
+              minCacheExtent: 1000,
               addRepaintBoundaries: false,
               addAutomaticKeepAlives: false,
               padding: const EdgeInsets.only(top: 6, bottom: 96),
@@ -717,7 +717,9 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
   Widget _media(ColorScheme cs) {
     final p = widget.post;
     if (p.type == PostType.self) return const SizedBox.shrink();
-    final blur = (p.over18 && ref.watch(settingsControllerProvider).blurNsfw) || p.spoiler;
+    final blurNsfw =
+        ref.watch(settingsControllerProvider.select((s) => s.blurNsfw));
+    final blur = (p.over18 && blurNsfw) || p.spoiler;
     if (p.type == PostType.gallery && p.gallery.isNotEmpty) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -744,6 +746,11 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             p.previewHeight! > 0)
         ? (p.previewWidth! / p.previewHeight!).clamp(0.5, 2.0)
         : 16 / 9;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth =
+        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
+    final cacheHeight =
+        (cacheWidth / aspect).ceil().clamp(1, 1080).toInt();
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: NsfwBlur(
@@ -758,7 +765,12 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
               fit: StackFit.expand,
               children: [
                 if (url != null)
-                  CachedNetworkImage(imageUrl: url, fit: BoxFit.cover)
+                  CachedNetworkImage(
+                    imageUrl: url,
+                    memCacheWidth: cacheWidth,
+                    memCacheHeight: cacheHeight,
+                    fit: BoxFit.cover,
+                  )
                 else
                   Container(color: cs.surfaceContainerHighest),
                 if (p.type == PostType.video)
@@ -892,7 +904,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
     final edge = _railColors[(depth - 1).clamp(0, _railColors.length - 1)];
 
     return SwipeActions(
-      enabled: ref.watch(settingsControllerProvider).swipeActions,
+      enabled: ref.watch(
+          settingsControllerProvider.select((s) => s.swipeActions)),
       onRight: () => _vote(1),
       onLeft: () => _vote(-1),
       child: Container(
@@ -1161,6 +1174,10 @@ class _CommentMediaImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth =
+        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
+    final cacheHeight = (300 * dpr).round().clamp(1, 1080).toInt();
     return GestureDetector(
       onTap: () => openImageViewer(context, media.url, title: 'Comment media'),
       child: ConstrainedBox(
@@ -1169,10 +1186,16 @@ class _CommentMediaImage extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             if (media.isGif)
-              _StaticCommentGif(url: media.url)
+              _StaticCommentGif(
+                url: media.url,
+                cacheWidth: cacheWidth,
+                cacheHeight: cacheHeight,
+              )
             else
               CachedNetworkImage(
                 imageUrl: media.url,
+                memCacheWidth: cacheWidth,
+                memCacheHeight: cacheHeight,
                 fit: BoxFit.contain,
                 width: double.infinity,
                 height: 300,
@@ -1205,9 +1228,15 @@ class _CommentMediaImage extends StatelessWidget {
 }
 
 class _StaticCommentGif extends StatefulWidget {
-  const _StaticCommentGif({required this.url});
+  const _StaticCommentGif({
+    required this.url,
+    required this.cacheWidth,
+    required this.cacheHeight,
+  });
 
   final String url;
+  final int cacheWidth;
+  final int cacheHeight;
 
   @override
   State<_StaticCommentGif> createState() => _StaticCommentGifState();
@@ -1237,8 +1266,11 @@ class _StaticCommentGifState extends State<_StaticCommentGif> {
   }
 
   void _resolve() {
-    final stream = CachedNetworkImageProvider(widget.url)
-        .resolve(const ImageConfiguration());
+    final stream = CachedNetworkImageProvider(
+      widget.url,
+      cacheWidth: widget.cacheWidth,
+      cacheHeight: widget.cacheHeight,
+    ).resolve(const ImageConfiguration());
     late final ImageStreamListener listener;
     listener = ImageStreamListener(
       (info, _) {

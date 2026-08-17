@@ -40,6 +40,13 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
         ? (first.width! / first.height!).clamp(0.5, 2.0)
         : 16 / 9;
 
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth =
+        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
+    final logicalHeight = widget.height ?? MediaQuery.sizeOf(context).width / aspect;
+    final cacheHeight =
+        (logicalHeight * dpr).round().clamp(1, 1080).toInt();
+
     final stack = Stack(
           fit: StackFit.expand,
           children: [
@@ -52,6 +59,8 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
                     title: widget.title, initialIndex: i),
                 child: CachedNetworkImage(
                   imageUrl: widget.images[i].url,
+                  memCacheWidth: cacheWidth,
+                  memCacheHeight: cacheHeight,
                   fit: BoxFit.cover,
                   placeholder: (_, __) =>
                       Container(color: cs.surfaceContainerHighest),

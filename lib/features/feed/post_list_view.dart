@@ -119,11 +119,14 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           ],
         ),
         data: (state) {
-          final settings = ref.watch(settingsControllerProvider);
+          final forYouFeed =
+              ref.watch(settingsControllerProvider.select((s) => s.forYouFeed));
+          final autoHideReadForYou = ref.watch(
+              settingsControllerProvider.select((s) => s.autoHideReadForYou));
           var posts = state.posts;
           // Auto-hide already-read items in the For You feed (live: rebuilds
           // when history changes).
-          if (settings.autoHideReadForYou) {
+          if (autoHideReadForYou) {
             ref.watch(historyControllerProvider);
             final history = ref.read(historyControllerProvider.notifier);
             posts = posts
@@ -137,6 +140,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
+            addAutomaticKeepAlives: false,
+            addRepaintBoundaries: false,
             itemBuilder: (context, rawIndex) {
               var index = rawIndex;
               if (widget.header != null) {
@@ -149,7 +154,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                   time: state.time,
                   onPick: notifier.changeSort,
                   isFrontpage: widget.feedKey.isEmpty,
-                  forYou: settings.forYouFeed && widget.feedKey.isEmpty,
+                  forYou: forYouFeed && widget.feedKey.isEmpty,
                   onForYou: notifier.selectForYou,
                 );
               }
@@ -157,9 +162,11 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               if (index < posts.length) {
                 final post = posts[index];
                 if (widget.feedKey.isEmpty && index == 0) {
-                  return _StartupFirstPostVisibility(post: post);
+                  return RepaintBoundary(
+                    child: _StartupFirstPostVisibility(post: post),
+                  );
                 }
-                return PostCard(post: post);
+                return RepaintBoundary(child: PostCard(post: post));
               }
               // footer
               return Padding(

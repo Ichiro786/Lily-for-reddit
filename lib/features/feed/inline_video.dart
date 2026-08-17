@@ -108,6 +108,12 @@ class _InlineVideoState extends State<InlineVideo> {
   @override
   Widget build(BuildContext context) {
     final c = _c;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final posterWidth =
+        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
+    final posterHeight =
+        (widget.height * dpr).round().clamp(1, 1080).toInt();
+    final poster = widget.poster;
     return VisibilityDetector(
       key: Key('inlinevid_${widget.url}'),
       onVisibilityChanged: _onVisibility,
@@ -129,8 +135,13 @@ class _InlineVideoState extends State<InlineVideo> {
                     child: VideoPlayer(c),
                   ),
                 )
-              else if (widget.poster != null)
-                CachedNetworkImage(imageUrl: widget.poster!, fit: BoxFit.cover)
+              else if (poster != null)
+                CachedNetworkImage(
+                  imageUrl: poster,
+                  memCacheWidth: posterWidth,
+                  memCacheHeight: posterHeight,
+                  fit: BoxFit.cover,
+                )
               else
                 const ColoredBox(color: Colors.black12),
               if (!_ready)

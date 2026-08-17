@@ -113,15 +113,20 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(settingsControllerProvider);
+    final postDisplay =
+        ref.watch(settingsControllerProvider.select((s) => s.postDisplay));
+    final trackHistory =
+        ref.watch(settingsControllerProvider.select((s) => s.trackHistory));
+    final swipeActions =
+        ref.watch(settingsControllerProvider.select((s) => s.swipeActions));
     final seen = ref.watch(historyContainsProvider(widget.post.id));
-    Widget card = switch (settings.postDisplay) {
+    Widget card = switch (postDisplay) {
       PostDisplay.large => _largeCard(context),
       PostDisplay.card => _cardsCard(context),
       PostDisplay.mini => _miniCard(context),
     };
     // Dim already-viewed posts when history tracking is on.
-    if (seen && settings.trackHistory) {
+    if (seen && trackHistory) {
       card = ColorFiltered(
         colorFilter: ColorFilter.mode(
           Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.45),
@@ -189,7 +194,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     return GestureDetector(
       onLongPress: _showTuneSheet,
       child: SwipeActions(
-        enabled: settings.swipeActions,
+        enabled: swipeActions,
         onRight: () => _vote(1),
         onLeft: () => _vote(-1),
         child: card,
@@ -437,8 +442,9 @@ class _PostCardState extends ConsumerState<PostCard> {
   /// Feed preview URL, using the lower-resolution Reddit preview when the
   /// Data-saver thumbnails setting is enabled.
   String? _cardImg(Post p) {
-    final settings = ref.read(settingsControllerProvider);
-    if (!settings.midResThumbnails) return p.previewUrl;
+    final midResThumbnails = ref.watch(
+        settingsControllerProvider.select((s) => s.midResThumbnails));
+    if (!midResThumbnails) return p.previewUrl;
     return p.previewMedUrl ?? p.thumbnailUrl ?? p.previewUrl;
   }
 
@@ -446,7 +452,9 @@ class _PostCardState extends ConsumerState<PostCard> {
     final p = widget.post;
     if (p.type == PostType.self) return const SizedBox.shrink();
     if (p.type == PostType.link) return _linkPreview(cs);
-    final blur = (p.over18 && ref.watch(settingsControllerProvider).blurNsfw) || p.spoiler;
+    final blurNsfw =
+        ref.watch(settingsControllerProvider.select((s) => s.blurNsfw));
+    final blur = (p.over18 && blurNsfw) || p.spoiler;
     if (p.type == PostType.gallery && p.gallery.isNotEmpty) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 4),
@@ -459,10 +467,14 @@ class _PostCardState extends ConsumerState<PostCard> {
     }
     final url =
         _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth =
+        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
+    final cacheHeight = (height * dpr).round().clamp(1, 1080).toInt();
     // Inline autoplay for videos (when enabled and not NSFW-blurred).
     if (p.type == PostType.video &&
         !blur &&
-        ref.watch(settingsControllerProvider).autoplayMedia) {
+        ref.watch(settingsControllerProvider.select((s) => s.autoplayMedia))) {
       final vurl = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
       if (vurl.isNotEmpty && !vurl.toLowerCase().endsWith('.gif')) {
         return Padding(
@@ -497,7 +509,8 @@ class _PostCardState extends ConsumerState<PostCard> {
                   if (url != null)
                     CachedNetworkImage(
                       imageUrl: url,
-                      memCacheHeight: height.toInt(),
+                      memCacheWidth: cacheWidth,
+                      memCacheHeight: cacheHeight,
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
                           Container(color: cs.surfaceContainerHighest),
@@ -531,7 +544,11 @@ class _PostCardState extends ConsumerState<PostCard> {
     if (p.type == PostType.self) return null;
     final url =
         _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : p.thumbnailUrl);
-    final blur = (p.over18 && ref.watch(settingsControllerProvider).blurNsfw) || p.spoiler;
+    final blurNsfw =
+        ref.watch(settingsControllerProvider.select((s) => s.blurNsfw));
+    final blur = (p.over18 && blurNsfw) || p.spoiler;
+    final cacheSize =
+        (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(1, 300).toInt();
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
@@ -543,8 +560,8 @@ class _PostCardState extends ConsumerState<PostCard> {
             if (url != null && !blur)
               CachedNetworkImage(
                 imageUrl: url,
-                memCacheWidth: size.toInt(),
-                memCacheHeight: size.toInt(),
+                memCacheWidth: cacheSize,
+                memCacheHeight: cacheSize,
                 fit: BoxFit.cover,
                 placeholder: (_, __) =>
                     Container(color: cs.surfaceContainerHighest),
@@ -649,7 +666,9 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Widget _media(ColorScheme cs) {
     final p = widget.post;
-    final blur = (p.over18 && ref.watch(settingsControllerProvider).blurNsfw) || p.spoiler;
+    final blurNsfw =
+        ref.watch(settingsControllerProvider.select((s) => s.blurNsfw));
+    final blur = (p.over18 && blurNsfw) || p.spoiler;
     switch (p.type) {
       case PostType.gallery:
         if (p.gallery.isNotEmpty) {
@@ -682,8 +701,11 @@ class _PostCardState extends ConsumerState<PostCard> {
         ? p.previewWidth! / p.previewHeight!
         : 16 / 9;
     final renderAspect = aspect.clamp(0.5, 2.0).toDouble();
-    final cacheWidth = MediaQuery.sizeOf(context).width.toInt();
-    final cacheHeight = (cacheWidth / renderAspect).ceil();
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth =
+        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
+    final cacheHeight =
+        (cacheWidth / renderAspect).ceil().clamp(1, 1080).toInt();
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: ClipRRect(
@@ -751,8 +773,14 @@ class _PostCardState extends ConsumerState<PostCard> {
                       left: Radius.circular(16)),
                   child: CachedNetworkImage(
                     imageUrl: p.thumbnailUrl!,
-                    memCacheWidth: 72,
-                    memCacheHeight: 72,
+                    memCacheWidth: (72 * MediaQuery.devicePixelRatioOf(context))
+                        .round()
+                        .clamp(1, 300)
+                        .toInt(),
+                    memCacheHeight: (72 * MediaQuery.devicePixelRatioOf(context))
+                        .round()
+                        .clamp(1, 300)
+                        .toInt(),
                     width: 72,
                     height: 72,
                     fit: BoxFit.cover,
