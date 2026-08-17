@@ -1266,10 +1266,10 @@ class _StaticCommentGifState extends State<_StaticCommentGif> {
   }
 
   void _resolve() {
-    final stream = CachedNetworkImageProvider(
-      widget.url,
-      cacheWidth: widget.cacheWidth,
-      cacheHeight: widget.cacheHeight,
+    final stream = ResizeImage(
+      CachedNetworkImageProvider(widget.url),
+      width: widget.cacheWidth,
+      height: widget.cacheHeight,
     ).resolve(const ImageConfiguration());
     late final ImageStreamListener listener;
     listener = ImageStreamListener(
