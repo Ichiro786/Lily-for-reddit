@@ -1,0 +1,68 @@
+name: Flutter release APKs
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-apk:
+    name: Build split release APKs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      # The app's release signing configuration reads android/key.properties.
+      # Generate a disposable CI-only key so tagged/manual builds are reliable
+      # without requiring release credentials in GitHub Actions.
+      - name: Prepare ephemeral release signing config
+        env:
+          CI_KEYSTORE: ${{ runner.temp }}/ci-release-config.jks
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$CI_KEYSTORE" \
+            -storepass changeit \
+            -keypass changeit \
+            -alias ci-release-config \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 1 \
+            -dname "CN=CI,O=Lily for Reddit,C=US"
+          cat > android/key.properties <<EOF
+          storeFile=$CI_KEYSTORE
+          storePassword=changeit
+          keyAlias=ci-release-config
+          keyPassword=changeit
+          EOF
+
+      - name: Build split release APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Upload split release APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: lily-for-reddit-release-apks-${{ github.ref_name }}-run-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-*-release.apk
+          if-no-files-found: error
+          retention-days: 14
