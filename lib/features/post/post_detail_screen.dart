@@ -66,9 +66,27 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     if (_commentMarkdownStyle == null ||
         !identical(_commentMarkdownTheme, theme)) {
       _commentMarkdownTheme = theme;
+      final bodyStyle = theme.textTheme.bodyMedium
+          ?.copyWith(fontSize: 15, height: 1.45);
       _commentMarkdownStyle = MarkdownStyleSheet(
-        p: theme.textTheme.bodyMedium
-            ?.copyWith(fontSize: 15, height: 1.45),
+        p: bodyStyle,
+        blockquote: (bodyStyle ?? const TextStyle()).copyWith(
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+          fontStyle: FontStyle.italic,
+        ),
+        blockquotePadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        blockquoteDecoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest
+              .withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+          border: Border(
+            left: BorderSide(
+              color: theme.colorScheme.primary.withValues(alpha: 0.7),
+              width: 3.5,
+            ),
+          ),
+        ),
       );
     }
     return _commentMarkdownStyle!;
@@ -653,6 +671,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             MarkdownBody(
               data: p.selftext,
               selectable: true,
+              styleSheet: _getCommentMarkdownStyle(context),
               onTapLink: (_, href, __) {
                 if (href != null) {
                   launchUrl(Uri.parse(href),
