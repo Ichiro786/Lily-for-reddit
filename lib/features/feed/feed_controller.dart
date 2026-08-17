@@ -73,6 +73,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
 
   bool _enrichmentInFlight = false;
   bool _disposed = false;
+  bool _filterReadOnNextBuild = false;
 
   Future<Listing<Post>> _fetch({
     String? after,
@@ -136,6 +137,16 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         _ => false,
       };
 
+  List<Post> _filterReadPostsOnRefresh(List<Post> posts) {
+    if (!_filterReadOnNextBuild) return posts;
+    final settings = ref.read(settingsControllerProvider);
+    if (!settings.trackHistory || (_forYou && !settings.autoHideReadForYou)) {
+      return posts;
+    }
+    final history = ref.read(historyControllerProvider.notifier);
+    return [for (final post in posts) if (!history.containsId(post.id)) post];
+  }
+
   @override
   Future<FeedState> build(String arg) async {
     ref.onDispose(() => _disposed = true);
@@ -149,7 +160,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       final preview = await _fetchWithRetry(fast: true);
       _lastLoaded = DateTime.now();
       final previewState = FeedState(
-        posts: preview.items,
+        posts: _filterReadPostsOnRefresh(preview.items),
         sort: _sort!,
         time: _time,
         after: preview.after,
@@ -163,7 +174,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     final listing = await _fetchWithRetry();
     _lastLoaded = DateTime.now();
     return FeedState(
-      posts: listing.items,
+      posts: _filterReadPostsOnRefresh(listing.items),
       sort: _sort!,
       time: _time,
       after: listing.after,
@@ -191,7 +202,12 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   }
 
   Future<void> refresh() async {
-    state = await AsyncValue.guard(() => build(arg));
+    _filterReadOnNextBuild = true;
+    try {
+      state = await AsyncValue.guard(() => build(arg));
+    } finally {
+      _filterReadOnNextBuild = false;
+    }
   }
 
   Future<void> _enrichForYou(
