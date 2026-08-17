@@ -434,11 +434,13 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   /// Full-width media constrained to [height] (cover-cropped). Falls back to the
   /// link preview / nothing for non-image posts.
-  /// Feed preview URL, mid-resolution when the data-saver setting is on.
-  String? _cardImg(Post p) =>
-      ref.read(settingsControllerProvider).midResThumbnails
-          ? (p.previewMedUrl ?? p.previewUrl)
-          : p.previewUrl;
+  /// Feed preview URL, using the lower-resolution Reddit preview when the
+  /// Data-saver thumbnails setting is enabled.
+  String? _cardImg(Post p) {
+    final settings = ref.read(settingsControllerProvider);
+    if (!settings.midResThumbnails) return p.previewUrl;
+    return p.previewMedUrl ?? p.thumbnailUrl ?? p.previewUrl;
+  }
 
   Widget _bannerMedia(ColorScheme cs, double height) {
     final p = widget.post;
