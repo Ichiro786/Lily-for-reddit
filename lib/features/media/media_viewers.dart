@@ -642,10 +642,15 @@ class _VideoViewerState extends State<_VideoViewer>
     super.dispose();
   }
 
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+  String _formatDuration(Duration? duration) {
+    final safeDuration = duration == null || duration.isNegative
+        ? Duration.zero
+        : duration;
+    final hours = safeDuration.inHours;
+    final minutes =
+        safeDuration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds =
+        safeDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
   }
 
@@ -667,16 +672,22 @@ class _VideoViewerState extends State<_VideoViewer>
   }
 
   Widget _bottomControls(BuildContext context) {
-    final video = _video!;
+    final video = _video;
+    if (video == null || !video.value.isInitialized) {
+      return const SizedBox.shrink();
+    }
+
     final value = video.value;
-    final durationMs = value.duration.inMilliseconds.toDouble();
-    final positionMs = value.position.inMilliseconds
-        .clamp(0, value.duration.inMilliseconds)
+    final duration = value.duration.isNegative ? Duration.zero : value.duration;
+    final position = value.position.isNegative ? Duration.zero : value.position;
+    final durationMs = duration.inMilliseconds.toDouble();
+    final positionMs = position.inMilliseconds
+        .clamp(0, duration.inMilliseconds)
         .toDouble();
     final bufferedMs = value.buffered.isEmpty
         ? 0.0
         : value.buffered.last.end.inMilliseconds
-            .clamp(0, value.duration.inMilliseconds)
+            .clamp(0, duration.inMilliseconds)
             .toDouble();
 
     return Container(
@@ -725,7 +736,7 @@ class _VideoViewerState extends State<_VideoViewer>
           ),
           const SizedBox(width: 8),
           Text(
-            '${_formatDuration(value.position)} / ${_formatDuration(value.duration)}',
+            '${_formatDuration(position)} / ${_formatDuration(duration)}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.white.withValues(alpha: 0.9),
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -737,8 +748,8 @@ class _VideoViewerState extends State<_VideoViewer>
   }
 
   Widget _hud(BuildContext context) {
-    final canDownload = widget.downloadUrl != null &&
-        !widget.downloadUrl!.contains('.m3u8');
+    final downloadUrl = widget.downloadUrl;
+    final canDownload = downloadUrl != null && !downloadUrl.contains('.m3u8');
     return Positioned.fill(
       child: IgnorePointer(
         ignoring: !_hudVisible,
@@ -798,7 +809,7 @@ class _VideoViewerState extends State<_VideoViewer>
                               tooltip: 'Download',
                               onPressed: () => saveMediaToGallery(
                                 context,
-                                widget.downloadUrl!,
+                                downloadUrl!,
                                 isVideo: true,
                               ),
                             ),
@@ -833,6 +844,7 @@ class _VideoViewerState extends State<_VideoViewer>
             flex: 2,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
+              onTapDown: (_) => _toggleHud(),
               onDoubleTap: () => _seekBy(-10),
               child: const SizedBox.expand(),
             ),
@@ -848,6 +860,7 @@ class _VideoViewerState extends State<_VideoViewer>
             flex: 2,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
+              onTapDown: (_) => _toggleHud(),
               onDoubleTap: () => _seekBy(10),
               child: const SizedBox.expand(),
             ),
@@ -887,6 +900,10 @@ class _VideoViewerState extends State<_VideoViewer>
   @override
   Widget build(BuildContext context) {
     final video = _video;
+    final initializedVideo =
+        video != null && video.value.isInitialized ? video : null;
+    final aspectRatio = initializedVideo?.value.aspectRatio ?? 16 / 9;
+    final seekFeedback = _seekFeedback;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -895,15 +912,25 @@ class _VideoViewerState extends State<_VideoViewer>
           Center(
             child: _error != null
                 ? _errorView(context)
-                : video == null
-                    ? const CircularProgressIndicator(color: Colors.white)
+                : initializedVideo == null
+                    ? const SizedBox.expand(
+                        child: ColoredBox(
+                          color: Colors.black,
+                          child: Center(
+                            child:
+                                CircularProgressIndicator(color: Colors.white),
+                          ),
+                        ),
+                      )
                     : AspectRatio(
-                        aspectRatio: video.value.aspectRatio,
-                        child: VideoPlayer(video),
+                        aspectRatio: aspectRatio,
+                        child: RepaintBoundary(
+                          child: VideoPlayer(initializedVideo),
+                        ),
                       ),
           ),
-          if (video != null) _gestureOverlay(),
-          if (_seekFeedback != null)
+          if (initializedVideo != null) _gestureOverlay(),
+          if (initializedVideo != null && seekFeedback != null)
             Positioned(
               top: 0,
               bottom: 0,
@@ -926,7 +953,7 @@ class _VideoViewerState extends State<_VideoViewer>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 18, vertical: 12),
                           child: Text(
-                            _seekFeedback!,
+                            seekFeedback,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
@@ -940,7 +967,7 @@ class _VideoViewerState extends State<_VideoViewer>
                 ),
               ),
             ),
-          _hud(context),
+          if (initializedVideo != null) _hud(context),
           const _EdgeBack(),
         ],
       ),
