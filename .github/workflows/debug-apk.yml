@@ -80,16 +80,13 @@ jobs:
           keyPassword=changeit
           EOF
 
-      - name: Build Flutter debug APK
-        run: flutter build apk --debug
+      - name: Build split Flutter debug APKs
+        run: flutter build apk --debug --split-per-abi
 
-      - name: Name Lily debug APK
-        run: cp build/app/outputs/flutter-apk/app-debug.apk build/app/outputs/flutter-apk/lily-for-reddit-debug.apk
-
-      - name: Upload debug APK artifact
+      - name: Upload split debug APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: lily-for-reddit-debug-apk-v${{ steps.app_version.outputs.version }}-run-${{ github.run_number }}
-          path: build/app/outputs/flutter-apk/lily-for-reddit-debug.apk
+          name: lily-for-reddit-debug-apks-v${{ steps.app_version.outputs.version }}-run-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-*-debug.apk
           if-no-files-found: error
           retention-days: 14
