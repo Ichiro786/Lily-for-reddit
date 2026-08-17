@@ -119,18 +119,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           ],
         ),
         data: (state) {
+          final posts = ref.watch(filteredFeedPostsProvider(widget.feedKey));
           final settings = ref.watch(settingsControllerProvider);
-          var posts = state.posts;
-          // Auto-hide already-read items in the For You feed (live: rebuilds
-          // when history changes).
-          if (settings.autoHideReadForYou) {
-            ref.watch(historyControllerProvider);
-            final history = ref.read(historyControllerProvider.notifier);
-            posts = posts
-                .where((p) =>
-                    !(p.feedReason != null && history.containsId(p.id)))
-                .toList();
-          }
           final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
           return ListView.separated(
             controller: _scroll,
