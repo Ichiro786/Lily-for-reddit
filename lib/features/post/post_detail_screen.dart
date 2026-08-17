@@ -484,23 +484,6 @@ const _railColors = [
   Color(0xFF7E9BE0),
 ];
 
-List<Comment> _flatten(List<Comment> nodes, Set<String> collapsed) {
-  final out = <Comment>[];
-  void walk(Comment c) {
-    out.add(c);
-    if (!c.isMore && !collapsed.contains(c.id)) {
-      for (final r in c.replies) {
-        walk(r);
-      }
-    }
-  }
-
-  for (final c in nodes) {
-    walk(c);
-  }
-  return out;
-}
-
 Future<bool> _confirmDelete(BuildContext context, String what) async {
   final ok = await showDialog<bool>(
     context: context,
