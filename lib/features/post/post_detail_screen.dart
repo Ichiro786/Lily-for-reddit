@@ -296,7 +296,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           ),
         ),
         data: (thread) {
-          final flat = _flatten(thread.comments, thread.collapsed);
+          final flat = ref.watch(flattenedCommentsProvider(widget.arg));
           final commentMarkdownStyle = _getCommentMarkdownStyle(context);
           _flat = flat;
           final list = RefreshIndicator(
@@ -480,22 +480,7 @@ const _railColors = [
   Color(0xFF7E9BE0),
 ];
 
-List<Comment> _flatten(List<Comment> nodes, Set<String> collapsed) {
-  final out = <Comment>[];
-  void walk(Comment c) {
-    out.add(c);
-    if (!c.isMore && !collapsed.contains(c.id)) {
-      for (final r in c.replies) {
-        walk(r);
-      }
-    }
-  }
 
-  for (final c in nodes) {
-    walk(c);
-  }
-  return out;
-}
 
 Future<bool> _confirmDelete(BuildContext context, String what) async {
   final ok = await showDialog<bool>(

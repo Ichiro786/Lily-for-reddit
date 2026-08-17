@@ -194,3 +194,24 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
 final commentsControllerProvider =
     AsyncNotifierProvider.autoDispose.family<CommentsController, PostThread, String>(
         CommentsController.new);
+
+final flattenedCommentsProvider = Provider.family.autoDispose<List<Comment>, String>((ref, arg) {
+  final asyncThread = ref.watch(commentsControllerProvider(arg));
+  final thread = asyncThread.valueOrNull;
+  if (thread == null) return const [];
+
+  final out = <Comment>[];
+  void walk(Comment c) {
+    out.add(c);
+    if (!c.isMore && !thread.collapsed.contains(c.id)) {
+      for (final r in c.replies) {
+        walk(r);
+      }
+    }
+  }
+
+  for (final c in thread.comments) {
+    walk(c);
+  }
+  return out;
+});
