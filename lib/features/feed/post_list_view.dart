@@ -148,9 +148,14 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               if (index < posts.length) {
                 final post = posts[index];
                 if (widget.feedKey.isEmpty && index == 0) {
-                  return _StartupFirstPostVisibility(post: post);
+                  return RepaintBoundary(
+                    child: _StartupFirstPostVisibility(post: post),
+                  );
                 }
-                return PostCard(post: post);
+                return RepaintBoundary(
+                  key: ValueKey(post.id),
+                  child: PostCard(post: post),
+                );
               }
               // footer
               return Padding(
@@ -206,14 +211,16 @@ class _StartupFirstPostVisibility extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return VisibilityDetector(
-      key: ValueKey<String>('startup-first-post-${post.id}'),
-      onVisibilityChanged: (info) {
-        if (info.visibleFraction > 0) {
-          StartupMetrics.instance.markFirstFeedItemVisible();
-        }
-      },
-      child: PostCard(post: post),
+    return RepaintBoundary(
+      child: VisibilityDetector(
+        key: ValueKey<String>('startup-first-post-${post.id}'),
+        onVisibilityChanged: (info) {
+          if (info.visibleFraction > 0) {
+            StartupMetrics.instance.markFirstFeedItemVisible();
+          }
+        },
+        child: PostCard(post: post),
+      ),
     );
   }
 }
