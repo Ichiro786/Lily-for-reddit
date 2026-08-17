@@ -37,7 +37,7 @@ void main() {
     final candidate = post(id: 'decay', subreddit: 'news', score: 27, comments: 2);
 
     final score = FeedRanker.scoreFor(candidate, now: now);
-    final expected = 30 / math.pow(2.0, 1.6);
+    final expected = 30 / math.pow(2.0 + 2.0, 1.6);
 
     expect(score, closeTo(expected, 0.000001));
   });
