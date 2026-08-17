@@ -33,27 +33,38 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      # The app's release signing configuration reads android/key.properties.
-      # Generate a disposable CI-only key so tagged/manual builds are reliable
-      # without requiring release credentials in GitHub Actions.
-      - name: Prepare ephemeral release signing config
+      # Prefer repository secrets for production signing. When the secrets are
+      # not configured yet, use the committed deterministic fallback so every
+      # release run keeps the same certificate instead of generating a new one.
+      - name: Prepare persistent release signing config
         env:
-          CI_KEYSTORE: ${{ runner.temp }}/ci-release-config.jks
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          keytool -genkeypair -v \
-            -keystore "$CI_KEYSTORE" \
-            -storepass changeit \
-            -keypass changeit \
-            -alias ci-release-config \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 1 \
-            -dname "CN=CI,O=Lily for Reddit,C=US"
+          set -euo pipefail
+          if [[ -n "$RELEASE_KEYSTORE_BASE64" || -n "$KEYSTORE_PASSWORD" || -n "$KEY_ALIAS" || -n "$KEY_PASSWORD" ]]; then
+            if [[ -z "$RELEASE_KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+              echo "All four release signing secrets must be provided together." >&2
+              exit 1
+            fi
+            printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+            store_file="app/release.keystore"
+            store_password="$KEYSTORE_PASSWORD"
+            key_alias="$KEY_ALIAS"
+            key_password="$KEY_PASSWORD"
+          else
+            store_file="app/ci-release.keystore"
+            store_password="lily-ci-release-2026"
+            key_alias="lily-ci-release"
+            key_password="lily-ci-release-2026"
+          fi
           cat > android/key.properties <<EOF
-          storeFile=$CI_KEYSTORE
-          storePassword=changeit
-          keyAlias=ci-release-config
-          keyPassword=changeit
+          storeFile=$store_file
+          storePassword=$store_password
+          keyAlias=$key_alias
+          keyPassword=$key_password
           EOF
 
       - name: Build split release APKs
