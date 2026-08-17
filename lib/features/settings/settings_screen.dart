@@ -524,7 +524,6 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     ref.invalidate(feedControllerProvider);
     ref.invalidate(inboxControllerProvider);
     ref.invalidate(unreadCountProvider);
-    ref.invalidate(subscribedSubredditsProvider);
     ref.invalidate(myMultiredditsProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(result.message)),
