@@ -495,6 +495,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                   if (url != null)
                     CachedNetworkImage(
                       imageUrl: url,
+                      memCacheWidth: MediaQuery.of(context).size.width.round(),
                       memCacheHeight: height.toInt(),
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>

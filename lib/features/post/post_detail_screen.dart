@@ -764,7 +764,12 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
               fit: StackFit.expand,
               children: [
                 if (url != null)
-                  CachedNetworkImage(imageUrl: url, fit: BoxFit.cover)
+                  CachedNetworkImage(
+                    imageUrl: url,
+                    memCacheWidth: MediaQuery.of(context).size.width.round(),
+                    memCacheHeight: (MediaQuery.of(context).size.width / aspect).round(),
+                    fit: BoxFit.cover,
+                  )
                 else
                   Container(color: cs.surfaceContainerHighest),
                 if (p.type == PostType.video)

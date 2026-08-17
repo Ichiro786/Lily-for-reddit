@@ -130,7 +130,12 @@ class _InlineVideoState extends State<InlineVideo> {
                   ),
                 )
               else if (widget.poster != null)
-                CachedNetworkImage(imageUrl: widget.poster!, fit: BoxFit.cover)
+                CachedNetworkImage(
+                  imageUrl: widget.poster!,
+                  memCacheWidth: MediaQuery.of(context).size.width.round(),
+                  memCacheHeight: widget.height.round(),
+                  fit: BoxFit.cover,
+                )
               else
                 const ColoredBox(color: Colors.black12),
               if (!_ready)
