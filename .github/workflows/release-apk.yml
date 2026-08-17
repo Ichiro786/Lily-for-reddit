@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   release-apk:
@@ -77,3 +77,11 @@ jobs:
           path: build/app/outputs/flutter-apk/app-*-release.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload APKs to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/app/outputs/flutter-apk/app-*-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
