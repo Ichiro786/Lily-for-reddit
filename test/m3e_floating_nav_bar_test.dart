@@ -18,9 +18,7 @@ Widget _harness(Widget child) {
 Finder _dockBackground() {
   return find.descendant(
     of: find.byType(M3EFloatingNavBar),
-    matching: find.byWidgetPredicate(
-      (widget) => widget is AnimatedContainer && widget.height != null,
-    ),
+    matching: find.byType(AnimatedContainer),
   ).first;
 }
 

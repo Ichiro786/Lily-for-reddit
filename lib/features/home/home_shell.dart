@@ -17,7 +17,7 @@ import '../notifications/notification_service.dart';
 import '../settings/settings_controller.dart';
 import '../updates/update_checker.dart';
 import 'account_tab.dart';
-import 'home/tab_signals.dart';
+import 'tab_signals.dart';
 import '../navigation/m3e_floating_nav_bar.dart';
 
 /// SharedPreferences flag: have we shown the one-time notifications suggestion?
