@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/media_aspect_ratio.dart';
+import '../../core/widgets/m3e_loading_indicator.dart';
 import '../../models/post.dart';
 import 'media_viewers.dart';
 
@@ -62,8 +63,8 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
                   memCacheWidth: cacheWidth,
                   memCacheHeight: cacheHeight,
                   fit: BoxFit.cover,
-                  placeholder: (_, __) =>
-                      Container(color: cs.surfaceContainerHighest),
+                  placeholder: (_, __) => const Center(
+                      child: M3ELoadingIndicator.medium()),
                   errorWidget: (_, __, ___) => Container(
                     color: cs.surfaceContainerHighest,
                     child: Icon(Icons.broken_image_outlined,
