@@ -40,7 +40,7 @@ void main() {
     expect(selected, 2);
   });
 
-  testWidgets('dock morphs from expanded 64dp to minimized 44dp',
+  testWidgets('dock morphs from expanded 58dp to minimized 42dp',
       (tester) async {
     await tester.pumpWidget(
       _harness(
@@ -50,7 +50,7 @@ void main() {
         ),
       ),
     );
-    expect(tester.getSize(_dockBackground()).height, 64);
+    expect(tester.getSize(_dockBackground()).height, 58);
 
     await tester.pumpWidget(
       _harness(
@@ -62,7 +62,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 250));
-    expect(tester.getSize(_dockBackground()).height, 44);
+    expect(tester.getSize(_dockBackground()).height, 42);
   });
 
   testWidgets('Inbox unread badge is visible when unread count is nonzero',
@@ -96,10 +96,14 @@ void main() {
     final theme = Theme.of(tester.element(find.byType(M3EFloatingNavBar)));
     expect(decoration.color, theme.colorScheme.surfaceContainerHigh);
     expect(decoration.borderRadius, ShapeTokens.extraLarge);
+    expect(
+      find.byIcon(Icons.home_rounded),
+      findsOneWidget,
+    );
     expect(decoration.border, isNotNull);
     expect(
       (decoration.border! as Border).top.color,
-      theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+      theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
     );
   });
 }

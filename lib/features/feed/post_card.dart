@@ -418,7 +418,7 @@ class _PostCardState extends ConsumerState<PostCard> {
               _flair(cs, p.linkFlairText!),
             ],
             const SizedBox(height: 12),
-            _bannerMedia(cs, 180),
+            _bannerMedia(cs, 200),
             if (p.isSelf && p.selftext.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
@@ -497,6 +497,11 @@ class _PostCardState extends ConsumerState<PostCard> {
     final cacheWidth =
         (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
     final cacheHeight = (height * dpr).round().clamp(1, 1080).toInt();
+    final renderAspect = boundedMediaAspectRatio(
+      width: p.previewWidth,
+      height: p.previewHeight,
+    );
+    final isTall = renderAspect < 0.8;
     // Inline autoplay for videos (when enabled and not NSFW-blurred).
     if (p.type == PostType.video &&
         !blur &&
@@ -537,6 +542,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                       imageUrl: url,
                       memCacheWidth: cacheWidth,
                       memCacheHeight: cacheHeight,
+                      alignment: Alignment.topCenter,
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
                           Container(color: cs.surfaceContainerHighest),
@@ -545,6 +551,22 @@ class _PostCardState extends ConsumerState<PostCard> {
                     )
                   else
                     Container(color: cs.surfaceContainerHighest),
+                  if (isTall)
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 72,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Color(0x66000000)],
+                          ),
+                        ),
+                      ),
+                    ),
                   if (p.type == PostType.video)
                     const Center(child: _PlayBadge()),
                   if (p.type == PostType.gallery)
@@ -770,54 +792,82 @@ class _PostCardState extends ConsumerState<PostCard> {
         (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
     final cacheHeight =
         (cacheWidth / renderAspect).ceil().clamp(1, 1080).toInt();
+    final isTall = renderAspect < 0.8;
+
+    final mediaStack = Stack(
+      fit: StackFit.expand,
+      children: [
+        if (url != null)
+          CachedNetworkImage(
+            imageUrl: url,
+            memCacheWidth: cacheWidth,
+            memCacheHeight: cacheHeight,
+            alignment: Alignment.topCenter,
+            fit: BoxFit.cover,
+            placeholder: (_, __) =>
+                Container(color: cs.surfaceContainerHighest),
+            errorWidget: (_, __, ___) => Container(
+              color: cs.surfaceContainerHighest,
+              alignment: Alignment.center,
+              child: Icon(Icons.broken_image_outlined,
+                  color: cs.onSurfaceVariant),
+            ),
+          )
+        else
+          Container(
+            color: cs.surfaceContainerHighest,
+            alignment: Alignment.center,
+            child: Icon(Icons.image_not_supported_outlined,
+                color: cs.onSurfaceVariant),
+          ),
+        if (url != null && isTall)
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 72,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Color(0x66000000)],
+                ),
+              ),
+            ),
+          ),
+        if (p.type == PostType.video) const Center(child: _PlayBadge()),
+        if (p.type == PostType.gallery)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: _Pill(
+                icon: Icons.collections_rounded,
+                label: '${p.gallery.length}'),
+          ),
+        if (p.type == PostType.gif)
+          const Positioned(top: 8, left: 8, child: _Pill(label: 'GIF')),
+        if (p.type == PostType.video)
+          const Positioned(
+            bottom: 8,
+            right: 8,
+            child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
+          ),
+      ],
+    );
+
+    final contained = url == null
+        ? SizedBox(height: 200, child: mediaStack)
+        : AspectRatio(aspectRatio: renderAspect, child: mediaStack);
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: ClipRRect(
         borderRadius: ShapeTokens.large,
         child: GestureDetector(
           onTap: _openMedia,
-          child: AspectRatio(
-            aspectRatio: renderAspect,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (url != null)
-                  CachedNetworkImage(
-                    imageUrl: url,
-                    memCacheWidth: cacheWidth,
-                    memCacheHeight: cacheHeight,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) =>
-                        Container(color: cs.surfaceContainerHighest),
-                    errorWidget: (_, __, ___) => Container(
-                      color: cs.surfaceContainerHighest,
-                      child: Icon(Icons.broken_image_outlined,
-                          color: cs.onSurfaceVariant),
-                    ),
-                  )
-                else
-                  Container(color: cs.surfaceContainerHighest),
-                if (p.type == PostType.video)
-                  const Center(child: _PlayBadge()),
-                if (p.type == PostType.gallery)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: _Pill(
-                        icon: Icons.collections_rounded,
-                        label: '${p.gallery.length}'),
-                  ),
-                if (p.type == PostType.gif)
-                  const Positioned(
-                      top: 8, left: 8, child: _Pill(label: 'GIF')),
-                if (p.type == PostType.video)
-                  const Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
-                  ),
-              ],
-            ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 520),
+            child: contained,
           ),
         ),
       ),

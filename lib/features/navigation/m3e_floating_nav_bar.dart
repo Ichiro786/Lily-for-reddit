@@ -1,8 +1,10 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/shape_tokens.dart';
 
-class M3EFloatingNavBar extends StatelessWidget {
+class M3EFloatingNavBar extends StatefulWidget {
   const M3EFloatingNavBar({
     super.key,
     required this.selectedIndex,
@@ -26,49 +28,98 @@ class M3EFloatingNavBar extends StatelessWidget {
   ];
 
   @override
+  State<M3EFloatingNavBar> createState() => _M3EFloatingNavBarState();
+}
+
+class _M3EFloatingNavBarState extends State<M3EFloatingNavBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _morph;
+
+  @override
+  void initState() {
+    super.initState();
+    _morph = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      value: widget.minimized ? 1 : 0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant M3EFloatingNavBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.minimized != widget.minimized) {
+      _morph.animateTo(
+        widget.minimized ? 1 : 0,
+        curve: Curves.fastOutSlowIn,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _morph.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final radius = minimized ? ShapeTokens.full : ShapeTokens.extraLarge;
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: RepaintBoundary(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOutCubic,
-            height: minimized ? 44 : 64,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHigh,
-              borderRadius: radius,
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.shadow.withValues(alpha: 0.24),
-                  blurRadius: 18,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                for (var i = 0; i < _destinations.length; i++)
-                  Expanded(
-                    child: _Destination(
-                      iconOff: _destinations[i].$1,
-                      iconOn: _destinations[i].$2,
-                      label: _destinations[i].$3,
-                      selected: selectedIndex == i,
-                      unread: i == 2 ? unread : 0,
-                      minimized: minimized,
-                      showLabels: showLabels,
-                      onTap: () => onSelected(i),
-                    ),
+          child: AnimatedBuilder(
+            animation: _morph,
+            builder: (context, _) {
+              final t = Curves.fastOutSlowIn.transform(_morph.value);
+              final minimized = t > 0.5;
+              final radius = BorderRadius.lerp(
+                    ShapeTokens.extraLarge,
+                    ShapeTokens.full,
+                    t,
+                  ) ??
+                  ShapeTokens.extraLarge;
+              return AnimatedContainer(
+                duration: Duration.zero,
+                curve: Curves.fastOutSlowIn,
+                height: lerpDouble(58, 42, t),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHigh,
+                  borderRadius: radius,
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.2),
                   ),
-              ],
-            ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.shadow.withValues(alpha: 0.2),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    for (var i = 0;
+                        i < M3EFloatingNavBar._destinations.length;
+                        i++)
+                      Expanded(
+                        child: _Destination(
+                          iconOff: M3EFloatingNavBar._destinations[i].$1,
+                          iconOn: M3EFloatingNavBar._destinations[i].$2,
+                          label: M3EFloatingNavBar._destinations[i].$3,
+                          selected: widget.selectedIndex == i,
+                          unread: i == 2 ? widget.unread : 0,
+                          minimized: minimized,
+                          showLabels: widget.showLabels,
+                          onTap: () => widget.onSelected(i),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -100,10 +151,14 @@ class _Destination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final selectedColor = colorScheme.primary;
-    final color = selected ? selectedColor : colorScheme.onSurfaceVariant;
-    final labelsVisible = showLabels && !minimized;
-    final icon = Icon(selected ? iconOn : iconOff, size: minimized ? 21 : 24);
+    final color = selected
+        ? colorScheme.primary
+        : colorScheme.onSurfaceVariant;
+    final icon = Icon(
+      selected ? iconOn : iconOff,
+      size: minimized ? 20 : 22,
+      color: color,
+    );
 
     return Semantics(
       button: true,
@@ -114,99 +169,83 @@ class _Destination extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Center(
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOutCubic,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.fastOutSlowIn,
             constraints: BoxConstraints(
-              minHeight: minimized ? 32 : 48,
-              minWidth: minimized ? 32 : 64,
+              minHeight: minimized ? 32 : 42,
+              minWidth: minimized ? 32 : 56,
             ),
             padding: EdgeInsets.symmetric(
-              horizontal: selected && !minimized ? 12 : 8,
-              vertical: minimized ? 3 : 5,
+              horizontal: selected && !minimized ? 10 : 8,
+              vertical: minimized ? 2 : 4,
             ),
             decoration: BoxDecoration(
               color: selected
-                  ? selectedColor.withValues(alpha: 0.25)
+                  ? colorScheme.primary.withValues(alpha: 0.2)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: AnimatedSize(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOutCubic,
-              alignment: Alignment.center,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      IconTheme(data: IconThemeData(color: color), child: icon),
-                      if (unread > 0)
-                        Positioned(
-                          top: -4,
-                          right: -7,
-                          child: Container(
-                            constraints: minimized
-                                ? const BoxConstraints.tightFor(
-                                    width: 8, height: 8)
-                                : const BoxConstraints(minWidth: 16, minHeight: 16),
-                            padding: minimized
-                                ? EdgeInsets.zero
-                                : const EdgeInsets.symmetric(horizontal: 3),
-                            decoration: BoxDecoration(
-                              color: colorScheme.error,
-                              shape: minimized
-                                  ? BoxShape.circle
-                                  : BoxShape.rectangle,
-                              borderRadius:
-                                  minimized ? null : BorderRadius.circular(8),
-                            ),
-                            alignment: Alignment.center,
-                            child: minimized
-                                ? null
-                                : Text(
-                                    unread > 99 ? '99+' : '$unread',
-                                    style: TextStyle(
-                                      color: colorScheme.onError,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  ClipRect(
-                    child: AnimatedAlign(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeInOutCubic,
-                      heightFactor: labelsVisible ? 1 : 0,
-                      alignment: Alignment.topCenter,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 180),
-                        opacity: labelsVisible ? 1 : 0,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.fade,
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelMedium
-                                ?.copyWith(
-                                  color: color,
-                                  fontWeight: selected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    icon,
+                    if (unread > 0)
+                      Positioned(
+                        top: -5,
+                        right: -7,
+                        child: Container(
+                          constraints: minimized
+                              ? const BoxConstraints.tightFor(
+                                  width: 8,
+                                  height: 8,
+                                )
+                              : const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
                                 ),
+                          padding: minimized
+                              ? EdgeInsets.zero
+                              : const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(
+                            color: colorScheme.error,
+                            shape: minimized
+                                ? BoxShape.circle
+                                : BoxShape.rectangle,
+                            borderRadius:
+                                minimized ? null : BorderRadius.circular(8),
                           ),
+                          alignment: Alignment.center,
+                          child: minimized
+                              ? null
+                              : Text(
+                                  unread > 99 ? '99+' : '$unread',
+                                  style: TextStyle(
+                                    color: colorScheme.onError,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                         ),
                       ),
-                    ),
+                  ],
+                ),
+                if (!minimized && showLabels) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: color,
+                          fontWeight:
+                              selected ? FontWeight.w700 : FontWeight.w500,
+                        ),
                   ),
                 ],
-              ),
+              ],
             ),
           ),
         ),

@@ -112,8 +112,11 @@ void main() {
     await tester.pumpWidget(
       _harness(
         M3ECommentComposeBar(
-          onSend: (text) => sent = text,
-          onAttach: () => attachments++,
+          onSend: (text, _) => sent = text,
+          onAttach: () async {
+            attachments++;
+            return null;
+          },
         ),
       ),
     );
@@ -122,7 +125,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Hello M3E');
     await tester.tap(find.byTooltip('Send comment'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Attach image or GIF'));
+    await tester.tap(find.byTooltip('Attach image from gallery'));
 
     expect(sent, 'Hello M3E');
     expect(attachments, 1);
