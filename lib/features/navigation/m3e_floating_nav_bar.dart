@@ -1,269 +1,182 @@
-import 'dart:ui' show lerpDouble;
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../core/theme/shape_tokens.dart';
+class M3EFloatingNavBar extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final bool isMinimized;
+  final int unreadCount;
 
-class M3EFloatingNavBar extends StatefulWidget {
   const M3EFloatingNavBar({
     super.key,
-    required this.selectedIndex,
-    required this.onSelected,
-    this.unread = 0,
-    this.minimized = false,
-    this.showLabels = true,
+    required this.currentIndex,
+    required this.onTap,
+    this.isMinimized = false,
+    this.unreadCount = 0,
   });
-
-  final int selectedIndex;
-  final ValueChanged<int> onSelected;
-  final int unread;
-  final bool minimized;
-  final bool showLabels;
-
-  static const _destinations = [
-    (Icons.home_outlined, Icons.home_rounded, 'Home'),
-    (Icons.explore_outlined, Icons.explore_rounded, 'Discover'),
-    (Icons.mail_outline_rounded, Icons.mail_rounded, 'Inbox'),
-    (Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
-  ];
-
-  @override
-  State<M3EFloatingNavBar> createState() => _M3EFloatingNavBarState();
-}
-
-class _M3EFloatingNavBarState extends State<M3EFloatingNavBar>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _morph;
-
-  @override
-  void initState() {
-    super.initState();
-    _morph = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-      value: widget.minimized ? 1 : 0,
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant M3EFloatingNavBar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.minimized != widget.minimized) {
-      _morph.animateTo(
-        widget.minimized ? 1 : 0,
-        curve: Curves.fastOutSlowIn,
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _morph.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        child: RepaintBoundary(
-          child: AnimatedBuilder(
-            animation: _morph,
-            builder: (context, _) {
-              final t = Curves.fastOutSlowIn.transform(_morph.value);
-              final minimized = t > 0.5;
-              final radius = BorderRadius.lerp(
-                    ShapeTokens.extraLarge,
-                    ShapeTokens.full,
-                    t,
-                  ) ??
-                  ShapeTokens.extraLarge;
-              return Container(
-                key: const ValueKey<String>('m3e-nav-dock'),
-                height: lerpDouble(58, 42, t),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHigh,
-                  borderRadius: radius,
-                  border: Border.all(
-                    color: colorScheme.outlineVariant.withValues(alpha: 0.2),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorScheme.shadow.withValues(alpha: 0.24),
-                      blurRadius: 18,
-                      offset: const Offset(0, 7),
-                    ),
-                  ],
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return RepaintBoundary(
+      child: SafeArea(
+        top: false,
+        left: false,
+        right: false,
+        minimum: const EdgeInsets.only(bottom: 12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.fastOutSlowIn,
+            height: isMinimized ? 44.0 : 60.0,
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(isMinimized ? 999 : 28),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.25),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
-                child: Row(
-                  children: [
-                    for (var i = 0;
-                        i < M3EFloatingNavBar._destinations.length;
-                        i++)
-                      Expanded(
-                        child: _Destination(
-                          iconOff: M3EFloatingNavBar._destinations[i].$1,
-                          iconOn: M3EFloatingNavBar._destinations[i].$2,
-                          label: M3EFloatingNavBar._destinations[i].$3,
-                          selected: widget.selectedIndex == i,
-                          unread: i == 2 ? widget.unread : 0,
-                          minimized: minimized,
-                          showLabels: widget.showLabels,
-                          onTap: () => widget.onSelected(i),
-                        ),
-                      ),
-                  ],
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavItem(
+                  context: context,
+                  index: 0,
+                  icon: Icons.home_outlined,
+                  activeIcon: Icons.home_rounded,
+                  label: 'Home',
                 ),
-              );
-            },
+                _buildNavItem(
+                  context: context,
+                  index: 1,
+                  icon: Icons.explore_outlined,
+                  activeIcon: Icons.explore_rounded,
+                  label: 'Discover',
+                ),
+                _buildNavItem(
+                  context: context,
+                  index: 2,
+                  icon: Icons.mail_outline_rounded,
+                  activeIcon: Icons.mail_rounded,
+                  label: 'Inbox',
+                  badgeCount: unreadCount,
+                ),
+                _buildNavItem(
+                  context: context,
+                  index: 3,
+                  icon: Icons.person_outline_rounded,
+                  activeIcon: Icons.person_rounded,
+                  label: 'Profile',
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
-}
 
-class _Destination extends StatelessWidget {
-  const _Destination({
-    required this.iconOff,
-    required this.iconOn,
-    required this.label,
-    required this.selected,
-    required this.unread,
-    required this.minimized,
-    required this.showLabels,
-    required this.onTap,
-  });
+  Widget _buildNavItem({
+    required BuildContext context,
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    int badgeCount = 0,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isSelected = currentIndex == index;
 
-  final IconData iconOff;
-  final IconData iconOn;
-  final String label;
-  final bool selected;
-  final int unread;
-  final bool minimized;
-  final bool showLabels;
-  final VoidCallback onTap;
+    final Color iconColor = isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant;
+    final Color labelColor = isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant;
 
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final color = selected
-        ? colorScheme.primary
-        : colorScheme.onSurfaceVariant;
-    final labelVisible = showLabels && !minimized;
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: ShapeTokens.small,
-        child: Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap(index);
+          },
+          borderRadius: BorderRadius.circular(isMinimized ? 999 : 20),
+          splashColor: colorScheme.primary.withValues(alpha: 0.12),
+          highlightColor: Colors.transparent,
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 220),
             curve: Curves.fastOutSlowIn,
-            constraints: BoxConstraints(
-              minHeight: minimized ? 32 : 42,
-              minWidth: minimized ? 32 : 56,
-            ),
-            padding: EdgeInsets.symmetric(
-              horizontal: selected && !minimized ? 10 : 8,
-              vertical: minimized ? 2 : 4,
-            ),
-            decoration: BoxDecoration(
-              color: selected
-                  ? colorScheme.primary.withValues(alpha: 0.22)
-                  : Colors.transparent,
-              borderRadius: ShapeTokens.small,
-            ),
-            child: Row(
+            padding: EdgeInsets.symmetric(vertical: isMinimized ? 6 : 4),
+            child: Column(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(
-                      selected ? iconOn : iconOff,
-                      size: minimized ? 20 : 22,
-                      color: color,
-                    ),
-                    if (unread > 0)
-                      Positioned(
-                        top: -5,
-                        right: -7,
-                        child: Container(
-                          constraints: minimized
-                              ? const BoxConstraints.tightFor(
-                                  width: 8,
-                                  height: 8,
-                                )
-                              : const BoxConstraints(
-                                  minWidth: 16,
-                                  minHeight: 16,
-                                ),
-                          padding: minimized
-                              ? EdgeInsets.zero
-                              : const EdgeInsets.symmetric(horizontal: 3),
-                          decoration: BoxDecoration(
-                            color: colorScheme.error,
-                            shape: minimized
-                                ? BoxShape.circle
-                                : BoxShape.rectangle,
-                            borderRadius:
-                                minimized ? null : ShapeTokens.extraSmall,
-                          ),
-                          alignment: Alignment.center,
-                          child: minimized
-                              ? null
-                              : Text(
-                                  unread > 99 ? '99+' : '$unread',
-                                  style: TextStyle(
-                                    color: colorScheme.onError,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                        ),
+                // Active indicator capsule around icon
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.fastOutSlowIn,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSelected ? 16 : 0,
+                    vertical: isSelected ? 3 : 0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? colorScheme.primary.withValues(alpha: 0.18)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        isSelected ? activeIcon : icon,
+                        size: isMinimized ? 22 : 23,
+                        color: iconColor,
                       ),
-                  ],
+                      if (badgeCount > 0)
+                        Positioned(
+                          right: -4,
+                          top: -2,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                Flexible(
-                  fit: FlexFit.loose,
+                // Text label: Smoothly collapses to 0 height in minimized state
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.fastOutSlowIn,
+                  height: isMinimized ? 0 : 16,
                   child: AnimatedOpacity(
-                    opacity: labelVisible ? 1 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.fastOutSlowIn,
-                    child: AnimatedSize(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.fastOutSlowIn,
-                      child: labelVisible
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text(
-                                    label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          color: color,
-                                          fontWeight: selected
-                                              ? FontWeight.w600
-                                              : FontWeight.w500,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : const SizedBox.shrink(),
+                    duration: const Duration(milliseconds: 150),
+                    opacity: isMinimized ? 0.0 : 1.0,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 10.5,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: labelColor,
+                        letterSpacing: 0.1,
+                      ),
                     ),
                   ),
                 ),

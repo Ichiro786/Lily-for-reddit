@@ -151,8 +151,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
-    final navLabels =
-        ref.watch(settingsControllerProvider.select((s) => s.navLabels));
     return Scaffold(
       // Pop variant: content flows under the detached floating nav.
       extendBody: true,
@@ -178,11 +176,10 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       bottomNavigationBar: ValueListenableBuilder<bool>(
         valueListenable: _chrome,
         builder: (_, visible, __) => M3EFloatingNavBar(
-          selectedIndex: _index,
-          unread: unread,
-          minimized: !visible,
-          showLabels: navLabels,
-          onSelected: (i) {
+          currentIndex: _index,
+          unreadCount: unread,
+          isMinimized: !visible,
+          onTap: (i) {
           // Re-tapping the active tab scrolls it to top (Posts also refreshes).
           if (i == _index) {
             if (i == 0) {

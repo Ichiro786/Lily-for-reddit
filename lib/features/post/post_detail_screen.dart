@@ -8,6 +8,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
@@ -63,6 +64,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   List<int> _matchIndices = []; // list indices (ci + 1) of matching comments
   int _matchPos = 0;
   String? _currentMatchId;
+  MediaAttachment? _pendingComposeAttachment;
   MarkdownStyleSheet? _commentMarkdownStyle;
   ThemeData? _commentMarkdownTheme;
 
@@ -161,6 +163,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         .read(interestStoreProvider.notifier)
         .bump(thread.post.subreddit, 2.5);
     ref.read(keywordStoreProvider.notifier).bumpTitle(thread.post.title, 1);
+  }
+
+  Future<void> _onComposeImageSelected(XFile? file) async {
+    if (file == null) {
+      if (mounted) setState(() => _pendingComposeAttachment = null);
+      return;
+    }
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _pendingComposeAttachment = MediaAttachment(
+        bytes: bytes,
+        filename: file.name,
+        mimeType: file.mimeType ?? 'image/jpeg',
+        isVideo: false,
+      );
+    });
   }
 
   void _scrollToComments() {
@@ -495,11 +514,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: M3ECommentComposeBar(
-                onSend: (text, attachment) =>
-                    _sendQuickReply(notifier, thread, text, attachment),
-                onAttach: pickImageAttachment,
-                onJump: thread.comments.isEmpty ? null : _jumpNextTopLevel,
+              child: CommentComposeBar(
+                onSubmit: (text) {
+                  final attachment = _pendingComposeAttachment;
+                  _pendingComposeAttachment = null;
+                  _sendQuickReply(notifier, thread, text, attachment);
+                },
+                onImageSelected: _onComposeImageSelected,
+                onJumpNext: thread.comments.isEmpty ? null : _jumpNextTopLevel,
               ),
             ),
           if (_searchOpen && thread != null)
