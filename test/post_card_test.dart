@@ -139,23 +139,25 @@ void main() {
         home: Scaffold(
           body: M3EPostActionBar(
             score: 12,
-            likes: null,
             commentCount: 3,
-            saved: false,
-            onUpvote: () => upvotes++,
-            onDownvote: () => downvotes++,
-            onComment: () {},
-            onSave: () => saves++,
-            onShare: () {},
+            voteState: 0,
+            isSaved: false,
+            onVote: (vote) {
+              if (vote == 1) upvotes++;
+              if (vote == -1) downvotes++;
+            },
+            onCommentTap: () {},
+            onSaveTap: () => saves++,
+            onShareTap: () {},
           ),
         ),
       ),
     );
 
-    await tester.tap(find.byTooltip('Upvote'));
-    await tester.tap(find.byTooltip('Downvote'));
-    await tester.tap(find.byIcon(Icons.bookmark_border_rounded));
-    expect(find.byTooltip('Share'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+    await tester.tap(find.byIcon(Icons.arrow_downward_rounded));
+    await tester.tap(find.byIcon(Icons.bookmark_outline_rounded));
+    expect(find.byIcon(Icons.arrow_outward_rounded), findsOneWidget);
 
     expect(upvotes, 1);
     expect(downvotes, 1);

@@ -902,14 +902,14 @@ class _PostCardState extends ConsumerState<PostCard> {
     final numComments = ov?.numComments ?? widget.post.numComments;
     return M3EPostActionBar(
       score: score,
-      likes: likes,
       commentCount: numComments,
-      saved: saved,
-      onUpvote: () => _vote(1),
-      onDownvote: () => _vote(-1),
-      onComment: _openDetail,
-      onSave: _toggleSave,
-      onShare: () => shareUrl(context, widget.post.url, subject: widget.post.title),
+      voteState: likes == true ? 1 : (likes == false ? -1 : 0),
+      isSaved: saved,
+      onVote: _vote,
+      onCommentTap: _openDetail,
+      onSaveTap: _toggleSave,
+      onShareTap: () =>
+          shareUrl(context, widget.post.url, subject: widget.post.title),
     );
   }
 }
