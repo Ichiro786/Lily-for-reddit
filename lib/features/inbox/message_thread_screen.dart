@@ -6,6 +6,7 @@ import '../../core/drafts.dart';
 import '../../core/format.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
+import '../../core/theme/shape_tokens.dart';
 import '../../models/inbox_item.dart';
 import '../auth/auth_controller.dart';
 import '../media/attachment.dart';
@@ -141,7 +142,9 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final me = ref.watch(authControllerProvider).valueOrNull?.username;
+    final me = ref.watch(
+      authControllerProvider.select((auth) => auth.valueOrNull?.username),
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -171,7 +174,7 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
                       color: mine
                           ? cs.primaryContainer
                           : cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: ShapeTokens.medium,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

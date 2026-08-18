@@ -1,13 +1,12 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../core/deep_links.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
+import '../../core/theme/shape_tokens.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import '../../models/reddit_user.dart';
@@ -15,6 +14,7 @@ import '../auth/auth_controller.dart';
 import '../feed/paged_list.dart';
 import '../feed/post_card.dart';
 import '../post/post_actions.dart';
+import '../profile/profile_header.dart';
 
 final userAboutProvider =
     FutureProvider.autoDispose.family<RedditUser, String>((ref, name) {
@@ -28,7 +28,9 @@ class UserScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final about = ref.watch(userAboutProvider(username));
-    final me = ref.watch(authControllerProvider).valueOrNull?.username;
+    final me = ref.watch(
+      authControllerProvider.select((auth) => auth.valueOrNull?.username),
+    );
     final isSelf = me != null && me.toLowerCase() == username.toLowerCase();
     final repo = ref.read(redditRepositoryProvider);
 
@@ -73,7 +75,14 @@ class UserScreen extends ConsumerWidget {
               error: (e, _) => Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text('Could not load profile: $e')),
-              data: (u) => _ProfileHeader(user: u),
+              data: (u) => M3EProfileHeader(
+                username: u.name,
+                onSwitchAccount: () => context.push('/settings'),
+                onViewProfile: () {},
+                subtitle:
+                    '${compactNumber(u.linkKarma)} post · ${compactNumber(u.commentKarma)} comment karma',
+                details: 'Joined ${u.created.year}',
+              ),
             ),
             TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: tabs),
             Expanded(
@@ -114,57 +123,6 @@ class UserScreen extends ConsumerWidget {
   }
 }
 
-class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.user});
-  final RedditUser user;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: cs.primaryContainer,
-            foregroundColor: cs.onPrimaryContainer,
-            backgroundImage: user.iconUrl != null
-                ? CachedNetworkImageProvider(user.iconUrl!)
-                : null,
-            child: user.iconUrl == null
-                ? Text(user.name.isNotEmpty ? user.name[0].toUpperCase() : '?')
-                : null,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('u/${user.name}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                Text(
-                  '${compactNumber(user.linkKarma)} post · '
-                  '${compactNumber(user.commentKarma)} comment karma',
-                  style: TextStyle(color: cs.onSurfaceVariant),
-                ),
-                Text(
-                  'Joined ${DateFormat.yMMM().format(user.created.toLocal())}',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ProfileCommentCard extends StatelessWidget {
   const _ProfileCommentCard({required this.comment});
   final Comment comment;
@@ -174,7 +132,7 @@ class _ProfileCommentCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: ShapeTokens.extraLarge,
         onTap: () {
           final route = comment.permalink.isEmpty
               ? null

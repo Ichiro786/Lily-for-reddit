@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../../core/widgets/m3e_loading_indicator.dart';
+
 /// A feed video that autoplays (muted, looping) while it's on screen and pauses
 /// when scrolled away. Tap opens the full-screen viewer (with sound).
 class InlineVideo extends StatefulWidget {
@@ -108,6 +110,7 @@ class _InlineVideoState extends State<InlineVideo> {
   @override
   Widget build(BuildContext context) {
     final c = _c;
+    final colorScheme = Theme.of(context).colorScheme;
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final posterWidth =
         (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
@@ -143,13 +146,13 @@ class _InlineVideoState extends State<InlineVideo> {
                   fit: BoxFit.cover,
                 )
               else
-                const ColoredBox(color: Colors.black12),
+                ColoredBox(
+                  color: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.12,
+                  ),
+                ),
               if (!_ready)
-                const Center(
-                    child: SizedBox(
-                        width: 26,
-                        height: 26,
-                        child: CircularProgressIndicator(strokeWidth: 2))),
+                const Center(child: M3ELoadingIndicator.small()),
               // Mute / unmute toggle.
               if (_ready)
                 Positioned(
@@ -163,14 +166,14 @@ class _InlineVideoState extends State<InlineVideo> {
                     child: Container(
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
+                        color: colorScheme.scrim.withValues(alpha: 0.5),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         _muted
                             ? Icons.volume_off_rounded
                             : Icons.volume_up_rounded,
-                        color: Colors.white,
+                        color: colorScheme.onSurface,
                         size: 18,
                       ),
                     ),

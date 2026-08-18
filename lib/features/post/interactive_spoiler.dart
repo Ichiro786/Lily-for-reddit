@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 
+import '../../core/theme/shape_tokens.dart';
+
 class InteractiveSpoiler extends StatefulWidget {
   const InteractiveSpoiler({super.key, required this.text});
 
@@ -29,7 +31,7 @@ class _InteractiveSpoilerState extends State<InteractiveSpoiler> {
           color: _revealed
               ? scheme.surfaceContainer
               : scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: ShapeTokens.extraSmall,
         ),
         child: Text(
           _revealed ? widget.text : 'Spoiler (Tap to reveal)',

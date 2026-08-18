@@ -5,6 +5,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../core/route_observer.dart';
 import '../../core/startup_metrics.dart';
+import '../../core/theme/shape_tokens.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/m3e_refresh_indicator.dart';
 import '../../data/reddit_repository.dart';
@@ -256,9 +257,9 @@ class _NewPostsPill extends StatelessWidget {
     return Material(
       color: cs.primary,
       elevation: 3,
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: ShapeTokens.full,
       child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: ShapeTokens.full,
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

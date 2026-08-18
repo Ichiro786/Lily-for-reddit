@@ -140,7 +140,9 @@ class UnreadCountController extends AutoDisposeAsyncNotifier<int> {
   @override
   int build() {
     ref.onDispose(() => _disposed = true);
-    final username = ref.watch(authControllerProvider).valueOrNull?.username;
+    final username = ref.watch(
+      authControllerProvider.select((auth) => auth.valueOrNull?.username),
+    );
     final cached = ref
         .read(sharedPrefsProvider)
         .getInt(_cacheKey(username));

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../core/theme/shape_tokens.dart';
+
 /// Shimmering placeholder card shown while a feed loads.
 class PostSkeleton extends StatelessWidget {
   const PostSkeleton({super.key});
@@ -13,7 +15,7 @@ class PostSkeleton extends StatelessWidget {
           height: h,
           decoration: BoxDecoration(
             color: cs.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: ShapeTokens.extraSmall,
           ),
         );
 
@@ -23,7 +25,7 @@ class PostSkeleton extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: cs.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: ShapeTokens.extraLarge,
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -43,7 +45,7 @@ class PostSkeleton extends StatelessWidget {
               height: 160,
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: ShapeTokens.small,
               ),
             ),
             const SizedBox(height: 12),

@@ -8,11 +8,15 @@ class M3EProfileHeader extends StatelessWidget {
     required this.username,
     required this.onSwitchAccount,
     required this.onViewProfile,
+    this.subtitle,
+    this.details,
   });
 
   final String username;
   final VoidCallback onSwitchAccount;
   final VoidCallback onViewProfile;
+  final String? subtitle;
+  final String? details;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +85,20 @@ class M3EProfileHeader extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                if (details != null)
+                  Text(
+                    details!,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                  ),
                 TextButton(
                   onPressed: onViewProfile,
                   style: TextButton.styleFrom(

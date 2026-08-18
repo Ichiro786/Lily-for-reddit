@@ -99,9 +99,7 @@ class M3ECommentCard extends StatelessWidget {
                     width: 3,
                     decoration: BoxDecoration(
                       color: railColor,
-                      borderRadius: const BorderRadius.horizontal(
-                        right: Radius.circular(3),
-                      ),
+                      borderRadius: ShapeTokens.extraSmall,
                     ),
                   ),
                 ),

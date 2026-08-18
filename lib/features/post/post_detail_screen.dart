@@ -219,8 +219,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         : '${widget.subreddit}/${widget.postId}';
     final async = ref.watch(commentsControllerProvider(key));
     final notifier = ref.read(commentsControllerProvider(key).notifier);
-    final username =
-        ref.watch(authControllerProvider).valueOrNull?.username ?? '';
+    final username = ref.watch(
+          authControllerProvider.select((auth) => auth.valueOrNull?.username),
+        ) ??
+        '';
     final thread = async.valueOrNull;
 
     return Scaffold(
@@ -518,7 +520,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final has = _searchCtrl.text.trim().isNotEmpty;
     return Material(
       elevation: 4,
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: ShapeTokens.extraLarge,
       color: cs.surfaceContainerHigh,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -747,7 +749,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                   color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8)),
+                  borderRadius: ShapeTokens.extraSmall),
               child: Text(p.linkFlairText!,
                   style:
                       TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
@@ -775,7 +777,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: ShapeTokens.small,
                 ),
                 child: Text(opt),
               ),
@@ -902,13 +904,13 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                     if (p.type == PostType.video)
                       Container(
                         padding: const EdgeInsets.all(14),
-                        decoration: const BoxDecoration(
-                          color: Colors.black54,
+                        decoration: BoxDecoration(
+                          color: cs.scrim.withValues(alpha: 0.54),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.play_arrow_rounded,
-                          color: Colors.white,
+                          color: cs.onSurface,
                           size: 36,
                         ),
                       ),
@@ -1125,6 +1127,7 @@ class _CommentMediaImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     const cacheWidth = 600;
     const cacheHeight = 600;
     return GestureDetector(
@@ -1132,7 +1135,7 @@ class _CommentMediaImage extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 300),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: ShapeTokens.extraSmall,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -1162,13 +1165,16 @@ class _CommentMediaImage extends StatelessWidget {
             if (media.isGif)
               DecoratedBox(
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.62),
+                  color: colorScheme.scrim.withValues(alpha: 0.62),
                   shape: BoxShape.circle,
                 ),
-                child: const Padding(
-                  padding: EdgeInsets.all(10),
-                  child: Icon(Icons.play_arrow_rounded,
-                      color: Colors.white, size: 28),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    color: colorScheme.onSurface,
+                    size: 28,
+                  ),
                 ),
               ),
             ],
