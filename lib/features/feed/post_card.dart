@@ -23,7 +23,6 @@ import '../history/interest_store.dart';
 import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
-import '../post/post_actions.dart';
 import '../settings/settings_controller.dart';
 import 'swipe_actions.dart';
 import 'compact_post_card.dart';

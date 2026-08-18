@@ -381,7 +381,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               padding: const EdgeInsets.only(top: 6, bottom: 96),
               itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
               itemBuilder: (context, index) {
-                if (index == 0) return _PostHeader(post: thread.post);
+                if (index == 0) {
+                  return _PostHeader(
+                    post: thread.post,
+                    onComments: _scrollToComments,
+                  );
+                }
                 if (flat.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.all(40),
@@ -604,8 +609,9 @@ class _LoadingWithHeader extends StatelessWidget {
 }
 
 class _PostHeader extends ConsumerStatefulWidget {
-  const _PostHeader({required this.post});
+  const _PostHeader({required this.post, this.onComments});
   final Post post;
+  final VoidCallback? onComments;
   @override
   ConsumerState<_PostHeader> createState() => _PostHeaderState();
 }
@@ -806,7 +812,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
               saved: saved,
               onUpvote: () => _vote(1),
               onDownvote: () => _vote(-1),
-              onComment: _scrollToComments,
+              onComment: widget.onComments ?? () {},
               onSave: () async {
                 final overrides = ref.read(postOverridesProvider.notifier);
                 final next = !overrides.effective(p).saved;
