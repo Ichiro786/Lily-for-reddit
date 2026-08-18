@@ -14,6 +14,7 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/share.dart';
+import '../../core/widgets/m3e_loading_indicator.dart';
 import '../../core/url_launcher_helper.dart';
 import '../../models/post.dart';
 
@@ -362,7 +363,7 @@ class _ImageViewerState extends State<_ImageViewer> with _ImmersiveDismiss {
                 scaleStateChangedCallback: (s) =>
                     setState(() => zoomed = s != PhotoViewScaleState.initial),
                 loadingBuilder: (_, __) => const Center(
-                    child: CircularProgressIndicator(color: Colors.white)),
+                    child: M3ELoadingIndicator.large()),
               ),
             ),
           ),
@@ -432,7 +433,7 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
                 backgroundDecoration:
                     const BoxDecoration(color: Colors.transparent),
                 loadingBuilder: (_, __) => const Center(
-                    child: CircularProgressIndicator(color: Colors.white)),
+                    child: M3ELoadingIndicator.large()),
               ),
             ),
           ),
@@ -990,8 +991,7 @@ class _VideoViewerState extends State<_VideoViewer>
                         child: ColoredBox(
                           color: Colors.black,
                           child: Center(
-                            child:
-                                CircularProgressIndicator(color: Colors.white),
+                            child: M3ELoadingIndicator.large(),
                           ),
                         ),
                       )
