@@ -10,12 +10,13 @@ import '../../core/format.dart';
 import '../../core/media_aspect_ratio.dart';
 import '../../core/providers.dart';
 import '../../core/root_messenger.dart';
+import '../../core/share.dart';
+import '../../core/theme/shape_tokens.dart';
 import '../../core/storage/interaction_vault.dart';
 import '../../core/url_launcher_helper.dart';
 import '../../core/widgets/tap_guard.dart';
 import 'inline_video.dart';
 import 'post_overrides.dart';
-import '../../core/theme/app_theme.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
 import '../history/interest_store.dart';
@@ -25,6 +26,8 @@ import '../media/nsfw_blur.dart';
 import '../post/post_actions.dart';
 import '../settings/settings_controller.dart';
 import 'swipe_actions.dart';
+import 'compact_post_card.dart';
+import 'post_action_bar.dart';
 
 class PostCard extends ConsumerStatefulWidget {
   const PostCard({super.key, required this.post});
@@ -318,151 +321,145 @@ class _PostCardState extends ConsumerState<PostCard> {
     );
   }
 
+  Widget _cardShell(
+    ColorScheme cs, {
+    required Widget child,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainer,
+        borderRadius: ShapeTokens.large,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: ShapeTokens.large,
+          child: child,
+        ),
+      ),
+    );
+  }
+
   Widget _largeCard(BuildContext context) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
-    return Card(
-      child: InkWell(
-        onTap: _openDetail,
-        borderRadius: BorderRadius.circular(28),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _header(cs),
-              const SizedBox(height: 10),
+    return _cardShell(
+      cs,
+      onTap: _openDetail,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _header(cs),
+            const SizedBox(height: 10),
+            Text(
+              p.title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+            ),
+            if (p.linkFlairText != null) ...[
+              const SizedBox(height: 8),
+              _flair(cs, p.linkFlairText!),
+            ],
+            const SizedBox(height: 12),
+            _media(cs),
+            if (p.isSelf && p.selftext.isNotEmpty) ...[
+              const SizedBox(height: 4),
               Text(
-                p.title,
+                p.selftext,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context)
                     .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700, height: 1.25),
+                    .bodyMedium
+                    ?.copyWith(color: cs.onSurfaceVariant),
               ),
-              if (p.linkFlairText != null) ...[
-                const SizedBox(height: 8),
-                _flair(cs, p.linkFlairText!),
-              ],
-              const SizedBox(height: 12),
-              _media(cs),
-              if (p.isSelf && p.selftext.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  p.selftext,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-              _actions(cs),
             ],
-          ),
+            const SizedBox(height: 4),
+            _actions(),
+          ],
         ),
       ),
     );
   }
 
-  /// "Cards" — a full-width card like the default, but with media capped to a
-  /// shorter banner height so cards stay compact and scannable.
+  /// Full-card presentation with a shorter media banner for faster scanning.
   Widget _cardsCard(BuildContext context) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
-    return Card(
-      child: InkWell(
-        onTap: _openDetail,
-        borderRadius: BorderRadius.circular(28),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _header(cs),
-              const SizedBox(height: 10),
+    return _cardShell(
+      cs,
+      onTap: _openDetail,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _header(cs),
+            const SizedBox(height: 10),
+            Text(
+              p.title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                  ),
+            ),
+            if (p.linkFlairText != null) ...[
+              const SizedBox(height: 8),
+              _flair(cs, p.linkFlairText!),
+            ],
+            const SizedBox(height: 12),
+            _bannerMedia(cs, 180),
+            if (p.isSelf && p.selftext.isNotEmpty) ...[
+              const SizedBox(height: 4),
               Text(
-                p.title,
+                p.selftext,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context)
                     .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700, height: 1.25),
+                    .bodyMedium
+                    ?.copyWith(color: cs.onSurfaceVariant),
               ),
-              if (p.linkFlairText != null) ...[
-                const SizedBox(height: 8),
-                _flair(cs, p.linkFlairText!),
-              ],
-              const SizedBox(height: 12),
-              _bannerMedia(cs, 180),
-              if (p.isSelf && p.selftext.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  p.selftext,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-              _actions(cs),
             ],
-          ),
+            const SizedBox(height: 4),
+            _actions(),
+          ],
         ),
       ),
     );
   }
 
-  /// "Mini cards" — compact: header + title with a small side thumbnail, full
-  /// action row below.
+  /// Compact presentation: metadata and actions on the left, 72dp media on
+  /// the right. The display mode is already persisted by SettingsController.
   Widget _miniCard(BuildContext context) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
-    final thumb = _thumb(cs, 88);
-    return Card(
-      child: InkWell(
-        onTap: _openDetail,
-        borderRadius: BorderRadius.circular(28),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 6, 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _header(cs),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          p.title,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700, height: 1.25),
-                        ),
-                        if (p.linkFlairText != null) ...[
-                          const SizedBox(height: 6),
-                          _flair(cs, p.linkFlairText!),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (thumb != null) ...[
-                    const SizedBox(width: 12),
-                    thumb,
-                  ],
-                ],
-              ),
-              _actions(cs),
-            ],
-          ),
-        ),
+    return CompactPostCard(
+      header: _header(cs),
+      title: Text(
+        p.title,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: cs.onSurface,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
       ),
+      flair: p.linkFlairText == null ? null : _flair(cs, p.linkFlairText!),
+      thumbnail: _thumb(cs, 72),
+      actions: _actions(),
+      onTap: _openDetail,
     );
   }
 
@@ -509,7 +506,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: ShapeTokens.large,
             child: InlineVideo(
               key: ValueKey('iv_${p.id}'),
               url: vurl,
@@ -526,7 +523,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       child: NsfwBlur(
         blur: blur,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: ShapeTokens.large,
           child: GestureDetector(
             onTap: _openMedia,
             child: SizedBox(
@@ -558,6 +555,12 @@ class _PostCardState extends ConsumerState<PostCard> {
                           icon: Icons.collections_rounded,
                           label: '${p.gallery.length}'),
                     ),
+                if (p.type == PostType.video)
+                  const Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
+                  ),
                 ],
               ),
             ),
@@ -579,7 +582,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     final cacheSize =
         (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(1, 300).toInt();
     return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: ShapeTokens.small,
       child: SizedBox(
         width: size,
         height: size,
@@ -623,6 +626,9 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Widget _header(ColorScheme cs) {
     final p = widget.post;
+    final subreddit = p.subredditPrefixed.isNotEmpty
+        ? p.subredditPrefixed
+        : 'r/${p.subreddit}';
     return FittedBox(
       fit: BoxFit.scaleDown,
       alignment: Alignment.centerLeft,
@@ -632,53 +638,84 @@ class _PostCardState extends ConsumerState<PostCard> {
           GestureDetector(
             onTap: () => context.push('/r/${p.subreddit}'),
             child: CircleAvatar(
-              radius: 14,
+              radius: 16,
               backgroundColor: cs.secondaryContainer,
               child: Text(
                 p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: cs.onSecondaryContainer),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: cs.onSecondaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
             ),
           ),
           const SizedBox(width: 10),
           GestureDetector(
             onTap: () => context.push('/r/${p.subreddit}'),
-            child: RichText(
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              text: TextSpan(
-                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-                children: [
-                  TextSpan(
-                    text: p.subredditPrefixed.isNotEmpty
-                        ? p.subredditPrefixed
-                        : 'r/${p.subreddit}',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600, color: cs.onSurface),
-                  ),
-                  TextSpan(text: '  ·  u/${p.author}  ·  ${timeAgo(p.created)}'),
-                ],
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  subreddit,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'u/${p.author}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '·  ${timeAgo(p.created)}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           if (p.stickied)
-            Icon(Icons.push_pin_rounded, size: 16, color: cs.primary),
+            Padding(
+              padding: const EdgeInsets.only(left: 6),
+              child: Icon(Icons.push_pin_rounded, size: 16, color: cs.primary),
+            ),
           if (p.over18)
             Container(
               margin: const EdgeInsets.only(left: 6),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius: BorderRadius.circular(6)),
-              child: Text('NSFW',
-                  style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: cs.onErrorContainer)),
+                color: cs.errorContainer,
+                borderRadius: ShapeTokens.extraSmall,
+              ),
+              child: Text(
+                'NSFW',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: cs.onErrorContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
             ),
+          const SizedBox(width: 2),
+          IconButton(
+            onPressed: _showTuneSheet,
+            tooltip: 'More actions',
+            visualDensity: VisualDensity.compact,
+            iconSize: 20,
+            icon: Icon(Icons.more_vert_rounded, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
@@ -688,7 +725,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
             color: cs.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(8)),
+            borderRadius: ShapeTokens.extraSmall),
         child: Text(text,
             style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
       );
@@ -736,7 +773,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: ShapeTokens.large,
         child: GestureDetector(
           onTap: _openMedia,
           child: AspectRatio(
@@ -773,6 +810,12 @@ class _PostCardState extends ConsumerState<PostCard> {
                 if (p.type == PostType.gif)
                   const Positioned(
                       top: 8, left: 8, child: _Pill(label: 'GIF')),
+                if (p.type == PostType.video)
+                  const Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
+                  ),
               ],
             ),
           ),
@@ -787,17 +830,17 @@ class _PostCardState extends ConsumerState<PostCard> {
       padding: const EdgeInsets.only(bottom: 4),
       child: InkWell(
         onTap: _openMedia,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: ShapeTokens.large,
         child: Container(
           decoration: BoxDecoration(
               color: cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(16)),
+              borderRadius: ShapeTokens.large),
           child: Row(
             children: [
               if (p.thumbnailUrl != null)
                 ClipRRect(
                   borderRadius: const BorderRadius.horizontal(
-                      left: Radius.circular(16)),
+                      left: Radius.circular(24)),
                   child: CachedNetworkImage(
                     imageUrl: p.thumbnailUrl!,
                     memCacheWidth: (72 * MediaQuery.devicePixelRatioOf(context))
@@ -843,154 +886,33 @@ class _PostCardState extends ConsumerState<PostCard> {
     );
   }
 
-  Widget _actions(ColorScheme cs) {
-    // Live values from the shared overrides store (kept in sync with the detail).
+  Widget _actions() {
+    // Only the action bar subscribes to post overrides, keeping card media and
+    // title layout stable when a vote or save state changes.
     final ov = ref.watch(
-        postOverridesProvider.select((m) => m[widget.post.id]));
-    final likes = ov != null ? ov.likes : widget.post.likes;
+      postOverridesProvider.select((m) => m[widget.post.id]),
+    );
+    final likes = ov?.likes ?? widget.post.likes;
     final score = ov?.score ?? widget.post.score;
     final saved = ov?.saved ?? widget.post.saved;
     final numComments = ov?.numComments ?? widget.post.numComments;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _VotePill(
-            score: score,
-            likes: likes,
-            onUp: () => _vote(1),
-            onDown: () => _vote(-1),
-          ),
-          const SizedBox(width: 8),
-          _ActionChip(
-            icon: Icons.mode_comment_outlined,
-            label: compactNumber(numComments),
-            onTap: _openDetail,
-          ),
-          const SizedBox(width: 16),
-          _ReadToggle(post: widget.post),
-          IconButton(
-            onPressed: _toggleSave,
-            icon: Icon(saved
-                ? Icons.bookmark_rounded
-                : Icons.bookmark_border_rounded),
-            color: saved ? cs.primary : null,
-          ),
-          IconButton(
-            onPressed: () => showPostActionsSheet(context, ref, widget.post),
-            icon: const Icon(Icons.more_vert_rounded),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// "Read" toggle shown on every post card (left of Save). Marks the post as
-/// read/unread in local history; read posts get a filled, accent check.
-class _ReadToggle extends ConsumerWidget {
-  const _ReadToggle({required this.post});
-  final Post post;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-    final seen = ref.watch(historyContainsProvider(post.id));
-    return IconButton(
-      tooltip: seen ? 'Mark as unread' : 'Mark as read',
-      onPressed: () {
-        final h = ref.read(historyControllerProvider.notifier);
-        seen ? h.removeViewed(post.id) : h.markViewed(post);
+    final read = ref.watch(historyContainsProvider(widget.post.id));
+    return M3EPostActionBar(
+      score: score,
+      likes: likes,
+      commentCount: numComments,
+      saved: saved,
+      read: read,
+      onUpvote: () => _vote(1),
+      onDownvote: () => _vote(-1),
+      onComment: _openDetail,
+      onSave: _toggleSave,
+      onShare: () => shareUrl(context, widget.post.url, subject: widget.post.title),
+      onRead: () {
+        final history = ref.read(historyControllerProvider.notifier);
+        read ? history.removeViewed(widget.post.id) : history.markViewed(widget.post);
       },
-      icon: Icon(
-        seen ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
-        color: seen ? cs.primary : cs.onSurfaceVariant,
-      ),
-    );
-  }
-}
-
-class _VotePill extends StatelessWidget {
-  const _VotePill({
-    required this.score,
-    required this.likes,
-    required this.onUp,
-    required this.onDown,
-  });
-  final int score;
-  final bool? likes;
-  final VoidCallback onUp;
-  final VoidCallback onDown;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final votes = Theme.of(context).extension<VoteColors>()!;
-    final up = likes == true;
-    final down = likes == false;
-    final countColor = up ? votes.up : (down ? votes.down : cs.onSurfaceVariant);
-    // Bloom "split" votes: a soft pill holding up / count / down.
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 130),
-      decoration: BoxDecoration(
-          color: cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(999)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _miniBtn(Icons.arrow_upward_rounded, up ? votes.up : cs.onSurfaceVariant, onUp),
-          Text(
-            compactNumber(score),
-            style: TextStyle(fontWeight: FontWeight.w700, color: countColor),
-          ),
-          _miniBtn(Icons.arrow_downward_rounded,
-              down ? votes.down : cs.onSurfaceVariant, onDown),
-        ],
-      ),
-    );
-  }
-
-  Widget _miniBtn(IconData icon, Color fg, VoidCallback onTap) => IconButton(
-        onPressed: onTap,
-        visualDensity: VisualDensity.compact,
-        iconSize: 20,
-        icon: Icon(icon, color: fg),
-      );
-}
-
-class _ActionChip extends StatelessWidget {
-  const _ActionChip(
-      {required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: cs.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 18, color: cs.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(color: cs.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
-      ),
+      onMore: () => showPostActionsSheet(context, ref, widget.post),
     );
   }
 }
@@ -1015,7 +937,7 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-            color: Colors.black54, borderRadius: BorderRadius.circular(10)),
+            color: Colors.black54, borderRadius: ShapeTokens.extraSmall),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
