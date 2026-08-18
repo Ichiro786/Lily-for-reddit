@@ -43,12 +43,11 @@ void main() {
       ),
     );
 
-    final colorScheme = AppTheme.dark(null).colorScheme;
     final expected = [
-      colorScheme.primary,
-      colorScheme.secondary,
-      colorScheme.tertiary,
-      colorScheme.primary,
+      const Color(0xFFA78BFA),
+      const Color(0xFF7DD3FC),
+      const Color(0xFFF9A8D4),
+      const Color(0xFFFDE047),
     ];
     for (var depth = 1; depth <= 4; depth++) {
       final rail = tester.widget<Container>(
@@ -108,7 +107,6 @@ void main() {
           timeAgo: '1h',
           body: 'Comment body',
           score: 12,
-          isSaved: true,
           onReply: () => replies++,
           onSave: () => saves++,
           onOverflow: () => overflows++,
@@ -116,10 +114,11 @@ void main() {
       ),
     );
     expect(find.text('Reply'), findsOneWidget);
-    expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark_outline_rounded), findsOneWidget);
     expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
     await tester.tap(find.text('Reply'));
-    await tester.tap(find.byIcon(Icons.bookmark_rounded));
+    await tester.tap(find.byIcon(Icons.bookmark_outline_rounded));
+    expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
     expect(replies, 1);
     expect(saves, 1);

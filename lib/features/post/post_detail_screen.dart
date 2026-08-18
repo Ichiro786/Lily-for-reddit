@@ -1041,15 +1041,19 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
         body: comment.body,
         depth: comment.depth,
         isOp: comment.author == widget.opAuthor,
-        isCollapsed: widget.collapsed,
         score: _score,
         replyCount: comment.replies.length,
-        isSaved: _saved,
+        avatarColor: colorScheme.primaryContainer,
+        isCollapsed: widget.collapsed,
         onToggleCollapse: widget.onToggle,
         onVote: _vote,
         onReply: widget.onReply,
         onSave: _toggleSave,
+        onAward: () {},
         onOverflow: () {},
+        onLoadMoreReplies: comment.replies.isNotEmpty
+            ? widget.onOpenThread
+            : null,
       ),
     );
   }
