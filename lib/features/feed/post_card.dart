@@ -188,7 +188,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                 // so "show less from this subreddit" isn't hidden.
                 InkWell(
                   onTap: _showTuneSheet,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: ShapeTokens.medium,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 2),
@@ -333,7 +333,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(
-        color: Colors.transparent,
+        color: cs.surface.withValues(alpha: 0),
         child: InkWell(
           onTap: onTap,
           borderRadius: ShapeTokens.large,
@@ -614,9 +614,12 @@ class _PostCardState extends ConsumerState<PostCard> {
                     color: cs.onSurfaceVariant),
               ),
             if (p.type == PostType.video)
-              const Center(
-                child: Icon(Icons.play_circle_fill_rounded,
-                    color: Colors.white, size: 26),
+              Center(
+                child: Icon(
+                  Icons.play_circle_fill_rounded,
+                  color: cs.onSurface,
+                  size: 26,
+                ),
               ),
           ],
         ),
@@ -840,8 +843,7 @@ class _PostCardState extends ConsumerState<PostCard> {
             children: [
               if (p.thumbnailUrl != null)
                 ClipRRect(
-                  borderRadius: const BorderRadius.horizontal(
-                      left: Radius.circular(24)),
+                  borderRadius: ShapeTokens.large,
                   child: CachedNetworkImage(
                     imageUrl: p.thumbnailUrl!,
                     memCacheWidth: (72 * MediaQuery.devicePixelRatioOf(context))
@@ -915,13 +917,21 @@ class _PostCardState extends ConsumerState<PostCard> {
 class _PlayBadge extends StatelessWidget {
   const _PlayBadge();
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-            color: Colors.black54, shape: BoxShape.circle),
-        child: const Icon(Icons.play_arrow_rounded,
-            color: Colors.white, size: 36),
-      );
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colorScheme.scrim.withValues(alpha: 0.54),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.play_arrow_rounded,
+        color: colorScheme.onSurface,
+        size: 36,
+      ),
+    );
+  }
 }
 
 class _Pill extends StatelessWidget {
@@ -929,23 +939,31 @@ class _Pill extends StatelessWidget {
   final IconData? icon;
   final String label;
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-            color: Colors.black54, borderRadius: ShapeTokens.extraSmall),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 14, color: Colors.white),
-              const SizedBox(width: 4),
-            ],
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold)),
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colorScheme.scrim.withValues(alpha: 0.54),
+        borderRadius: ShapeTokens.extraSmall,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: colorScheme.onSurface),
+            const SizedBox(width: 4),
           ],
-        ),
-      );
+          Text(
+            label,
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

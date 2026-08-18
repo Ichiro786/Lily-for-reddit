@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/rate_limit.dart';
 import '../../core/providers.dart';
+import '../../core/theme/shape_tokens.dart';
 import '../../data/reddit_repository.dart';
 import '../auth/auth_controller.dart';
 import '../feed/feed_controller.dart';
@@ -17,16 +18,16 @@ import 'backup_service.dart';
 import 'settings_controller.dart';
 import 'settings_panels.dart';
 
-const _accentSwatches = <Color>[
-  Color(0xFFA78BFA),
-  Color(0xFFEF4444),
-  Color(0xFFF97316),
-  Color(0xFFEAB308),
-  Color(0xFF22C55E),
-  Color(0xFF06B6D4),
-  Color(0xFF3B82F6),
-  Color(0xFF8B5CF6),
-];
+List<Color> _accentSwatches(ColorScheme colorScheme) => [
+      colorScheme.primary,
+      colorScheme.error,
+      colorScheme.tertiary,
+      colorScheme.secondary,
+      colorScheme.primaryContainer,
+      colorScheme.secondaryContainer,
+      colorScheme.tertiaryContainer,
+      colorScheme.inversePrimary,
+    ];
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -114,7 +115,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                       spacing: 12,
                       runSpacing: 12,
                       children: [
-                        for (final c in _accentSwatches)
+                        for (final c in _accentSwatches(cs))
                           Semantics(
                             button: true,
                             label: 'Theme color ${c.toARGB32()}',
@@ -130,17 +131,17 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                                 border: Border.all(
                                   color: s.seedColor == c.toARGB32()
                                       ? Theme.of(context).colorScheme.onSurface
-                                      : Colors.transparent,
+                                      : cs.surface.withValues(alpha: 0),
                                   width: 3,
                                 ),
                               ),
                                 child: AnimatedSwitcher(
                                   duration: const Duration(milliseconds: 180),
                                   child: s.seedColor == c.toARGB32()
-                                      ? const Icon(
+                                      ? Icon(
                                           Icons.check_rounded,
-                                          key: ValueKey<String>('selected'),
-                                          color: Colors.white,
+                                          key: const ValueKey<String>('selected'),
+                                          color: cs.onPrimary,
                                         )
                                       : const SizedBox.shrink(
                                           key: ValueKey<String>('unselected'),
@@ -429,7 +430,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
               filled: true,
               fillColor: cs.surfaceContainerHigh,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: ShapeTokens.large,
                 borderSide: BorderSide.none,
               ),
             ),

@@ -36,7 +36,7 @@ class CompactPostCard extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(
-        color: Colors.transparent,
+        color: colorScheme.surface.withValues(alpha: 0),
         child: InkWell(
           onTap: onTap,
           borderRadius: ShapeTokens.large,

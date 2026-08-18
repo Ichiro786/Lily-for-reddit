@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/shape_tokens.dart';
 
 /// Wraps [child] with horizontal swipe-to-vote: swipe right = upvote,
 /// swipe left = downvote. Reveals a colored arrow as you drag and fires on
@@ -72,7 +73,7 @@ class _SwipeActionsState extends State<SwipeActions> {
                 decoration: BoxDecoration(
                   color: (right ? votes.up : votes.down)
                       .withValues(alpha: active ? 0.22 : 0.10),
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: ShapeTokens.extraLarge,
                 ),
                 child: Icon(
                   right ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,

@@ -161,7 +161,7 @@ class _Destination extends StatelessWidget {
       label: label,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: ShapeTokens.small,
         child: Center(
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -178,7 +178,7 @@ class _Destination extends StatelessWidget {
               color: selected
                   ? colorScheme.primary.withValues(alpha: 0.22)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: ShapeTokens.small,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -214,7 +214,7 @@ class _Destination extends StatelessWidget {
                                 ? BoxShape.circle
                                 : BoxShape.rectangle,
                             borderRadius:
-                                minimized ? null : BorderRadius.circular(8),
+                                minimized ? null : ShapeTokens.extraSmall,
                           ),
                           alignment: Alignment.center,
                           child: minimized
