@@ -109,13 +109,15 @@ class M3ERecentCommunityTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Material(
         color: colorScheme.surfaceContainer,
-        borderRadius: ShapeTokens.small,
-      ),
-      child: ListTile(
+        shape: const RoundedRectangleBorder(
+          borderRadius: ShapeTokens.small,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
         onTap: onTap,
         shape: const RoundedRectangleBorder(
           borderRadius: ShapeTokens.small,

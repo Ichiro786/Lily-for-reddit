@@ -38,9 +38,9 @@ class M3ESettingsPanel extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerLow,
+      child: Material(
+        color: colorScheme.surfaceContainerLow,
+        shape: const RoundedRectangleBorder(
           borderRadius: ShapeTokens.medium,
         ),
         clipBehavior: Clip.antiAlias,
