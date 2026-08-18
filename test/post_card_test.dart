@@ -73,6 +73,7 @@ Post _post() => Post(
 
 Widget _postHarness({required PostDisplay display}) {
   return ProviderScope(
+    key: ValueKey<String>('settings-${display.name}'),
     overrides: [
       settingsControllerProvider
           .overrideWith(() => _TestSettingsController(_settings(display))),
@@ -90,6 +91,7 @@ void main() {
   testWidgets('PostCard uses M3E surface container in AMOLED dark theme',
       (tester) async {
     await tester.pumpWidget(_postHarness(display: PostDisplay.large));
+    await tester.pump(const Duration(milliseconds: 500));
 
     final theme = Theme.of(tester.element(find.byType(PostCard)));
     final card = tester.widget<Container>(find.byWidgetPredicate((widget) {
@@ -148,11 +150,12 @@ void main() {
   testWidgets('settings switch between full and compact card layouts',
       (tester) async {
     await tester.pumpWidget(_postHarness(display: PostDisplay.large));
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(CompactPostCard), findsNothing);
     expect(find.byType(M3EPostActionBar), findsOneWidget);
 
     await tester.pumpWidget(_postHarness(display: PostDisplay.mini));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(CompactPostCard), findsOneWidget);
     expect(find.byType(M3EPostActionBar), findsOneWidget);
   });
