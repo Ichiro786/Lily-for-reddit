@@ -76,6 +76,7 @@ class _M3ECommentComposeBarState extends State<M3ECommentComposeBar> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final isKeyboardOpen = bottom > 0;
     final hint = widget.replyingTo == null
         ? 'Add a comment...'
         : 'Reply to u/${widget.replyingTo}...';
@@ -164,7 +165,7 @@ class _M3ECommentComposeBarState extends State<M3ECommentComposeBar> {
                     ),
                   ),
                 ),
-                if (widget.onJump != null) ...[
+                if (widget.onJump != null && !isKeyboardOpen) ...[
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 44,

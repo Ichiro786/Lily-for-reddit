@@ -11,7 +11,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
-import '../../core/media_aspect_ratio.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../core/url_launcher_helper.dart';
@@ -864,53 +863,61 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     }
     final url =
         p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
-    final aspect = boundedMediaAspectRatio(
-      width: p.previewWidth,
-      height: p.previewHeight,
-    );
     final dpr = MediaQuery.devicePixelRatioOf(context);
+    final viewport = MediaQuery.sizeOf(context);
+    final maxHeight = viewport.height * 0.65;
     final cacheWidth =
-        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
-    final cacheHeight =
-        (cacheWidth / aspect).ceil().clamp(1, 1080).toInt();
+        (viewport.width * dpr).round().clamp(1, 1080).toInt();
+    final cacheHeight = (maxHeight * dpr).ceil().clamp(1, 1080).toInt();
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: NsfwBlur(
         blur: blur,
         child: ClipRRect(
-        borderRadius: ShapeTokens.large,
-        child: GestureDetector(
-          onTap: _openMedia,
-          child: AspectRatio(
-            aspectRatio: aspect,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (url != null)
-                  CachedNetworkImage(
-                    imageUrl: url,
-                    memCacheWidth: cacheWidth,
-                    memCacheHeight: cacheHeight,
-                    fit: BoxFit.cover,
-                    alignment: Alignment.topCenter,
-                  )
-                else
-                  Container(color: cs.surfaceContainerHighest),
-                if (p.type == PostType.video)
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: const BoxDecoration(
-                          color: Colors.black54, shape: BoxShape.circle),
-                      child: const Icon(Icons.play_arrow_rounded,
-                          color: Colors.white, size: 36),
-                    ),
-                  ),
-              ],
+          borderRadius: ShapeTokens.large,
+          child: GestureDetector(
+            onTap: _openMedia,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: 120,
+                maxHeight: maxHeight,
+              ),
+              child: Container(
+                width: double.infinity,
+                color: cs.surfaceContainerLowest,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (url != null)
+                      CachedNetworkImage(
+                        imageUrl: url,
+                        width: double.infinity,
+                        memCacheWidth: cacheWidth,
+                        memCacheHeight: cacheHeight,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.center,
+                      )
+                    else
+                      Container(color: cs.surfaceContainerHighest),
+                    if (p.type == PostType.video)
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }

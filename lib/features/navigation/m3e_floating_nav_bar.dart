@@ -83,7 +83,7 @@ class _M3EFloatingNavBarState extends State<M3EFloatingNavBar>
                   ShapeTokens.extraLarge;
               return Container(
                 key: const ValueKey<String>('m3e-nav-dock'),
-                height: lerpDouble(62, 42, t),
+                height: lerpDouble(58, 42, t),
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHigh,
                   borderRadius: radius,
@@ -231,35 +231,40 @@ class _Destination extends StatelessWidget {
                       ),
                   ],
                 ),
-                AnimatedOpacity(
-                  opacity: labelVisible ? 1 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.fastOutSlowIn,
-                  child: AnimatedSize(
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: AnimatedOpacity(
+                    opacity: labelVisible ? 1 : 0,
                     duration: const Duration(milliseconds: 200),
                     curve: Curves.fastOutSlowIn,
-                    child: labelVisible
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const SizedBox(width: 6),
-                              Text(
-                                label,
-                                maxLines: 1,
-                                overflow: TextOverflow.fade,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
-                                    ?.copyWith(
-                                      color: color,
-                                      fontWeight: selected
-                                          ? FontWeight.w600
-                                          : FontWeight.w500,
-                                    ),
-                              ),
-                            ],
-                          )
-                        : const SizedBox.shrink(),
+                    child: AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.fastOutSlowIn,
+                      child: labelVisible
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: color,
+                                          fontWeight: selected
+                                              ? FontWeight.w600
+                                              : FontWeight.w500,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ],

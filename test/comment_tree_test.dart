@@ -134,4 +134,24 @@ void main() {
     expect(attachments, 1);
     expect(jumps, 1);
   });
+
+  testWidgets('jump FAB is hidden while the keyboard is open', (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        MediaQuery(
+          data: const MediaQueryData(
+            viewInsets: EdgeInsets.only(bottom: 320),
+          ),
+          child: M3ECommentComposeBar(
+            onSend: (_, __) {},
+            onAttach: () async => null,
+            onJump: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byTooltip('Jump to next comment'), findsNothing);
+  });
 }

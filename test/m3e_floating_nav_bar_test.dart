@@ -40,7 +40,7 @@ void main() {
     expect(selected, 2);
   });
 
-  testWidgets('dock morphs from expanded 62dp to minimized 42dp',
+  testWidgets('dock morphs from expanded 58dp to minimized 42dp',
       (tester) async {
     await tester.pumpWidget(
       _harness(
@@ -50,7 +50,7 @@ void main() {
         ),
       ),
     );
-    expect(tester.getSize(_dockBackground()).height, 62);
+    expect(tester.getSize(_dockBackground()).height, 58);
 
     await tester.pumpWidget(
       _harness(

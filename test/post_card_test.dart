@@ -90,14 +90,14 @@ Widget _postHarness({required PostDisplay display}) {
 }
 
 void main() {
-  test('blueprint media bounds support tall and wide content', () {
+  test('feed media bounds preserve portrait and landscape safety limits', () {
     expect(
       boundedMediaAspectRatio(width: 350, height: 2000),
-      closeTo(0.35, 0.0001),
+      closeTo(0.4, 0.0001),
     );
     expect(
       boundedMediaAspectRatio(width: 2400, height: 1000),
-      closeTo(2.0, 0.0001),
+      closeTo(1.91, 0.0001),
     );
   });
 
