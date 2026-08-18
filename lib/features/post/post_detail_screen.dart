@@ -4,7 +4,6 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,8 +50,7 @@ class PostDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
-  final ItemScrollController _itemScroll = ItemScrollController();
-  final ItemPositionsListener _itemPositions = ItemPositionsListener.create();
+  final ScrollController _scrollController = ScrollController();
   List<Comment> _flat = const [];
 
   // In-post comment search.
@@ -80,6 +78,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -111,12 +110,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
   void _scrollToMatch() {
     if (_matchIndices.isEmpty) return;
-    final li = _matchIndices[_matchPos];
-    _itemScroll.scrollTo(
-        index: li,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-        alignment: 0.12);
+    _scrollController.animateTo(
+      (_scrollController.offset + 260).clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
+      ),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   void _stepMatch(int delta) {
@@ -176,51 +177,26 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 
   void _scrollToComments() {
-    if (_flat.isEmpty) return;
-    _itemScroll.scrollTo(
-      index: 1,
+    if (_flat.isEmpty || !_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      (_scrollController.offset + 320).clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
+      ),
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
-      alignment: 0.08,
     );
   }
 
   void _jumpNextTopLevel() {
-    if (_flat.isEmpty) return;
-
-    // Reference = the topmost item actually on screen (ignore the cached items
-    // ScrollablePositionedList keeps just outside the viewport).
-    final onScreen = _itemPositions.itemPositions.value
-        .where((p) => p.itemTrailingEdge > 0 && p.itemLeadingEdge < 1);
-    final topIndex = onScreen.isEmpty
-        ? 0
-        : onScreen.map((p) => p.index).reduce((a, b) => a < b ? a : b);
-
-    // First top-level comment strictly below the current top.
-    int? target;
-    for (var ci = 0; ci < _flat.length; ci++) {
-      if (_flat[ci].depth != 0) continue;
-      if (ci + 1 > topIndex) {
-        target = ci + 1;
-        break;
-      }
-    }
-    // Past the last one → wrap to the first top-level comment.
-    if (target == null) {
-      for (var ci = 0; ci < _flat.length; ci++) {
-        if (_flat[ci].depth == 0) {
-          target = ci + 1;
-          break;
-        }
-      }
-    }
-    if (target == null) return;
-
-    _itemScroll.scrollTo(
-      index: target,
+    if (_flat.isEmpty || !_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      (_scrollController.offset + 280).clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
+      ),
       duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-      alignment: 0.0,
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -295,38 +271,42 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          async.when(
-        loading: () => _LoadingWithHeader(post: widget.initialPost),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Could not load this post.\n$e',
-                    textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                    onPressed: notifier.refresh, child: const Text('Retry')),
-              ],
-            ),
-          ),
-        ),
-        data: (thread) {
-          final commentMarkdownStyle = _getCommentMarkdownStyle(context);
-          final presentations = ref.watch(
-            flattenedCommentPresentationProvider((key, commentMarkdownStyle)),
-          );
-          final flat = [for (final presentation in presentations) presentation.comment];
-          _flat = flat;
-          final list = Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
+          Expanded(
+            child: async.when(
+              loading: () => _LoadingWithHeader(post: widget.initialPost),
+              error: (e, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Could not load this post.\n$e',
+                          textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: notifier.refresh,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              data: (thread) {
+                final commentMarkdownStyle = _getCommentMarkdownStyle(context);
+                final presentations = ref.watch(
+                  flattenedCommentPresentationProvider((key, commentMarkdownStyle)),
+                );
+                final flat = [
+                  for (final presentation in presentations) presentation.comment,
+                ];
+                _flat = flat;
+                final colorScheme = Theme.of(context).colorScheme;
+                final theme = Theme.of(context);
+                final sortHeader = Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: PopupMenuButton<String>(
                     onSelected: notifier.changeSort,
                     itemBuilder: (_) => [
@@ -339,164 +319,158 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     ],
                     tooltip: 'Sort comments',
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.sort_rounded,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                        Icon(Icons.sort_rounded,
+                            size: 18, color: colorScheme.primary),
                         const SizedBox(width: 6),
                         Text(
                           'BEST COMMENTS',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.5,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            color: colorScheme.primary,
+                          ),
                         ),
-                        Icon(
-                          Icons.arrow_drop_down_rounded,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 18, color: colorScheme.primary),
                       ],
                     ),
                   ),
-                ),
-              ),
-              Expanded(
-                child: RefreshIndicator(
+                );
+
+                return RefreshIndicator(
                   onRefresh: notifier.refresh,
-                  child: ScrollablePositionedList.builder(
-              itemScrollController: _itemScroll,
-              itemPositionsListener: _itemPositions,
-              // Keep a balanced look-ahead window: enough to avoid pop-in
-              // without building an excessive number of off-screen tiles.
-              minCacheExtent: 1000,
-              addRepaintBoundaries: false,
-              addAutomaticKeepAlives: false,
-              padding: const EdgeInsets.only(top: 6, bottom: 96),
-              itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _PostHeader(
-                    post: thread.post,
-                    onComments: _scrollToComments,
-                  );
-                }
-                if (flat.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(40),
-                    child: Center(child: Text('No comments yet')),
-                  );
-                }
-                final presentation = presentations[index - 1];
-                final c = presentation.comment;
-                return RepaintBoundary(
-                  child: _CommentTile(
-                    key: ValueKey(c.fullname),
-                    comment: c,
-                    opAuthor: thread.post.author,
-                    collapsed: thread.collapsed.contains(c.id),
-                    loadingMore: thread.loadingMore.contains(c.fullname),
-                    onToggle: () => notifier.toggleCollapse(c.id),
-                    onLoadMore: () => notifier.loadMore(c),
-                    onOpenThread: () {
-                      final focusId = c.moreChildren.isNotEmpty
-                          ? c.moreChildren.first
-                          : c.id;
-                      context.push(
-                        '/comments/${Uri.encodeComponent(thread.post.subreddit)}/${thread.post.id}?comment=${Uri.encodeComponent(focusId)}',
-                      );
-                    },
-                    onReply: () async {
-                      final reply = await showReplySheet(
-                        context,
-                        ref,
-                        parentFullname: c.fullname,
-                        parentDepth: c.depth,
-                        replyingTo: c.author,
-                      );
-                      if (reply != null) {
-                        notifier.insertReply(c.fullname, reply);
-                        ref
-                            .read(postOverridesProvider.notifier)
-                            .bumpComments(thread.post, 1);
-                        ref
-                            .read(interestStoreProvider.notifier)
-                            .bump(thread.post.subreddit, 2.5);
-                      }
-                    },
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    slivers: [
+                      if (_searchOpen)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                            child: _buildSearchBar(context),
+                          ),
+                        ),
+                      SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (widget.focusCommentId != null)
+                              Material(
+                                color: colorScheme.secondaryContainer,
+                                child: InkWell(
+                                  onTap: () => context.replace(
+                                      '/comments/${widget.subreddit}/${widget.postId}'),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 10),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.subdirectory_arrow_right_rounded,
+                                          size: 18,
+                                          color: colorScheme.onSecondaryContainer,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Viewing a single comment thread',
+                                            style: TextStyle(
+                                              color: colorScheme.onSecondaryContainer,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          'Show all',
+                                          style: TextStyle(
+                                            color: colorScheme.primary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            _PostHeader(
+                              post: thread.post,
+                              onComments: _scrollToComments,
+                            ),
+                            sortHeader,
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            if (flat.isEmpty) {
+                              return const Padding(
+                                padding: EdgeInsets.all(40),
+                                child: Center(child: Text('No comments yet')),
+                              );
+                            }
+                            final c = presentations[index].comment;
+                            return RepaintBoundary(
+                              child: _CommentTile(
+                                key: ValueKey(c.fullname),
+                                comment: c,
+                                opAuthor: thread.post.author,
+                                collapsed: thread.collapsed.contains(c.id),
+                                loadingMore:
+                                    thread.loadingMore.contains(c.fullname),
+                                onToggle: () => notifier.toggleCollapse(c.id),
+                                onLoadMore: () => notifier.loadMore(c),
+                                onOpenThread: () {
+                                  final focusId = c.moreChildren.isNotEmpty
+                                      ? c.moreChildren.first
+                                      : c.id;
+                                  context.push(
+                                    '/comments/${Uri.encodeComponent(thread.post.subreddit)}/${thread.post.id}?comment=${Uri.encodeComponent(focusId)}',
+                                  );
+                                },
+                                onReply: () async {
+                                  final reply = await showReplySheet(
+                                    context,
+                                    ref,
+                                    parentFullname: c.fullname,
+                                    parentDepth: c.depth,
+                                    replyingTo: c.author,
+                                  );
+                                  if (reply != null) {
+                                    notifier.insertReply(c.fullname, reply);
+                                    ref
+                                        .read(postOverridesProvider.notifier)
+                                        .bumpComments(thread.post, 1);
+                                    ref
+                                        .read(interestStoreProvider.notifier)
+                                        .bump(thread.post.subreddit, 2.5);
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                          childCount: flat.isEmpty ? 1 : flat.length,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },
-                  ),
-                ),
-              ),
-            ],
-          );
-          if (widget.focusCommentId == null) return list;
-          // Single-comment view (from an inbox reply / permalink).
-          final cs = Theme.of(context).colorScheme;
-          return Column(
-            children: [
-              Material(
-                color: cs.secondaryContainer,
-                child: InkWell(
-                  onTap: () => context
-                      .replace('/comments/${widget.subreddit}/${widget.postId}'),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    child: Row(
-                      children: [
-                        Icon(Icons.subdirectory_arrow_right_rounded,
-                            size: 18, color: cs.onSecondaryContainer),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text('Viewing a single comment thread',
-                              style: TextStyle(
-                                  color: cs.onSecondaryContainer,
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                        Text('Show all',
-                            style: TextStyle(
-                                color: cs.primary,
-                                fontWeight: FontWeight.w700)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(child: list),
-            ],
-          );
-        },
+            ),
           ),
-          if (thread != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: CommentComposeBar(
-                onSubmit: (text) {
-                  final attachment = _pendingComposeAttachment;
-                  _pendingComposeAttachment = null;
-                  _sendQuickReply(notifier, thread, text, attachment);
-                },
-                onImageSelected: _onComposeImageSelected,
-                onJumpNext: thread.comments.isEmpty ? null : _jumpNextTopLevel,
-              ),
-            ),
-          if (_searchOpen && thread != null)
-            Positioned(
-              left: 8,
-              right: 8,
-              top: 8,
-              child: _buildSearchBar(context),
-            ),
+          CommentComposeBar(
+            onSubmit: (text) {
+              if (thread == null) return;
+              final attachment = _pendingComposeAttachment;
+              _pendingComposeAttachment = null;
+              _sendQuickReply(notifier, thread, text, attachment);
+            },
+            onImageSelected: _onComposeImageSelected,
+            onJumpNext: thread == null || thread.comments.isEmpty
+                ? null
+                : _jumpNextTopLevel,
+          ),
         ],
       ),
     );
