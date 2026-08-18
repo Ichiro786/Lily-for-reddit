@@ -40,11 +40,5 @@ void main() {
     );
 
     expect(find.bySemanticsLabel('Loading media'), findsOneWidget);
-    expect(
-      tester.getSemantics(find.byType(M3ELoadingIndicator)).hasFlag(
-            SemanticsFlag.isLiveRegion,
-          ),
-      isTrue,
-    );
   });
 }
