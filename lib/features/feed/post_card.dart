@@ -23,7 +23,6 @@ import '../history/interest_store.dart';
 import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
-import '../post/post_actions.dart';
 import '../settings/settings_controller.dart';
 import 'swipe_actions.dart';
 import 'compact_post_card.dart';
@@ -538,6 +537,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                       memCacheWidth: cacheWidth,
                       memCacheHeight: cacheHeight,
                       fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
                       placeholder: (_, __) =>
                           Container(color: cs.surfaceContainerHighest),
                       errorWidget: (_, __, ___) =>
@@ -787,6 +787,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                     memCacheWidth: cacheWidth,
                     memCacheHeight: cacheHeight,
                     fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
                     placeholder: (_, __) =>
                         Container(color: cs.surfaceContainerHighest),
                     errorWidget: (_, __, ___) => Container(
@@ -854,6 +855,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                     width: 72,
                     height: 72,
                     fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
                     errorWidget: (_, __, ___) =>
                         const SizedBox(width: 72, height: 72),
                   ),
@@ -896,23 +898,16 @@ class _PostCardState extends ConsumerState<PostCard> {
     final score = ov?.score ?? widget.post.score;
     final saved = ov?.saved ?? widget.post.saved;
     final numComments = ov?.numComments ?? widget.post.numComments;
-    final read = ref.watch(historyContainsProvider(widget.post.id));
     return M3EPostActionBar(
       score: score,
       likes: likes,
       commentCount: numComments,
       saved: saved,
-      read: read,
       onUpvote: () => _vote(1),
       onDownvote: () => _vote(-1),
       onComment: _openDetail,
       onSave: _toggleSave,
       onShare: () => shareUrl(context, widget.post.url, subject: widget.post.title),
-      onRead: () {
-        final history = ref.read(historyControllerProvider.notifier);
-        read ? history.removeViewed(widget.post.id) : history.markViewed(widget.post);
-      },
-      onMore: () => showPostActionsSheet(context, ref, widget.post),
     );
   }
 }

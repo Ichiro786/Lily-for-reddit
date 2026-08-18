@@ -37,7 +37,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   // selection, then remain mounted so their scroll and provider state survive.
   final List<Widget?> _tabWidgets = List<Widget?>.filled(4, null);
 
-  bool _chrome = true;
+  final ValueNotifier<bool> _chrome = ValueNotifier<bool>(true);
+
+  @override
+  void dispose() {
+    _chrome.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -131,13 +137,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     // Near the top or overscrolling (iOS rubber-band) — keep chrome shown and
     // don't toggle, so the bar doesn't bounce in/out as you scroll back up.
     if (m.outOfRange || m.pixels <= m.minScrollExtent + 4) {
-      if (!_chrome) setState(() => _chrome = true);
+      if (!_chrome.value) _chrome.value = true;
       return false;
     }
-    if (n.direction == ScrollDirection.reverse && _chrome) {
-      setState(() => _chrome = false);
-    } else if (n.direction == ScrollDirection.forward && !_chrome) {
-      setState(() => _chrome = true);
+    if (n.direction == ScrollDirection.reverse && _chrome.value) {
+      _chrome.value = false;
+    } else if (n.direction == ScrollDirection.forward && !_chrome.value) {
+      _chrome.value = true;
     }
     return false;
   }
@@ -157,7 +163,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           child: _LazyKeepAliveTabHost(
             index: _index,
             tabs: [
-              _FrontpageTab(chromeVisible: _chrome),
+              ValueListenableBuilder<bool>(
+                valueListenable: _chrome,
+                builder: (_, visible, __) =>
+                    _FrontpageTab(chromeVisible: visible),
+              ),
               _tabWidgets[1],
               _tabWidgets[2],
               _tabWidgets[3],
@@ -165,12 +175,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           ),
         ),
       ),
-      bottomNavigationBar: M3EFloatingNavBar(
-        selectedIndex: _index,
-        unread: unread,
-        minimized: !_chrome,
-        showLabels: navLabels,
-        onSelected: (i) {
+      bottomNavigationBar: ValueListenableBuilder<bool>(
+        valueListenable: _chrome,
+        builder: (_, visible, __) => M3EFloatingNavBar(
+          selectedIndex: _index,
+          unread: unread,
+          minimized: !visible,
+          showLabels: navLabels,
+          onSelected: (i) {
           // Re-tapping the active tab scrolls it to top (Posts also refreshes).
           if (i == _index) {
             if (i == 0) {
@@ -180,12 +192,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             }
             return;
           }
-          setState(() {
-            if (i != 0) _tabWidgets[i] ??= _createTab(i);
-            _index = i;
-            _chrome = true; // always reveal chrome when switching tabs
-          });
-        },
+            setState(() {
+              if (i != 0) _tabWidgets[i] ??= _createTab(i);
+              _index = i;
+            });
+            _chrome.value = true; // always reveal chrome when switching tabs
+          },
+        ),
       ),
     );
   }
