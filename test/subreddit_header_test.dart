@@ -73,7 +73,10 @@ void main() {
     expect(find.byType(CachedNetworkImage), findsNothing);
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is Container && widget.height == 176,
+        (widget) =>
+            widget is Container &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration! as BoxDecoration).gradient is LinearGradient,
       ),
       findsOneWidget,
     );
