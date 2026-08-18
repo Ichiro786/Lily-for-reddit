@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import 'package:luli_for_reddit/core/storage/interaction_vault.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
@@ -88,6 +89,10 @@ Widget _postHarness({required PostDisplay display}) {
 }
 
 void main() {
+  setUpAll(() {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+  });
+
   testWidgets('PostCard uses M3E surface container in AMOLED dark theme',
       (tester) async {
     await tester.pumpWidget(_postHarness(display: PostDisplay.large));
