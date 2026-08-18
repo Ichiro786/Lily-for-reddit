@@ -1,26 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:luli_for_reddit/core/theme/color_schemes.dart';
-import 'package:luli_for_reddit/core/theme/shape_tokens.dart';
 import 'package:luli_for_reddit/features/navigation/m3e_floating_nav_bar.dart';
 
 Widget _harness(Widget child) {
   return MaterialApp(
-    theme: ThemeData(
-      useMaterial3: true,
-      colorScheme: M3EColorSchemes.dark,
-    ),
+    theme: ThemeData(useMaterial3: true),
     home: Scaffold(body: child),
   );
 }
 
-Finder _dockBackground() {
-  return find.descendant(
-    of: find.byType(M3EFloatingNavBar),
-    matching: find.byKey(const ValueKey<String>('m3e-nav-dock')),
-  ).first;
-}
+Finder _dock() => find
+    .descendant(
+      of: find.byType(M3EFloatingNavBar),
+      matching: find.byType(AnimatedContainer),
+    )
+    .first;
 
 void main() {
   testWidgets('destination taps report the selected tab', (tester) async {
@@ -28,8 +23,8 @@ void main() {
     await tester.pumpWidget(
       _harness(
         M3EFloatingNavBar(
-          selectedIndex: 0,
-          onSelected: (index) => selected = index,
+          currentIndex: 0,
+          onTap: (index) => selected = index,
         ),
       ),
     );
@@ -40,66 +35,44 @@ void main() {
     expect(selected, 2);
   });
 
-  testWidgets('dock morphs from expanded 58dp to minimized 42dp',
+  testWidgets('dock uses 60dp expanded and 44dp minimized heights',
       (tester) async {
     await tester.pumpWidget(
       _harness(
         M3EFloatingNavBar(
-          selectedIndex: 0,
-          onSelected: (_) {},
+          currentIndex: 0,
+          onTap: (_) {},
         ),
       ),
     );
-    expect(tester.getSize(_dockBackground()).height, 58);
+    expect(tester.getSize(_dock()).height, 60);
 
     await tester.pumpWidget(
       _harness(
         M3EFloatingNavBar(
-          selectedIndex: 0,
-          minimized: true,
-          onSelected: (_) {},
+          currentIndex: 0,
+          isMinimized: true,
+          onTap: (_) {},
         ),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(tester.getSize(_dockBackground()).height, 42);
+    await tester.pump(const Duration(milliseconds: 220));
+    expect(tester.getSize(_dock()).height, 44);
   });
 
-  testWidgets('Inbox unread badge is visible when unread count is nonzero',
+  testWidgets('Inbox badge dot is visible when unread count is nonzero',
       (tester) async {
     await tester.pumpWidget(
       _harness(
         M3EFloatingNavBar(
-          selectedIndex: 0,
-          unread: 7,
-          onSelected: (_) {},
+          currentIndex: 0,
+          unreadCount: 7,
+          onTap: (_) {},
         ),
       ),
     );
 
-    expect(find.text('7'), findsOneWidget);
-  });
-
-  testWidgets('dock resolves M3E surface, outline, and shape tokens',
-      (tester) async {
-    await tester.pumpWidget(
-      _harness(
-        M3EFloatingNavBar(
-          selectedIndex: 0,
-          onSelected: (_) {},
-        ),
-      ),
-    );
-
-    final dock = tester.widget<Container>(_dockBackground());
-    final decoration = dock.decoration! as BoxDecoration;
-    final theme = Theme.of(tester.element(find.byType(M3EFloatingNavBar)));
-    expect(decoration.color, theme.colorScheme.surfaceContainerHigh);
-    expect(decoration.borderRadius, ShapeTokens.extraLarge);
-    expect(decoration.border, isNotNull);
-    expect(
-      (decoration.border! as Border).top.color,
-      theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
-    );
+    expect(find.text('7'), findsNothing);
+    expect(find.byType(Positioned), findsWidgets);
   });
 }

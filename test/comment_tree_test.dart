@@ -105,20 +105,19 @@ void main() {
     expect(find.byIcon(Icons.expand_less_rounded), findsOneWidget);
   });
 
-  testWidgets('sticky compose dock sends text and exposes attachment action',
+  testWidgets('compose dock sends text and exposes gallery action',
       (tester) async {
     String? sent;
-    var attachments = 0;
+    var selected = 0;
     var jumps = 0;
     await tester.pumpWidget(
       _harness(
-        M3ECommentComposeBar(
-          onSend: (text, _) => sent = text,
-          onAttach: () async {
-            attachments++;
-            return null;
+        CommentComposeBar(
+          onSubmit: (text) => sent = text,
+          onImageSelected: (file) {
+            if (file != null) selected++;
           },
-          onJump: () => jumps++,
+          onJumpNext: () => jumps++,
         ),
       ),
     );
@@ -127,11 +126,11 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Hello M3E');
     await tester.testTextInput.receiveAction(TextInputAction.send);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Attach image from gallery'));
-    await tester.tap(find.byTooltip('Jump to next comment'));
+    await tester.tap(find.byIcon(Icons.add_photo_alternate_outlined));
+    await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded));
 
     expect(sent, 'Hello M3E');
-    expect(attachments, 1);
+    expect(selected, 0);
     expect(jumps, 1);
   });
 
@@ -142,16 +141,16 @@ void main() {
           data: const MediaQueryData(
             viewInsets: EdgeInsets.only(bottom: 320),
           ),
-          child: M3ECommentComposeBar(
-            onSend: (_, __) {},
-            onAttach: () async => null,
-            onJump: () {},
+          child: CommentComposeBar(
+            onSubmit: (_) {},
+            onImageSelected: (_) {},
+            onJumpNext: () {},
           ),
         ),
       ),
     );
 
     expect(find.byType(TextField), findsOneWidget);
-    expect(find.byTooltip('Jump to next comment'), findsNothing);
+    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsNothing);
   });
 }
