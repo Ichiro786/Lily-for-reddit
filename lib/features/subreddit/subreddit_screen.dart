@@ -1,13 +1,14 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../models/subreddit.dart';
+import '../feed/feed_controller.dart';
 import '../feed/post_list_view.dart';
+import '../settings/settings_controller.dart';
+import 'subreddit_header.dart';
 
 final subredditAboutProvider =
     FutureProvider.autoDispose.family<Subreddit, String>((ref, name) {
@@ -16,6 +17,7 @@ final subredditAboutProvider =
 
 class SubredditScreen extends ConsumerStatefulWidget {
   const SubredditScreen({super.key, required this.name});
+
   final String name;
 
   @override
@@ -23,11 +25,19 @@ class SubredditScreen extends ConsumerStatefulWidget {
 }
 
 class _SubredditScreenState extends ConsumerState<SubredditScreen> {
-  bool? _subOverride; // optimistic subscribe state
+  bool? _subOverride;
+  bool _notificationsEnabled = false;
 
   @override
   Widget build(BuildContext context) {
     final about = ref.watch(subredditAboutProvider(widget.name));
+    final feed = ref.watch(feedControllerProvider(widget.name));
+    final defaultSort =
+        ref.watch(settingsControllerProvider.select((s) => s.defaultSort));
+    final display =
+        ref.watch(settingsControllerProvider.select((s) => s.postDisplay));
+    final selectedSort = feed.valueOrNull?.sort ?? defaultSort;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('r/${widget.name}'),
@@ -49,91 +59,46 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
       ),
       body: PostListView(
         feedKey: widget.name,
-        header: about.when(
-          loading: () => const SizedBox(height: 4, child: LinearProgressIndicator()),
-          error: (_, __) => const SizedBox.shrink(),
-          data: (s) => _header(context, s),
+        showSortBar: false,
+        header: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            about.when(
+              loading: () => const SizedBox(
+                height: 4,
+                child: LinearProgressIndicator(),
+              ),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (s) => _header(context, s),
+            ),
+            M3ESubredditControlBar(
+              sort: selectedSort,
+              onSortChanged: (sort) => ref
+                  .read(feedControllerProvider(widget.name).notifier)
+                  .changeSort(sort),
+              display: display,
+              onDisplayChanged: (next) => ref
+                  .read(settingsControllerProvider.notifier)
+                  .setPostDisplay(next),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _header(BuildContext context, Subreddit s) {
-    final cs = Theme.of(context).colorScheme;
     final subscribed = _subOverride ?? s.userIsSubscriber ?? false;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 8, 6, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (s.bannerUrl != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: CachedNetworkImage(
-                imageUrl: s.bannerUrl!,
-                height: 110,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => const SizedBox.shrink(),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 10, 4, 4),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 26,
-                          backgroundColor: cs.secondaryContainer,
-                          foregroundColor: cs.onSecondaryContainer,
-                          backgroundImage: s.iconUrl != null
-                              ? CachedNetworkImageProvider(s.iconUrl!)
-                              : null,
-                          child: s.iconUrl == null
-                              ? Text(s.name.isNotEmpty
-                                  ? s.name[0].toUpperCase()
-                                  : '?')
-                              : null,
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(s.namePrefixed,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleLarge
-                                      ?.copyWith(fontWeight: FontWeight.w800)),
-                              Text('${compactNumber(s.subscribers)} members',
-                                  style:
-                                      TextStyle(color: cs.onSurfaceVariant)),
-                            ],
-                          ),
-                        ),
-                        FilledButton.tonal(
-                          onPressed: () => _toggleSub(s, subscribed),
-                          child: Text(subscribed ? 'Joined' : 'Join'),
-                        ),
-                      ],
-                    ),
-                    if (s.description.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text(s.description,
-                          style: TextStyle(color: cs.onSurfaceVariant)),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return M3ESubredditHeader(
+      subreddit: s,
+      joined: subscribed,
+      onJoinToggle: () => _toggleSub(s, subscribed),
+      notificationsEnabled: _notificationsEnabled,
+      onNotificationToggle: () {
+        setState(() => _notificationsEnabled = !_notificationsEnabled);
+      },
+      accessLabel: s.over18 ? '18+ public' : 'Public',
+      categoryLabel: s.title.isEmpty ? 'Community' : s.title,
     );
   }
 
