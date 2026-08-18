@@ -1,6 +1,4 @@
 import 'dart:io';
-import 'dart:ui' show lerpDouble;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +18,7 @@ import '../settings/settings_controller.dart';
 import '../updates/update_checker.dart';
 import 'account_tab.dart';
 import 'tab_signals.dart';
+import '../navigation/m3e_floating_nav_bar.dart';
 
 /// SharedPreferences flag: have we shown the one-time notifications suggestion?
 const String _kNotifPromptedPref = 'notifyInboxPrompted';
@@ -166,31 +165,27 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           ),
         ),
       ),
-      bottomNavigationBar: AnimatedSlide(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-        offset: _chrome ? Offset.zero : const Offset(0, 1.4),
-        child: _FloatingNav(
-          selectedIndex: _index,
-          unread: unread,
-          showLabels: navLabels,
-          onSelected: (i) {
-            // Re-tapping the active tab scrolls it to top (Posts also refreshes).
-            if (i == _index) {
-              if (i == 0) {
-                ref.read(frontpageScrollSignalProvider.notifier).state++;
-              } else {
-                ref.read(tabReselectProvider(i).notifier).state++;
-              }
-              return;
+      bottomNavigationBar: M3EFloatingNavBar(
+        selectedIndex: _index,
+        unread: unread,
+        minimized: !_chrome,
+        showLabels: navLabels,
+        onSelected: (i) {
+          // Re-tapping the active tab scrolls it to top (Posts also refreshes).
+          if (i == _index) {
+            if (i == 0) {
+              ref.read(frontpageScrollSignalProvider.notifier).state++;
+            } else {
+              ref.read(tabReselectProvider(i).notifier).state++;
             }
-            setState(() {
-              if (i != 0) _tabWidgets[i] ??= _createTab(i);
-              _index = i;
-              _chrome = true; // always reveal chrome when switching tabs
-            });
-          },
-        ),
+            return;
+          }
+          setState(() {
+            if (i != 0) _tabWidgets[i] ??= _createTab(i);
+            _index = i;
+            _chrome = true; // always reveal chrome when switching tabs
+          });
+        },
       ),
     );
   }
@@ -220,382 +215,6 @@ class _LazyKeepAliveTabHost extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-/// "Pop" floating pill navigation. On iOS the selection indicator is a single
-/// Liquid-Glass capsule that fluidly slides + stretches between tabs (the
-/// Apple-Music "drag" effect); on Android it's the standard Material pill.
-class _FloatingNav extends StatefulWidget {
-  const _FloatingNav({
-    required this.selectedIndex,
-    required this.unread,
-    required this.onSelected,
-    this.showLabels = true,
-  });
-  final int selectedIndex;
-  final int unread;
-  final ValueChanged<int> onSelected;
-  final bool showLabels;
-
-  @override
-  State<_FloatingNav> createState() => _FloatingNavState();
-}
-
-class _FloatingNavState extends State<_FloatingNav>
-    with SingleTickerProviderStateMixin {
-  static const _items = [
-    (Icons.home_outlined, Icons.home_rounded, 'Posts'),
-    (Icons.explore_outlined, Icons.explore_rounded, 'Explore'),
-    (Icons.mail_outline_rounded, Icons.mail_rounded, 'Inbox'),
-    (Icons.account_circle_outlined, Icons.account_circle_rounded, 'Account'),
-  ];
-
-  late final AnimationController _c;
-  double _from = 0;
-  double _to = 0;
-  // While the user holds & slides their thumb across the bar, the capsule
-  // follows the finger (fractional index); null = not dragging.
-  double? _drag;
-  bool _fromDrag = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _from = _to = widget.selectedIndex.toDouble();
-    _c = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 200));
-  }
-
-  @override
-  void didUpdateWidget(_FloatingNav old) {
-    super.didUpdateWidget(old);
-    if (_fromDrag) {
-      _fromDrag = false; // drag already ran its own snap animation
-      return;
-    }
-    if (old.selectedIndex != widget.selectedIndex) {
-      _from = _displayed; // smooth interrupt mid-flight
-      _to = widget.selectedIndex.toDouble();
-      _c.forward(from: 0);
-    }
-  }
-
-  double get _displayed =>
-      lerpDouble(_from, _to, Curves.easeOutCubic.transform(_c.value))!;
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const radius = BorderRadius.all(Radius.circular(40));
-    // iOS: sit low like Telegram/Apple Music — ignore the home-indicator safe
-    // area and keep just a small gap, letting the indicator overlap the bar.
-    if (useLiquidGlass) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-        child: _bar(context, radius),
-      );
-    }
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-        child: _bar(context, radius),
-      ),
-    );
-  }
-
-  Widget _bar(BuildContext context, BorderRadius radius) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            // Subtler on iOS — the heavy shadow read as an odd aura.
-            color:
-                Colors.black.withValues(alpha: useLiquidGlass ? 0.10 : 0.22),
-            blurRadius: useLiquidGlass ? 14 : 24,
-            offset: Offset(0, useLiquidGlass ? 4 : 8),
-          ),
-        ],
-      ),
-      child: GlassSurface(
-        borderRadius: radius,
-        // Nav sits over scrolling content (incl. dark images). Telegram's
-        // tab bar is fully solid — match that so labels are always legible.
-        tintOpacity: 1.0,
-        child: SizedBox(
-          height: 70,
-          child: useLiquidGlass ? _glass(context) : _material(context),
-        ),
-      ),
-    );
-  }
-
-  // Android: standard Material pills.
-  Widget _material(BuildContext context) => Row(
-        children: [
-          for (var i = 0; i < _items.length; i++)
-            Expanded(
-              child: _NavItem(
-                iconOff: _items[i].$1,
-                iconOn: _items[i].$2,
-                label: _items[i].$3,
-                selected: widget.selectedIndex == i,
-                badge: i == 2 ? widget.unread : 0,
-                showLabel: widget.showLabels,
-                onTap: () => widget.onSelected(i),
-              ),
-            ),
-        ],
-      );
-
-  // iOS: a single sliding/stretching glass capsule behind the items.
-  Widget _glass(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return LayoutBuilder(
-      builder: (context, bc) {
-        final w = bc.maxWidth;
-        final n = _items.length;
-        final iw = w / n;
-        final capBase = iw - 14;
-
-        // Finger x → fractional tab index (capsule centre follows the thumb).
-        double idxFromX(double x) =>
-            ((x - iw / 2) / iw).clamp(0.0, (n - 1).toDouble());
-
-        void onDown(double x) => setState(() => _drag = idxFromX(x));
-        void onMove(double x) => setState(() => _drag = idxFromX(x));
-        void onUp() {
-          final idx = (_drag ?? widget.selectedIndex.toDouble())
-              .round()
-              .clamp(0, n - 1);
-          _from = _drag ?? idx.toDouble();
-          _to = idx.toDouble();
-          _drag = null;
-          _fromDrag = true;
-          _c.forward(from: 0);
-          widget.onSelected(idx);
-        }
-
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: (d) => onDown(d.localPosition.dx),
-          onHorizontalDragUpdate: (d) => onMove(d.localPosition.dx),
-          onHorizontalDragEnd: (_) => onUp(),
-          onHorizontalDragCancel: () => setState(() => _drag = null),
-          child: AnimatedBuilder(
-            animation: _c,
-            builder: (context, _) {
-              double leftAt(double idx) => idx * iw + (iw - capBase) / 2;
-              double left, width;
-              if (_drag != null) {
-                // Interactive: capsule sits under the finger, base width.
-                width = capBase;
-                left = leftAt(_drag!);
-              } else {
-                final fromL = leftAt(_from), toL = leftAt(_to);
-                final fromR = fromL + capBase, toR = toL + capBase;
-                final t = _c.value;
-                final lead = Curves.easeOutQuart.transform(t);
-                final trail = Curves.easeInQuart.transform(t);
-                final movingRight = _to >= _from;
-                final leftEdge =
-                    lerpDouble(fromL, toL, movingRight ? trail : lead)!;
-                final rightEdge =
-                    lerpDouble(fromR, toR, movingRight ? lead : trail)!;
-                left = leftEdge;
-                width = (rightEdge - leftEdge).clamp(capBase, w);
-              }
-              left = left.clamp(4.0, w - 4 - width);
-              final active =
-                  (_drag != null ? _drag!.round() : widget.selectedIndex)
-                      .clamp(0, n - 1);
-              final dragging = _drag != null;
-              return Stack(
-                children: [
-                  AnimatedPositioned(
-                    duration: dragging
-                        ? const Duration(milliseconds: 90)
-                        : Duration.zero,
-                    curve: Curves.easeOut,
-                    top: 8,
-                    bottom: 8,
-                    left: left,
-                    width: width,
-                    // Lift & grow while held, like iOS.
-                    child: AnimatedScale(
-                      scale: dragging ? 1.09 : 1.0,
-                      duration: const Duration(milliseconds: 170),
-                      curve: Curves.easeOut,
-                      child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 170),
-                      curve: Curves.easeOut,
-                      decoration: BoxDecoration(
-                        // Accent-tinted selection pill so it matches the theme.
-                        // No shadow — it read as an odd grey aura on iOS.
-                        color: cs.primary.withValues(alpha: dark ? 0.30 : 0.16),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                            color: cs.primary.withValues(alpha: dark ? 0.35 : 0.22),
-                            width: 0.5),
-                      ),
-                    ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      for (var i = 0; i < n; i++)
-                        Expanded(child: _glassItem(context, i, cs, active)),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _glassItem(
-      BuildContext context, int i, ColorScheme cs, int activeIndex) {
-    final selected = activeIndex == i;
-    final color = selected ? cs.primary : cs.onSurfaceVariant;
-    Widget icon = Icon(selected ? _items[i].$2 : _items[i].$1,
-        size: widget.showLabels ? 24 : 28, color: color);
-    final unread = i == 2 ? widget.unread : 0;
-    if (unread > 0) {
-      icon = Badge(label: Text(unread > 99 ? '99+' : '$unread'), child: icon);
-    }
-    // GestureDetector, NOT InkWell: the Material ripple painted a big circular
-    // ink "aura" over the glass bar on tap — alien on iOS, where tab bars give
-    // no ripple feedback (the sliding pill is the feedback).
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => widget.onSelected(i),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          icon,
-          if (widget.showLabels) ...[
-            const SizedBox(height: 3),
-            Text(_items[i].$3,
-                style: TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w600, color: color)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.iconOff,
-    required this.iconOn,
-    required this.label,
-    required this.selected,
-    required this.badge,
-    required this.onTap,
-    this.showLabel = true,
-  });
-  final IconData iconOff;
-  final IconData iconOn;
-  final String label;
-  final bool selected;
-  final int badge;
-  final VoidCallback onTap;
-  final bool showLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final glass = useLiquidGlass;
-
-    // Apple Music: selected content is tinted with the accent; the capsule is a
-    // subtle translucent glass highlight (NOT an opaque white block).
-    final contentColor = selected
-        ? (glass ? cs.primary : cs.onSecondaryContainer)
-        : cs.onSurfaceVariant;
-
-    Widget iconW = Icon(selected ? iconOn : iconOff,
-        size: showLabel ? 24 : 28, color: contentColor);
-    if (badge > 0) {
-      iconW = Badge(label: Text(badge > 99 ? '99+' : '$badge'), child: iconW);
-    }
-    final labelW = Text(
-      label,
-      style: TextStyle(
-          fontSize: 11, fontWeight: FontWeight.w600, color: contentColor),
-    );
-
-    if (glass) {
-      // Selection capsule wraps the WHOLE item (icon + label), as a soft
-      // translucent glass highlight.
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          decoration: BoxDecoration(
-            color: selected
-                ? (dark
-                    ? Colors.white.withValues(alpha: 0.14)
-                    : Colors.white.withValues(alpha: 0.42))
-                : Colors.transparent,
-            // Full capsule, echoing the tab bar's rounded shape (not a squircle).
-            borderRadius: BorderRadius.circular(999),
-            border: selected
-                ? Border.all(
-                    color: Colors.white.withValues(alpha: dark ? 0.12 : 0.5),
-                    width: 0.5)
-                : null,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              iconW,
-              if (showLabel) ...[const SizedBox(height: 3), labelW],
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Material (Android): pill behind the icon, label below.
-    return InkWell(
-      onTap: onTap,
-      customBorder: const StadiumBorder(),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutBack,
-            width: 56,
-            height: 30,
-            decoration: BoxDecoration(
-              color: selected ? cs.secondaryContainer : Colors.transparent,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            alignment: Alignment.center,
-            child: iconW,
-          ),
-          if (showLabel) ...[const SizedBox(height: 4), labelW],
-        ],
-      ),
     );
   }
 }
