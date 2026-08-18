@@ -13,6 +13,11 @@ import 'package:luli_for_reddit/features/settings/settings_screen.dart';
 import 'package:luli_for_reddit/models/inbox_item.dart';
 import 'package:luli_for_reddit/models/subreddit.dart';
 
+class _FakeHistoryController extends HistoryController {
+  @override
+  List<HistoryEntry> build() => const <HistoryEntry>[];
+}
+
 Widget _app(Widget child) => MaterialApp(
       theme: AppTheme.dark(null),
       home: Scaffold(body: child),
@@ -38,7 +43,7 @@ void main() {
       ProviderScope(
         overrides: [
           subscribedSubredditsProvider.overrideWith((ref) async => communities),
-          historyControllerProvider.overrideWithValue(const <HistoryEntry>[]),
+          historyControllerProvider.overrideWith(_FakeHistoryController.new),
         ],
         child: _app(const ExploreScreen()),
       ),

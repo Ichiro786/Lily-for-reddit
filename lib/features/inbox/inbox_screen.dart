@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/format.dart';
 import '../../core/theme/shape_tokens.dart';
 import '../../models/inbox_item.dart';
 import '../home/tab_signals.dart';

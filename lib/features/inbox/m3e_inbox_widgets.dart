@@ -4,11 +4,15 @@ import '../../core/format.dart';
 import '../../core/theme/shape_tokens.dart';
 import '../../models/inbox_item.dart';
 
-class M3EInboxCategoryTabs extends StatelessWidget {
+class M3EInboxCategoryTabs extends StatelessWidget
+    implements PreferredSizeWidget {
   const M3EInboxCategoryTabs({super.key, this.onChanged});
 
   static const labels = ['All', 'Unread', 'Messages', 'Mentions', 'Sent'];
   final ValueChanged<int>? onChanged;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kTextTabBarHeight);
 
   @override
   Widget build(BuildContext context) {
