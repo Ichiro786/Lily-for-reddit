@@ -22,9 +22,15 @@ final frontpageScrollSignalProvider = StateProvider<int>((ref) => 0);
 /// Scrollable list of posts for a feed key ('' = frontpage, else subreddit).
 /// [header] is rendered as the first scrolling item (e.g. a big title).
 class PostListView extends ConsumerStatefulWidget {
-  const PostListView({super.key, required this.feedKey, this.header});
+  const PostListView({
+    super.key,
+    required this.feedKey,
+    this.header,
+    this.showSortBar = true,
+  });
   final String feedKey;
   final Widget? header;
+  final bool showSortBar;
 
   @override
   ConsumerState<PostListView> createState() => _PostListViewState();
@@ -132,7 +138,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                     !(p.feedReason != null && history.containsId(p.id)))
                 .toList();
           }
-          final itemCount = 1 + posts.length + 1; // sortbar + posts + footer
+          final itemCount =
+              (widget.showSortBar ? 1 : 0) + posts.length + 1;
           return ListView.separated(
             controller: _scroll,
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
@@ -146,17 +153,19 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                 if (index == 0) return widget.header!;
                 index -= 1;
               }
-              if (index == 0) {
-                return _SortBar(
-                  sort: state.sort,
-                  time: state.time,
-                  onPick: notifier.changeSort,
-                  isFrontpage: widget.feedKey.isEmpty,
-                  forYou: forYouFeed && widget.feedKey.isEmpty,
-                  onForYou: notifier.selectForYou,
-                );
+              if (widget.showSortBar) {
+                if (index == 0) {
+                  return _SortBar(
+                    sort: state.sort,
+                    time: state.time,
+                    onPick: notifier.changeSort,
+                    isFrontpage: widget.feedKey.isEmpty,
+                    forYou: forYouFeed && widget.feedKey.isEmpty,
+                    onForYou: notifier.selectForYou,
+                  );
+                }
+                index -= 1;
               }
-              index -= 1;
               if (index < posts.length) {
                 final post = posts[index];
                 if (widget.feedKey.isEmpty && index == 0) {
