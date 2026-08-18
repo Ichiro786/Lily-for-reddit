@@ -96,6 +96,36 @@ void main() {
     expect(find.text('Expanded comment body'), findsOneWidget);
   });
 
+  testWidgets('expanded comment restores reply, save, and overflow actions',
+      (tester) async {
+    var replies = 0;
+    var saves = 0;
+    var overflows = 0;
+    await tester.pumpWidget(
+      _harness(
+        M3ECommentCard(
+          author: 'alice',
+          timeAgo: '1h',
+          body: 'Comment body',
+          score: 12,
+          isSaved: true,
+          onReply: () => replies++,
+          onSave: () => saves++,
+          onOverflow: () => overflows++,
+        ),
+      ),
+    );
+    expect(find.text('Reply'), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+    await tester.tap(find.text('Reply'));
+    await tester.tap(find.byIcon(Icons.bookmark_rounded));
+    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+    expect(replies, 1);
+    expect(saves, 1);
+    expect(overflows, 1);
+  });
+
   testWidgets('compose dock sends text and exposes gallery action',
       (tester) async {
     String? sent;
