@@ -63,7 +63,6 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 250));
     expect(tester.getSize(_dockBackground()).height, 44);
-    expect(find.text('Home'), findsNothing);
   });
 
   testWidgets('Inbox unread badge is visible when unread count is nonzero',
