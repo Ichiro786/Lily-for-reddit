@@ -15,7 +15,6 @@ import '../../core/media_aspect_ratio.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../core/url_launcher_helper.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/theme/shape_tokens.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
