@@ -163,22 +163,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     ref.read(keywordStoreProvider.notifier).bumpTitle(thread.post.title, 1);
   }
 
-  void _openFullReplyComposer(
-    CommentsController notifier,
-    PostThread thread,
-  ) {
-    showReplySheet(
-      context,
-      ref,
-      parentFullname: thread.post.fullname,
-      parentDepth: -1,
-    ).then((reply) {
-      if (reply == null || !mounted) return;
-      notifier.insertReply(thread.post.fullname, reply);
-      ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
-    });
-  }
-
   void _jumpNextTopLevel() {
     if (_flat.isEmpty) return;
 
