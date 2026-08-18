@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers.dart';
+import '../../core/url_launcher_helper.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import 'comment_media_helper.dart';
@@ -231,8 +231,7 @@ final flattenedCommentPresentationProvider =
                 styleSheet: args.$2,
                 onTapLink: (_, href, __) {
                   if (href != null) {
-                    launchUrl(Uri.parse(href),
-                        mode: LaunchMode.externalApplication);
+                    launchSmartUrl(href);
                   }
                 },
               ),

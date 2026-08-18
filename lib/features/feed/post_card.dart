@@ -4,13 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/analytics.dart';
 import '../../core/format.dart';
+import '../../core/media_aspect_ratio.dart';
 import '../../core/providers.dart';
 import '../../core/root_messenger.dart';
 import '../../core/storage/interaction_vault.dart';
+import '../../core/url_launcher_helper.dart';
 import '../../core/widgets/tap_guard.dart';
 import 'inline_video.dart';
 import 'post_overrides.dart';
@@ -114,13 +115,17 @@ class _PostCardState extends ConsumerState<PostCard> {
       case PostType.gallery:
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
+        if (isYouTubeUrl(p.url)) {
+          launchSmartUrl(p.url);
+          break;
+        }
         final src = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
         openVideoViewer(context, src,
             title: p.title,
             downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
             externalUrl: p.url);
       case PostType.link:
-        launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
+        launchSmartUrl(p.url);
       case PostType.self:
         _openDetail();
     }
@@ -719,12 +724,10 @@ class _PostCardState extends ConsumerState<PostCard> {
   Widget _mediaPreview(ColorScheme cs) {
     final p = widget.post;
     final url = p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
-    final aspect = (p.previewWidth != null &&
-            p.previewHeight != null &&
-            p.previewHeight! > 0)
-        ? p.previewWidth! / p.previewHeight!
-        : 16 / 9;
-    final renderAspect = aspect.clamp(0.5, 2.0).toDouble();
+    final renderAspect = boundedMediaAspectRatio(
+      width: p.previewWidth,
+      height: p.previewHeight,
+    );
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth =
         (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();

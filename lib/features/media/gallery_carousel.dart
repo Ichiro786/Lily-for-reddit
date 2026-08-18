@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/media_aspect_ratio.dart';
 import '../../models/post.dart';
 import 'media_viewers.dart';
 
@@ -34,11 +35,10 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final first = widget.images.first;
-    final aspect = (first.width != null &&
-            first.height != null &&
-            first.height! > 0)
-        ? (first.width! / first.height!).clamp(0.5, 2.0)
-        : 16 / 9;
+    final aspect = boundedMediaAspectRatio(
+      width: first.width,
+      height: first.height,
+    );
 
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth =

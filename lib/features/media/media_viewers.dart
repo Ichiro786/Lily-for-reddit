@@ -11,10 +11,10 @@ import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/share.dart';
+import '../../core/url_launcher_helper.dart';
 import '../../models/post.dart';
 
 /// A left-edge swipe-to-go-back strip (iOS-style), safe to overlay on viewers
@@ -63,6 +63,12 @@ void openGalleryViewer(BuildContext context, List<GalleryImage> images,
 
 void openVideoViewer(BuildContext context, String url,
     {String? title, String? downloadUrl, String? externalUrl}) {
+  if (isYouTubeUrl(url)) {
+    Navigator.of(context).push(
+      _overlayRoute(_YouTubePreview(url: url, title: title)),
+    );
+    return;
+  }
   Navigator.of(context).push(_overlayRoute(_VideoViewer(
       url: url,
       title: title,
@@ -244,8 +250,7 @@ class _ViewerControls extends StatelessWidget {
                   icon: Platform.isIOS
                       ? CupertinoIcons.arrow_up_right_square
                       : Icons.open_in_new_rounded,
-                  onTap: () => launchUrl(Uri.parse(sourceUrl!),
-                      mode: LaunchMode.externalApplication),
+                  onTap: () => launchSmartUrl(sourceUrl!),
                 ),
               ],
             ],
@@ -442,6 +447,75 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
             ),
           ),
           const _EdgeBack(),
+        ],
+      ),
+    );
+  }
+}
+
+class _YouTubePreview extends StatelessWidget {
+  const _YouTubePreview({required this.url, this.title});
+
+  final String url;
+  final String? title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Card(
+                color: Colors.white.withValues(alpha: 0.08),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.play_circle_fill_rounded,
+                          color: Colors.redAccent, size: 64),
+                      const SizedBox(height: 16),
+                      Text(
+                        title?.isNotEmpty == true ? title! : 'YouTube video',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Open this YouTube link in a secure in-app browser tab.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      const SizedBox(height: 20),
+                      FilledButton.icon(
+                        onPressed: () => launchSmartUrl(url),
+                        icon: const Icon(Icons.open_in_new_rounded),
+                        label: const Text('Open YouTube'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 12,
+            right: 12,
+            child: SafeArea(
+              child: IconButton(
+                tooltip: 'Close',
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -887,8 +961,7 @@ class _VideoViewerState extends State<_VideoViewer>
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
-            onPressed: () => launchUrl(Uri.parse(link),
-                mode: LaunchMode.externalApplication),
+            onPressed: () => launchSmartUrl(link),
             icon: const Icon(Icons.open_in_new_rounded),
             label: const Text('Open in browser'),
           ),
