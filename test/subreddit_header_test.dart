@@ -46,7 +46,7 @@ void main() {
 
     expect(find.byType(CachedNetworkImage), findsOneWidget);
     expect(find.text('Flutter Developers'), findsOneWidget);
-    expect(find.text('128K members'), findsOneWidget);
+    expect(find.text('128.0k members'), findsOneWidget);
     expect(find.text('420 online'), findsOneWidget);
     expect(find.text('Created'), findsOneWidget);
     expect(find.text('Mar 2012'), findsOneWidget);
