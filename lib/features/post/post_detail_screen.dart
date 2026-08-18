@@ -502,14 +502,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 }
 
-/// Depth-edge colors (rotate by nesting level).
-const _railColors = [
-  Color(0xFF9F8BE8),
-  Color(0xFF62B5AA),
-  Color(0xFFE0A55C),
-  Color(0xFFD88FB4),
-  Color(0xFF7E9BE0),
-];
 
 Future<bool> _confirmDelete(BuildContext context, String what) async {
   final ok = await showDialog<bool>(
@@ -1176,70 +1168,9 @@ class _StaticCommentGifState extends State<_StaticCommentGif> {
   }
 }
 
-class _CommentActionBtn extends StatelessWidget {
-  const _CommentActionBtn(
-      {required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return TextButton.icon(
-      onPressed: onTap,
-      style: TextButton.styleFrom(
-        foregroundColor: cs.onSurfaceVariant,
-        visualDensity: VisualDensity.compact,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        minimumSize: const Size(0, 36),
-      ),
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 12.5)),
-    );
-  }
-}
 
-/// Small colored avatar with the author's initial (color derived from name).
-class _AuthorDot extends StatelessWidget {
-  const _AuthorDot({required this.name, this.size = 20});
-  final String name;
-  final double size;
 
-  static const _palette = [
-    Color(0xFF7C5CE0),
-    Color(0xFF4FA89B),
-    Color(0xFFC77E4A),
-    Color(0xFFC46A96),
-    Color(0xFF5B82CE),
-    Color(0xFF5FA85A),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final clean = name.replaceFirst('u/', '');
-    final deleted = clean.isEmpty || clean.startsWith('[');
-    var h = 0;
-    for (final r in clean.codeUnits) {
-      h = (h * 31 + r) & 0x7fffffff;
-    }
-    final color =
-        deleted ? Theme.of(context).colorScheme.outline : _palette[h % _palette.length];
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Text(
-        deleted ? '?' : clean[0].toUpperCase(),
-        style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: size * 0.5),
-      ),
-    );
-  }
-}
 
 class _VotePill extends StatelessWidget {
   const _VotePill({
