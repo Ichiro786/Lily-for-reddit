@@ -26,7 +26,13 @@ void main() {
     );
 
     expect(tester.getSize(find.byType(M3EScallopedSpinner)), const Size(56, 56));
-    expect(find.byType(CustomPaint), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(M3EScallopedSpinner),
+        matching: find.byType(CustomPaint),
+      ),
+      findsOneWidget,
+    );
     expect(find.bySemanticsLabel('Refreshing'), findsOneWidget);
   });
 
