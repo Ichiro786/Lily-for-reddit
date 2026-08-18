@@ -1,6 +1,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -25,6 +27,7 @@ import '../media/nsfw_blur.dart';
 import '../settings/settings_controller.dart';
 import 'comments_controller.dart';
 import 'comment_card.dart';
+import 'compose_sheet.dart';
 import 'comment_compose_bar.dart';
 import 'post_actions.dart';
 import 'interactive_spoiler.dart';
@@ -57,7 +60,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   List<int> _matchIndices = []; // list indices (ci + 1) of matching comments
   int _matchPos = 0;
-  String? _currentMatchId;
   MediaAttachment? _pendingComposeAttachment;
   MarkdownStyleSheet? _commentMarkdownStyle;
   ThemeData? _commentMarkdownTheme;
@@ -87,7 +89,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       if (!_searchOpen) {
         _searchCtrl.clear();
         _matchIndices = [];
-        _currentMatchId = null;
       }
     });
   }
@@ -104,7 +105,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     setState(() {
       _matchIndices = m;
       _matchPos = 0;
-      _currentMatchId = m.isEmpty ? null : _flat[m.first - 1].fullname;
     });
     if (m.isNotEmpty) _scrollToMatch();
   }
@@ -112,7 +112,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   void _scrollToMatch() {
     if (_matchIndices.isEmpty) return;
     final li = _matchIndices[_matchPos];
-    _currentMatchId = _flat[li - 1].fullname;
     _itemScroll.scrollTo(
         index: li,
         duration: const Duration(milliseconds: 300),
