@@ -24,11 +24,8 @@ class M3EPostActionBar extends StatelessWidget {
   });
 
   String _formatNumber(int number) {
-    if (number >= 1000000) {
-      return '${(number / 1000000).toStringAsFixed(1)}M';
-    } else if (number >= 1000) {
-      return '${(number / 1000).toStringAsFixed(1)}k';
-    }
+    if (number >= 1000000) return '${(number / 1000000).toStringAsFixed(1)}M';
+    if (number >= 1000) return '${(number / 1000).toStringAsFixed(1)}k';
     return number.toString();
   }
 
@@ -36,156 +33,144 @@ class M3EPostActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final pillColor = colorScheme.surfaceContainerHighest;
+    final pillBg = colorScheme.surfaceContainerHighest;
 
-    return RepaintBoundary(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            // 1. Segmented Vote Pill [ ↑ | score | ↓ ]
-            Container(
-              height: 40,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          // 1. Segmented Vote Pill [ ↑ | score | ↓ ]
+          Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: pillBg,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_upward_rounded,
+                    size: 20,
+                    color: voteState == 1
+                        ? const Color(0xFFFF5722)
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    onVote?.call(voteState == 1 ? 0 : 1);
+                  },
+                ),
+                Text(
+                  _formatNumber(score + voteState),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: voteState == 1
+                        ? const Color(0xFFFF5722)
+                        : (voteState == -1
+                            ? colorScheme.error
+                            : colorScheme.onSurface),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_downward_rounded,
+                    size: 20,
+                    color: voteState == -1
+                        ? colorScheme.error
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    onVote?.call(voteState == -1 ? 0 : -1);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // 2. Comment Count Pill [ 💬 count ]
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onCommentTap?.call();
+              },
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                height: 42,
+                decoration: BoxDecoration(
+                  color: pillBg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.chat_bubble_outline_rounded,
+                        size: 18, color: colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatNumber(commentCount),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // 3. Bookmark Pill [ 🔖 ]
+          InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onSaveTap?.call();
+            },
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              height: 42,
+              width: 50,
               decoration: BoxDecoration(
-                color: pillColor,
+                color: pillBg,
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.arrow_upward_rounded,
-                      size: 20,
-                      color: voteState == 1
-                          ? const Color(0xFFFF5722)
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    constraints: const BoxConstraints(),
-                    onPressed: () {
-                      HapticFeedback.selectionClick();
-                      onVote?.call(voteState == 1 ? 0 : 1);
-                    },
-                  ),
-                  Text(
-                    _formatNumber(score),
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: voteState == 1
-                          ? const Color(0xFFFF5722)
-                          : (voteState == -1
-                              ? colorScheme.error
-                              : colorScheme.onSurface),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: Icon(
-                      Icons.arrow_downward_rounded,
-                      size: 20,
-                      color: voteState == -1
-                          ? colorScheme.error
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    constraints: const BoxConstraints(),
-                    onPressed: () {
-                      HapticFeedback.selectionClick();
-                      onVote?.call(voteState == -1 ? 0 : -1);
-                    },
-                  ),
-                ],
+              alignment: Alignment.center,
+              child: Icon(
+                isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                size: 20,
+                color: isSaved ? colorScheme.primary : colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(width: 8),
+          ),
+          const SizedBox(width: 8),
 
-            // 2. Comment Count Pill [ 💬 count ]
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onCommentTap?.call();
-                },
+          // 4. Share Pill [ ↗️ ]
+          InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onShareTap?.call();
+            },
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              height: 42,
+              width: 50,
+              decoration: BoxDecoration(
+                color: pillBg,
                 borderRadius: BorderRadius.circular(999),
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: pillColor,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.chat_bubble_outline_rounded,
-                        size: 18,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _formatNumber(commentCount),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
+              alignment: Alignment.center,
+              child: Icon(Icons.arrow_outward_rounded,
+                  size: 20, color: colorScheme.onSurfaceVariant),
             ),
-            const SizedBox(width: 8),
-
-            // 3. Bookmark Pill [ 🔖 ]
-            InkWell(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onSaveTap?.call();
-              },
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                height: 40,
-                width: 48,
-                decoration: BoxDecoration(
-                  color: pillColor,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                  size: 20,
-                  color: isSaved ? colorScheme.primary : colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-
-            // 4. Share Pill [ ↗️ ]
-            InkWell(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onShareTap?.call();
-              },
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                height: 40,
-                width: 48,
-                decoration: BoxDecoration(
-                  color: pillColor,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.arrow_outward_rounded,
-                  size: 20,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
