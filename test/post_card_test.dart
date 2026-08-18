@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:luli_for_reddit/core/storage/interaction_vault.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
+import 'package:luli_for_reddit/data/reddit_repository.dart';
 import 'package:luli_for_reddit/features/feed/compact_post_card.dart';
 import 'package:luli_for_reddit/features/feed/post_action_bar.dart';
 import 'package:luli_for_reddit/features/feed/post_card.dart';
