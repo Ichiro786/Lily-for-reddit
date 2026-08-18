@@ -517,7 +517,11 @@ class M3ECommentMorePill extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   else
-                    Icon(Icons.forum_outlined, size: 17, color: accent),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 18,
+                      color: accent,
+                    ),
                   const SizedBox(width: 7),
                   Text(
                     label,

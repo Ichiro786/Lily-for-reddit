@@ -109,22 +109,29 @@ void main() {
       (tester) async {
     String? sent;
     var attachments = 0;
+    var jumps = 0;
     await tester.pumpWidget(
       _harness(
         M3ECommentComposeBar(
-          onSend: (text) => sent = text,
-          onAttach: () => attachments++,
+          onSend: (text, _) => sent = text,
+          onAttach: () async {
+            attachments++;
+            return null;
+          },
+          onJump: () => jumps++,
         ),
       ),
     );
 
     expect(find.text('Add a comment...'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Hello M3E');
-    await tester.tap(find.byTooltip('Send comment'));
+    await tester.testTextInput.receiveAction(TextInputAction.send);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Attach image or GIF'));
+    await tester.tap(find.byTooltip('Attach image from gallery'));
+    await tester.tap(find.byTooltip('Jump to next comment'));
 
     expect(sent, 'Hello M3E');
     expect(attachments, 1);
+    expect(jumps, 1);
   });
 }

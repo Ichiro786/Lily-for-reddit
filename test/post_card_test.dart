@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import 'package:luli_for_reddit/core/media_aspect_ratio.dart';
 import 'package:luli_for_reddit/core/storage/interaction_vault.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
 import 'package:luli_for_reddit/data/reddit_repository.dart';
@@ -89,6 +90,17 @@ Widget _postHarness({required PostDisplay display}) {
 }
 
 void main() {
+  test('blueprint media bounds support tall and wide content', () {
+    expect(
+      boundedMediaAspectRatio(width: 350, height: 2000),
+      closeTo(0.35, 0.0001),
+    );
+    expect(
+      boundedMediaAspectRatio(width: 2400, height: 1000),
+      closeTo(2.0, 0.0001),
+    );
+  });
+
   setUpAll(() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
   });
@@ -130,14 +142,11 @@ void main() {
             likes: null,
             commentCount: 3,
             saved: false,
-            read: false,
             onUpvote: () => upvotes++,
             onDownvote: () => downvotes++,
             onComment: () {},
             onSave: () => saves++,
             onShare: () {},
-            onRead: () {},
-            onMore: () {},
           ),
         ),
       ),
@@ -146,6 +155,7 @@ void main() {
     await tester.tap(find.byTooltip('Upvote'));
     await tester.tap(find.byTooltip('Downvote'));
     await tester.tap(find.byIcon(Icons.bookmark_border_rounded));
+    expect(find.byTooltip('Share'), findsOneWidget);
 
     expect(upvotes, 1);
     expect(downvotes, 1);

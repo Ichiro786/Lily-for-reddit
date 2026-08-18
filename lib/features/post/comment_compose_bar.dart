@@ -3,17 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/shape_tokens.dart';
+import '../media/attachment.dart';
 
 class M3ECommentComposeBar extends StatefulWidget {
   const M3ECommentComposeBar({
     super.key,
     required this.onSend,
     required this.onAttach,
+    this.onJump,
     this.replyingTo,
   });
 
-  final FutureOr<void> Function(String text) onSend;
-  final VoidCallback onAttach;
+  final FutureOr<void> Function(String text, MediaAttachment? attachment) onSend;
+  final Future<MediaAttachment?> Function() onAttach;
+  final VoidCallback? onJump;
   final String? replyingTo;
 
   @override
@@ -24,6 +27,7 @@ class _M3ECommentComposeBarState extends State<M3ECommentComposeBar> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
   bool _sending = false;
+  MediaAttachment? _attachment;
 
   @override
   void initState() {
@@ -39,14 +43,22 @@ class _M3ECommentComposeBarState extends State<M3ECommentComposeBar> {
     super.dispose();
   }
 
+  Future<void> _pickAttachment() async {
+    if (_sending) return;
+    final attachment = await widget.onAttach();
+    if (!mounted || attachment == null) return;
+    setState(() => _attachment = attachment);
+  }
+
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending) return;
+    if ((text.isEmpty && _attachment == null) || _sending) return;
     setState(() => _sending = true);
     try {
-      await widget.onSend(text);
+      await widget.onSend(text, _attachment);
       if (mounted) {
         _controller.clear();
+        setState(() => _attachment = null);
         _focusNode.unfocus();
       }
     } catch (error) {
@@ -75,59 +87,102 @@ class _M3ECommentComposeBarState extends State<M3ECommentComposeBar> {
       child: SafeArea(
         top: false,
         minimum: EdgeInsets.fromLTRB(12, 10, 12, 10 + bottom),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Material(
-                color: colorScheme.surfaceContainerLowest,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: ShapeTokens.full,
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  minLines: 1,
-                  maxLines: 4,
-                  textInputAction: TextInputAction.newline,
-                  onSubmitted: (_) => _send(),
-                  decoration: InputDecoration(
-                    hintText: hint,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    suffixIcon: IconButton(
-                      onPressed: _sending ? null : widget.onAttach,
-                      tooltip: 'Attach image or GIF',
-                      icon: const Icon(Icons.add_photo_alternate_outlined),
-                    ),
+            if (_attachment != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ClipRRect(
+                        borderRadius: ShapeTokens.extraSmall,
+                        child: Image.memory(
+                          _attachment!.bytes,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                        ),
+                      ),
+                      Positioned(
+                        top: -7,
+                        right: -7,
+                        child: Material(
+                          color: colorScheme.error,
+                          shape: const CircleBorder(),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: _sending
+                                ? null
+                                : () => setState(() => _attachment = null),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: colorScheme.onError,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Material(
-              color: colorScheme.primary,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: IconButton(
-                onPressed: _sending ? null : _send,
-                tooltip: 'Send comment',
-                color: colorScheme.onPrimary,
-                icon: _sending
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colorScheme.onPrimary,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Material(
+                    color: colorScheme.surfaceContainerLowest,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: ShapeTokens.full,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      minLines: 1,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _send(),
+                      decoration: InputDecoration(
+                        hintText: hint,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                      )
-                    : const Icon(Icons.send_rounded),
-              ),
+                        suffixIcon: IconButton(
+                          onPressed: _sending ? null : _pickAttachment,
+                          tooltip: 'Attach image from gallery',
+                          icon: const Icon(Icons.image_outlined),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (widget.onJump != null) ...[
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Material(
+                      color: colorScheme.primaryContainer,
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: IconButton(
+                        onPressed: widget.onJump,
+                        tooltip: 'Jump to next comment',
+                        color: colorScheme.onPrimaryContainer,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ],
         ),

@@ -18,7 +18,7 @@ Widget _harness(Widget child) {
 Finder _dockBackground() {
   return find.descendant(
     of: find.byType(M3EFloatingNavBar),
-    matching: find.byType(AnimatedContainer),
+    matching: find.byKey(const ValueKey<String>('m3e-nav-dock')),
   ).first;
 }
 
@@ -40,7 +40,7 @@ void main() {
     expect(selected, 2);
   });
 
-  testWidgets('dock morphs from expanded 64dp to minimized 44dp',
+  testWidgets('dock morphs from expanded 62dp to minimized 42dp',
       (tester) async {
     await tester.pumpWidget(
       _harness(
@@ -50,7 +50,7 @@ void main() {
         ),
       ),
     );
-    expect(tester.getSize(_dockBackground()).height, 64);
+    expect(tester.getSize(_dockBackground()).height, 62);
 
     await tester.pumpWidget(
       _harness(
@@ -61,8 +61,8 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(tester.getSize(_dockBackground()).height, 44);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(tester.getSize(_dockBackground()).height, 42);
   });
 
   testWidgets('Inbox unread badge is visible when unread count is nonzero',
@@ -91,15 +91,15 @@ void main() {
       ),
     );
 
-    final animated = tester.widget<AnimatedContainer>(_dockBackground());
-    final decoration = animated.decoration! as BoxDecoration;
+    final dock = tester.widget<Container>(_dockBackground());
+    final decoration = dock.decoration! as BoxDecoration;
     final theme = Theme.of(tester.element(find.byType(M3EFloatingNavBar)));
     expect(decoration.color, theme.colorScheme.surfaceContainerHigh);
     expect(decoration.borderRadius, ShapeTokens.extraLarge);
     expect(decoration.border, isNotNull);
     expect(
       (decoration.border! as Border).top.color,
-      theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+      theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
     );
   });
 }
