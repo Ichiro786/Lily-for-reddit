@@ -82,14 +82,9 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
       top: false,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHigh,
-          border: Border(
-            top: BorderSide(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.25),
-              width: 1,
-            ),
-          ),
+        decoration: const BoxDecoration(
+          color: Colors.black,
+          border: null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -151,11 +146,8 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                   child: Container(
                     height: 44,
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerLowest,
+                      color: const Color(0xFF1E1E24),
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-                      ),
                     ),
                     child: Row(
                       children: [

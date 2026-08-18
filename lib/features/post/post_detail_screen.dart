@@ -214,7 +214,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final thread = async.valueOrNull;
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
+        backgroundColor: Colors.black,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1009,25 +1011,28 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       ),
       onRight: () => _vote(1),
       onLeft: () => _vote(-1),
-      child: M3ECommentCard(
-        author: comment.author,
-        timeAgo: timeAgo(comment.created),
-        body: comment.body,
-        depth: comment.depth,
-        isOp: comment.author == widget.opAuthor,
-        score: _score,
-        replyCount: comment.replies.length,
-        avatarColor: colorScheme.primaryContainer,
-        isCollapsed: widget.collapsed,
-        onToggleCollapse: widget.onToggle,
-        onVote: _vote,
-        onReply: widget.onReply,
-        onSave: _toggleSave,
-        onAward: () {},
-        onOverflow: () {},
-        onLoadMoreReplies: comment.replies.isNotEmpty
-            ? widget.onOpenThread
-            : null,
+      child: Container(
+        color: colorScheme.surfaceContainer,
+        child: M3ECommentCard(
+          author: comment.author,
+          timeAgo: timeAgo(comment.created),
+          body: comment.body,
+          depth: comment.depth,
+          isOp: comment.author == widget.opAuthor,
+          score: _score,
+          replyCount: comment.replies.length,
+          avatarColor: colorScheme.primaryContainer,
+          isCollapsed: widget.collapsed,
+          onToggleCollapse: widget.onToggle,
+          onVote: _vote,
+          onReply: widget.onReply,
+          onSave: _toggleSave,
+          onAward: () {},
+          onOverflow: () {},
+          onLoadMoreReplies: comment.replies.isNotEmpty
+              ? widget.onOpenThread
+              : null,
+        ),
       ),
     );
   }
