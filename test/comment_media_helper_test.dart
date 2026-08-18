@@ -52,6 +52,28 @@ https://preview.redd.it/xyz789?width=640
     expect(media.first.isGif, isFalse);
   });
 
+  test('resolves inline Giphy and emote GIF tokens', () {
+    final media = extractCommentMedia(
+      'A reaction ![gif](giphy|abc123) and ![gif](emote|xyz789)',
+    );
+    expect(media.map((item) => item.url).toList(), [
+      'https://giphy.com/media/abc123/giphy.gif',
+      'https://giphy.com/media/xyz789/giphy.gif',
+    ]);
+    expect(media.every((item) => item.isGif), isTrue);
+    expect(
+      resolveInlineGifToken('![gif](giphy|abc123)'),
+      'https://giphy.com/media/abc123/giphy.gif',
+    );
+  });
+
+  test('removes inline GIF tokens while preserving normal text', () {
+    expect(
+      commentTextWithoutMedia('Keep this ![gif](giphy|abc123) sentence.'),
+      'Keep this  sentence.',
+    );
+  });
+
   test('removes rendered media URLs while preserving normal text', () {
     expect(
       commentTextWithoutMedia(
