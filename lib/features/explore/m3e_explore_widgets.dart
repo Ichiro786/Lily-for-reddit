@@ -172,6 +172,7 @@ class M3ERecentCommunityTile extends StatelessWidget {
             ),
           ],
         ),
+              ),
       ),
     );
   }
