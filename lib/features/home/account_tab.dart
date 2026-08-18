@@ -9,6 +9,7 @@ import '../explore/explore_screen.dart';
 import '../feed/feed_controller.dart';
 import '../inbox/inbox_controller.dart';
 import '../multireddit/multireddit_providers.dart';
+import '../profile/profile_header.dart';
 import '../settings/settings_screen.dart';
 
 /// Refreshes all account-scoped data after switching/adding/removing an account.
@@ -33,63 +34,10 @@ class AccountTab extends ConsumerWidget {
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        // Profile header
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: cs.primaryContainer,
-                child: Text(
-                  username.isNotEmpty ? username[0].toUpperCase() : '?',
-                  style: TextStyle(
-                      fontSize: 22,
-                      color: cs.onPrimaryContainer,
-                      fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    InkWell(
-                      onTap: () => _showAccountSheet(context, ref, username),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text('u/$username',
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.w700)),
-                          ),
-                          const Icon(Icons.unfold_more_rounded, size: 20),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => context.push('/u/$username'),
-                      style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(0, 0),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      child: const Text('View profile'),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton.filledTonal(
-                tooltip: 'Switch / add account',
-                onPressed: () => _showAccountSheet(context, ref, username),
-                icon: const Icon(Icons.people_alt_rounded),
-              ),
-            ],
-          ),
+        M3EProfileHeader(
+          username: username,
+          onSwitchAccount: () => _showAccountSheet(context, ref, username),
+          onViewProfile: () => context.push('/u/$username'),
         ),
 
         // Settings (primary)

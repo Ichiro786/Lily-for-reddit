@@ -15,17 +15,17 @@ import '../notifications/notification_service.dart';
 import '../updates/update_checker.dart';
 import 'backup_service.dart';
 import 'settings_controller.dart';
+import 'settings_panels.dart';
 
 const _accentSwatches = <Color>[
-  Color(0xFF6750A4), // Bloom lavender (default)
-  Color(0xFFEA4335), // red
-  Color(0xFFFF7043), // orange
-  Color(0xFFFFB300), // amber
-  Color(0xFF34A853), // green
-  Color(0xFF00897B), // teal
-  Color(0xFF1E88E5), // blue
-  Color(0xFF8E24AA), // purple
-  Color(0xFFD81B60), // pink
+  Color(0xFFA78BFA),
+  Color(0xFFEF4444),
+  Color(0xFFF97316),
+  Color(0xFFEAB308),
+  Color(0xFF22C55E),
+  Color(0xFF06B6D4),
+  Color(0xFF3B82F6),
+  Color(0xFF8B5CF6),
 ];
 
 class SettingsScreen extends StatelessWidget {
@@ -115,9 +115,13 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                       runSpacing: 12,
                       children: [
                         for (final c in _accentSwatches)
-                          GestureDetector(
-                            onTap: () => ctrl.setSeedColor(c.toARGB32()),
-                            child: Container(
+                          Semantics(
+                            button: true,
+                            label: 'Theme color ${c.toARGB32()}',
+                            child: GestureDetector(
+                              key: ValueKey<String>('theme-swatch-${c.toARGB32()}'),
+                              onTap: () => ctrl.setSeedColor(c.toARGB32()),
+                              child: Container(
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
@@ -130,9 +134,19 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                                   width: 3,
                                 ),
                               ),
-                              child: s.seedColor == c.toARGB32()
-                                  ? const Icon(Icons.check, color: Colors.white)
-                                  : null,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 180),
+                                  child: s.seedColor == c.toARGB32()
+                                      ? const Icon(
+                                          Icons.check_rounded,
+                                          key: ValueKey<String>('selected'),
+                                          color: Colors.white,
+                                        )
+                                      : const SizedBox.shrink(
+                                          key: ValueKey<String>('unselected'),
+                                        ),
+                                ),
+                              ),
                             ),
                           ),
                       ],
@@ -397,7 +411,9 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     ];
 
     final q = _query.trim().toLowerCase();
-    final shown = q.isEmpty ? all : all.where((w) => _matches(w, q)).toList();
+    final shown = q.isEmpty
+        ? _groupedSettings(all)
+        : all.where((w) => _matches(w, q)).toList();
     return ListView(
       shrinkWrap: widget.embedded,
       physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
@@ -590,14 +606,38 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             '15 minutes.')));
   }
 
-  Widget _section(BuildContext context, String title) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Text(title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                )),
+  List<Widget> _groupedSettings(List<Widget> all) {
+    final panels = <Widget>[];
+    String? title;
+    final items = <Widget>[];
+
+    void flush() {
+      final currentTitle = title;
+      if (currentTitle == null || items.isEmpty) return;
+      panels.add(
+                  M3ESettingsPanel(
+
+          title: currentTitle,
+          children: List<Widget>.of(items),
+        ),
       );
+      items.clear();
+    }
+
+    for (final widget in all) {
+      if (widget is M3ESettingsSectionHeader) {
+        flush();
+        title = widget.title;
+      } else if (widget is! Divider) {
+        items.add(widget);
+      }
+    }
+    flush();
+    return panels;
+  }
+
+  Widget _section(BuildContext context, String title) =>
+      M3ESettingsSectionHeader(title: title);
 
   void _pickTheme(
       BuildContext context, SettingsController ctrl, ThemeMode current) {
