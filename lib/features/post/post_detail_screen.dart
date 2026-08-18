@@ -110,7 +110,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
   void _scrollToMatch() {
     if (_matchIndices.isEmpty) return;
-    final li = _matchIndices[_matchPos];
     _scrollController.animateTo(
       (_scrollController.offset + 260).clamp(
         0.0,
