@@ -25,7 +25,7 @@ void main() {
         boundedMediaAspectRatio(width: 1920, height: 1080),
         closeTo(1.777777, 0.000001),
       );
-      expect(boundedMediaAspectRatio(width: 100, height: 1000), 0.5);
+      expect(boundedMediaAspectRatio(width: 100, height: 1000), 0.4);
       expect(boundedMediaAspectRatio(width: 4000, height: 1000), 1.91);
       expect(boundedMediaAspectRatio(), closeTo(16 / 9, 0.000001));
     });

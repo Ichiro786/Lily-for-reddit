@@ -11,16 +11,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
-import '../../core/media_aspect_ratio.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../core/url_launcher_helper.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/shape_tokens.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
+import '../feed/post_action_bar.dart';
 import '../feed/post_overrides.dart';
 import '../feed/swipe_actions.dart';
+import '../media/attachment.dart';
 import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
@@ -137,12 +138,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     CommentsController notifier,
     PostThread thread,
     String text,
+    MediaAttachment? attachment,
   ) async {
-    final reply = await ref.read(redditRepositoryProvider).reply(
-          parentFullname: thread.post.fullname,
-          text: text,
-          depth: 0,
-        );
+    final repo = ref.read(redditRepositoryProvider);
+    final reply = attachment == null
+        ? await repo.reply(
+            parentFullname: thread.post.fullname,
+            text: text,
+            depth: 0,
+          )
+        : await repo.replyWithImage(
+            parentFullname: thread.post.fullname,
+            text: text,
+            bytes: attachment.bytes,
+            filename: attachment.filename,
+            mimeType: attachment.mimeType,
+            depth: 0,
+          );
     notifier.insertReply(thread.post.fullname, reply);
     ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
     ref
@@ -151,20 +163,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     ref.read(keywordStoreProvider.notifier).bumpTitle(thread.post.title, 1);
   }
 
-  void _openFullReplyComposer(
-    CommentsController notifier,
-    PostThread thread,
-  ) {
-    showReplySheet(
-      context,
-      ref,
-      parentFullname: thread.post.fullname,
-      parentDepth: -1,
-    ).then((reply) {
-      if (reply == null || !mounted) return;
-      notifier.insertReply(thread.post.fullname, reply);
-      ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
-    });
+  void _scrollToComments() {
+    if (_flat.isEmpty) return;
+    _itemScroll.scrollTo(
+      index: 1,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      alignment: 0.08,
+    );
   }
 
   void _jumpNextTopLevel() {
@@ -219,8 +225,22 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(thread?.post.subredditPrefixed ??
-            (widget.subreddit == '_' ? 'Post' : 'r/${widget.subreddit}')),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                thread?.post.subredditPrefixed ??
+                    (widget.subreddit == '_' ? 'Post' : 'r/${widget.subreddit}'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           if (thread != null)
             PopupMenuButton<String>(
@@ -275,14 +295,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ),
         ],
       ),
-      floatingActionButton: thread == null || thread.comments.isEmpty
-          ? null
-          : FloatingActionButton.small(
-              heroTag: 'nextComment',
-              tooltip: 'Next top-level comment',
-              onPressed: _jumpNextTopLevel,
-              child: const Icon(Icons.keyboard_arrow_down_rounded),
-            ),
       body: Stack(
         children: [
           async.when(
@@ -309,9 +321,54 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           );
           final flat = [for (final presentation in presentations) presentation.comment];
           _flat = flat;
-          final list = RefreshIndicator(
-            onRefresh: notifier.refresh,
-            child: ScrollablePositionedList.builder(
+          final list = Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: PopupMenuButton<String>(
+                    onSelected: notifier.changeSort,
+                    itemBuilder: (_) => [
+                      for (final s in commentSorts)
+                        CheckedPopupMenuItem(
+                          value: s,
+                          checked: notifier.sort == s,
+                          child: Text(commentSortLabels[s] ?? s),
+                        ),
+                    ],
+                    tooltip: 'Sort comments',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.sort_rounded,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          (commentSortLabels[notifier.sort] ?? notifier.sort)
+                              .toUpperCase(),
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.4,
+                              ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: notifier.refresh,
+                  child: ScrollablePositionedList.builder(
               itemScrollController: _itemScroll,
               itemPositionsListener: _itemPositions,
               // Keep a balanced look-ahead window: enough to avoid pop-in
@@ -322,7 +379,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               padding: const EdgeInsets.only(top: 6, bottom: 96),
               itemCount: 1 + (flat.isEmpty ? 1 : flat.length),
               itemBuilder: (context, index) {
-                if (index == 0) return _PostHeader(post: thread.post);
+                if (index == 0) {
+                  return _PostHeader(
+                    post: thread.post,
+                    onComments: _scrollToComments,
+                  );
+                }
                 if (flat.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.all(40),
@@ -383,7 +445,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 ),
                 );
               },
-            ),
+                  ),
+                ),
+              ),
+            ],
           );
           if (widget.focusCommentId == null) return list;
           // Single-comment view (from an inbox reply / permalink).
@@ -429,8 +494,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               right: 0,
               bottom: 0,
               child: M3ECommentComposeBar(
-                onSend: (text) => _sendQuickReply(notifier, thread, text),
-                onAttach: () => _openFullReplyComposer(notifier, thread),
+                onSend: (text, attachment) =>
+                    _sendQuickReply(notifier, thread, text, attachment),
+                onAttach: pickImageAttachment,
+                onJump: thread.comments.isEmpty ? null : _jumpNextTopLevel,
               ),
             ),
           if (_searchOpen && thread != null)
@@ -540,8 +607,9 @@ class _LoadingWithHeader extends StatelessWidget {
 }
 
 class _PostHeader extends ConsumerStatefulWidget {
-  const _PostHeader({required this.post});
+  const _PostHeader({required this.post, this.onComments});
   final Post post;
+  final VoidCallback? onComments;
   @override
   ConsumerState<_PostHeader> createState() => _PostHeaderState();
 }
@@ -611,17 +679,61 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: () => context.push('/r/${p.subreddit}'),
-            child: Text(p.subredditPrefixed,
-                style: TextStyle(
-                    fontWeight: FontWeight.w700, color: cs.primary)),
-          ),
-          const SizedBox(height: 2),
-          GestureDetector(
-            onTap: () => context.push('/u/${p.author}'),
-            child: Text('u/${p.author} · ${timeAgo(p.created)}',
-                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () => context.push('/r/${p.subreddit}'),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: cs.secondaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    p.subreddit.isEmpty ? '?' : p.subreddit[0].toUpperCase(),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: cs.onSecondaryContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => context.push('/r/${p.subreddit}'),
+                      child: Text(
+                        p.subredditPrefixed,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: cs.onSurface,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    GestureDetector(
+                      onTap: () => context.push('/u/${p.author}'),
+                      child: Text(
+                        'u/${p.author} · ${timeAgo(p.created)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Text(p.title,
@@ -691,43 +803,30 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             final score = ov?.score ?? p.score;
             final saved = ov?.saved ?? p.saved;
             final numComments = ov?.numComments ?? p.numComments;
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _VotePill(
-                      score: score,
-                      likes: likes,
-                      onUp: () => _vote(1),
-                      onDown: () => _vote(-1)),
-                  const SizedBox(width: 8),
-                  Chip(
-                    avatar: const Icon(Icons.mode_comment_outlined, size: 18),
-                    label: Text(compactNumber(numComments)),
-                  ),
-                  const SizedBox(width: 16),
-                  IconButton(
-                    onPressed: () async {
-                      final overrides =
-                          ref.read(postOverridesProvider.notifier);
-                      final next = !overrides.effective(p).saved;
-                      overrides.setSaved(p, next);
-                      try {
-                        await ref
-                            .read(redditRepositoryProvider)
-                            .setSaved(p.fullname, next);
-                      } catch (_) {
-                        overrides.setSaved(p, !next);
-                      }
-                    },
-                    color: saved ? cs.primary : null,
-                    icon: Icon(saved
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_border_rounded),
-                  ),
-                ],
+            return M3EPostActionBar(
+              score: score,
+              likes: likes,
+              commentCount: numComments,
+              saved: saved,
+              onUpvote: () => _vote(1),
+              onDownvote: () => _vote(-1),
+              onComment: widget.onComments ?? () {},
+              onSave: () async {
+                final overrides = ref.read(postOverridesProvider.notifier);
+                final next = !overrides.effective(p).saved;
+                overrides.setSaved(p, next);
+                try {
+                  await ref
+                      .read(redditRepositoryProvider)
+                      .setSaved(p.fullname, next);
+                } catch (_) {
+                  overrides.setSaved(p, !next);
+                }
+              },
+              onShare: () => shareUrl(
+                context,
+                p.url,
+                subject: p.title,
               ),
             );
           }),
@@ -764,52 +863,61 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     }
     final url =
         p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
-    final aspect = boundedMediaAspectRatio(
-      width: p.previewWidth,
-      height: p.previewHeight,
-    );
     final dpr = MediaQuery.devicePixelRatioOf(context);
+    final viewport = MediaQuery.sizeOf(context);
+    final maxHeight = viewport.height * 0.65;
     final cacheWidth =
-        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
-    final cacheHeight =
-        (cacheWidth / aspect).ceil().clamp(1, 1080).toInt();
+        (viewport.width * dpr).round().clamp(1, 1080).toInt();
+    final cacheHeight = (maxHeight * dpr).ceil().clamp(1, 1080).toInt();
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: NsfwBlur(
         blur: blur,
         child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: GestureDetector(
-          onTap: _openMedia,
-          child: AspectRatio(
-            aspectRatio: aspect,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (url != null)
-                  CachedNetworkImage(
-                    imageUrl: url,
-                    memCacheWidth: cacheWidth,
-                    memCacheHeight: cacheHeight,
-                    fit: BoxFit.cover,
-                  )
-                else
-                  Container(color: cs.surfaceContainerHighest),
-                if (p.type == PostType.video)
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: const BoxDecoration(
-                          color: Colors.black54, shape: BoxShape.circle),
-                      child: const Icon(Icons.play_arrow_rounded,
-                          color: Colors.white, size: 36),
-                    ),
-                  ),
-              ],
+          borderRadius: ShapeTokens.large,
+          child: GestureDetector(
+            onTap: _openMedia,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: 120,
+                maxHeight: maxHeight,
+              ),
+              child: Container(
+                width: double.infinity,
+                color: cs.surfaceContainerLowest,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (url != null)
+                      CachedNetworkImage(
+                        imageUrl: url,
+                        width: double.infinity,
+                        memCacheWidth: cacheWidth,
+                        memCacheHeight: cacheHeight,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.center,
+                      )
+                    else
+                      Container(color: cs.surfaceContainerHighest),
+                    if (p.type == PostType.video)
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -899,8 +1007,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
     if (comment.isMore) {
       return M3ECommentMorePill(
         label: comment.moreChildren.isEmpty
-            ? 'Continue thread →'
-            : '${comment.moreCount} more replies',
+            ? 'Continue thread'
+            : 'View ${comment.moreCount} more replies',
         depth: comment.depth,
         loading: widget.loadingMore,
         onPressed: comment.moreChildren.isNotEmpty
@@ -1164,64 +1272,6 @@ class _StaticCommentGifState extends State<_StaticCommentGif> {
       fit: BoxFit.contain,
       width: double.infinity,
       height: 300,
-    );
-  }
-}
-
-
-
-
-
-class _VotePill extends StatelessWidget {
-  const _VotePill({
-    required this.score,
-    required this.likes,
-    required this.onUp,
-    required this.onDown,
-  });
-  final int score;
-  final bool? likes;
-  final VoidCallback onUp;
-  final VoidCallback onDown;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final votes = Theme.of(context).extension<VoteColors>()!;
-    final up = likes == true;
-    final down = likes == false;
-    final countColor = up ? votes.up : (down ? votes.down : cs.onSurfaceVariant);
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 130),
-      decoration: BoxDecoration(
-          color: cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(999)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            onPressed: onUp,
-            visualDensity: VisualDensity.compact,
-            iconSize: 20,
-            icon: Icon(Icons.arrow_upward_rounded,
-                color: up ? votes.up : cs.onSurfaceVariant),
-          ),
-          Flexible(
-            child: Text(
-              compactNumber(score),
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontWeight: FontWeight.w700, color: countColor),
-            ),
-          ),
-          IconButton(
-            onPressed: onDown,
-            visualDensity: VisualDensity.compact,
-            iconSize: 20,
-            icon: Icon(Icons.arrow_downward_rounded,
-                color: down ? votes.down : cs.onSurfaceVariant),
-          ),
-        ],
-      ),
     );
   }
 }

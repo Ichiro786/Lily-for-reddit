@@ -16,28 +16,22 @@ class M3EPostActionBar extends StatelessWidget {
     required this.likes,
     required this.commentCount,
     required this.saved,
-    required this.read,
     required this.onUpvote,
     required this.onDownvote,
     required this.onComment,
     required this.onSave,
     required this.onShare,
-    required this.onRead,
-    required this.onMore,
   });
 
   final int score;
   final bool? likes;
   final int commentCount;
   final bool saved;
-  final bool read;
   final VoidCallback onUpvote;
   final VoidCallback onDownvote;
   final VoidCallback onComment;
   final VoidCallback onSave;
   final VoidCallback onShare;
-  final VoidCallback onRead;
-  final VoidCallback onMore;
 
   void _tap(VoidCallback callback) {
     HapticFeedback.selectionClick();
@@ -74,23 +68,9 @@ class M3EPostActionBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _ActionPill(
-            icon: Icons.ios_share_rounded,
+            icon: Icons.share_outlined,
+            tooltip: 'Share',
             onTap: () => _tap(onShare),
-          ),
-          const SizedBox(width: 8),
-          _ActionPill(
-            icon: read
-                ? Icons.check_circle_rounded
-                : Icons.check_circle_outline_rounded,
-            selected: read,
-            tooltip: read ? 'Mark as unread' : 'Mark as read',
-            onTap: () => _tap(onRead),
-          ),
-          const SizedBox(width: 8),
-          _ActionPill(
-            icon: Icons.more_horiz_rounded,
-            tooltip: 'More actions',
-            onTap: () => _tap(onMore),
           ),
         ],
       ),
