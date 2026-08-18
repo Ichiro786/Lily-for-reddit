@@ -257,20 +257,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         ),
         actions: [
           if (thread != null)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.sort_rounded),
-              tooltip: 'Sort comments',
-              onSelected: notifier.changeSort,
-              itemBuilder: (_) => [
-                for (final s in commentSorts)
-                  CheckedPopupMenuItem(
-                    value: s,
-                    checked: notifier.sort == s,
-                    child: Text(commentSortLabels[s] ?? s),
-                  ),
-              ],
-            ),
-          if (thread != null)
             IconButton(
               tooltip: 'Search comments',
               icon: Icon(
@@ -338,7 +324,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           final list = Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: PopupMenuButton<String>(
@@ -358,22 +344,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                         Icon(
                           Icons.sort_rounded,
                           size: 18,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
-                          (commentSortLabels[notifier.sort] ?? notifier.sort)
-                              .toUpperCase(),
+                          'BEST COMMENTS',
                           style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.4,
                               ),
                         ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                        Icon(
+                          Icons.arrow_drop_down_rounded,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ],
                     ),
                   ),
@@ -1057,10 +1044,12 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
         isCollapsed: widget.collapsed,
         score: _score,
         replyCount: comment.replies.length,
+        isSaved: _saved,
         onToggleCollapse: widget.onToggle,
         onVote: _vote,
         onReply: widget.onReply,
         onSave: _toggleSave,
+        onOverflow: () {},
       ),
     );
   }

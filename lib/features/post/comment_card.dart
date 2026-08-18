@@ -12,7 +12,9 @@ class M3ECommentCard extends StatefulWidget {
   final VoidCallback? onToggleCollapse;
   final VoidCallback? onReply;
   final VoidCallback? onSave;
+  final VoidCallback? onOverflow;
   final ValueChanged<int>? onVote;
+  final bool isSaved;
   final int replyCount;
 
   const M3ECommentCard({
@@ -27,7 +29,9 @@ class M3ECommentCard extends StatefulWidget {
     this.onToggleCollapse,
     this.onReply,
     this.onSave,
+    this.onOverflow,
     this.onVote,
+    this.isSaved = false,
     this.replyCount = 0,
   });
 
@@ -225,10 +229,25 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                         const Spacer(),
                         InkWell(
                           onTap: widget.onSave,
-                          child: Icon(Icons.bookmark_outline_rounded, size: 18, color: colorScheme.onSurfaceVariant),
+                          child: Icon(
+                            widget.isSaved
+                                ? Icons.bookmark_rounded
+                                : Icons.bookmark_outline_rounded,
+                            size: 18,
+                            color: widget.isSaved
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         const SizedBox(width: 12),
-                        Icon(Icons.more_horiz_rounded, size: 18, color: colorScheme.onSurfaceVariant),
+                        InkWell(
+                          onTap: widget.onOverflow,
+                          child: Icon(
+                            Icons.more_horiz_rounded,
+                            size: 18,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ),
                   ],
