@@ -27,6 +27,8 @@ import '../media/nsfw_blur.dart';
 import '../settings/settings_controller.dart';
 import 'comments_controller.dart';
 import 'compose_sheet.dart';
+import 'comment_card.dart';
+import 'comment_compose_bar.dart';
 import 'post_actions.dart';
 import 'comment_media_helper.dart';
 import 'interactive_spoiler.dart';
@@ -131,6 +133,40 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   /// Jumps the comment list to the next top-level (depth 0) comment, cycling
   /// back to the first once past the last. List index 0 is the post header, so
   /// comment `ci` lives at list index `ci + 1`.
+  Future<void> _sendQuickReply(
+    CommentsController notifier,
+    PostThread thread,
+    String text,
+  ) async {
+    final reply = await ref.read(redditRepositoryProvider).reply(
+          parentFullname: thread.post.fullname,
+          text: text,
+          depth: 0,
+        );
+    notifier.insertReply(thread.post.fullname, reply);
+    ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
+    ref
+        .read(interestStoreProvider.notifier)
+        .bump(thread.post.subreddit, 2.5);
+    ref.read(keywordStoreProvider.notifier).bumpTitle(thread.post.title, 1);
+  }
+
+  void _openFullReplyComposer(
+    CommentsController notifier,
+    PostThread thread,
+  ) {
+    showReplySheet(
+      context,
+      ref,
+      parentFullname: thread.post.fullname,
+      parentDepth: -1,
+    ).then((reply) {
+      if (reply == null || !mounted) return;
+      notifier.insertReply(thread.post.fullname, reply);
+      ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
+    });
+  }
+
   void _jumpNextTopLevel() {
     if (_flat.isEmpty) return;
 
@@ -239,44 +275,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ),
         ],
       ),
-      floatingActionButton: thread == null
+      floatingActionButton: thread == null || thread.comments.isEmpty
           ? null
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (thread.comments.isNotEmpty) ...[
-                  FloatingActionButton.small(
-                    heroTag: 'nextComment',
-                    tooltip: 'Next top-level comment',
-                    onPressed: _jumpNextTopLevel,
-                    child: const Icon(Icons.keyboard_arrow_down_rounded),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                FloatingActionButton.extended(
-                  heroTag: 'comment',
-                  onPressed: () async {
-                    final reply = await showReplySheet(context, ref,
-                        parentFullname: thread.post.fullname, parentDepth: -1);
-                    if (reply != null) {
-                      notifier.insertReply(thread.post.fullname, reply);
-                      ref
-                          .read(postOverridesProvider.notifier)
-                          .bumpComments(thread.post, 1);
-                      // Commenting is the strongest engagement signal we have.
-                      ref
-                          .read(interestStoreProvider.notifier)
-                          .bump(thread.post.subreddit, 2.5);
-                      ref
-                          .read(keywordStoreProvider.notifier)
-                          .bumpTitle(thread.post.title, 1);
-                    }
-                  },
-                  icon: const Icon(Icons.add_comment_rounded),
-                  label: const Text('Comment'),
-                ),
-              ],
+          : FloatingActionButton.small(
+              heroTag: 'nextComment',
+              tooltip: 'Next top-level comment',
+              onPressed: _jumpNextTopLevel,
+              child: const Icon(Icons.keyboard_arrow_down_rounded),
             ),
       body: Stack(
         children: [
@@ -418,6 +423,16 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           );
         },
           ),
+          if (thread != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: M3ECommentComposeBar(
+                onSend: (text) => _sendQuickReply(notifier, thread, text),
+                onAttach: () => _openFullReplyComposer(notifier, thread),
+              ),
+            ),
           if (_searchOpen && thread != null)
             Positioned(
               left: 8,
@@ -487,14 +502,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 }
 
-/// Depth-edge colors (rotate by nesting level).
-const _railColors = [
-  Color(0xFF9F8BE8),
-  Color(0xFF62B5AA),
-  Color(0xFFE0A55C),
-  Color(0xFFD88FB4),
-  Color(0xFF7E9BE0),
-];
 
 Future<bool> _confirmDelete(BuildContext context, String what) async {
   final ok = await showDialog<bool>(
@@ -848,7 +855,6 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
   late bool? _likes = widget.comment.likes;
   late int _score = widget.comment.score;
   late bool _saved = widget.comment.saved;
-  bool _headerPressed = false;
 
 
   Future<void> _vote(int dir) async {
@@ -887,285 +893,101 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
   @override
   Widget build(BuildContext context) {
     final comment = widget.comment;
-    final cs = Theme.of(context).colorScheme;
     final commentMedia = extractCommentMedia(comment.body);
-    final depth = comment.depth;
-    final indent = depth.clamp(0, 6) * 12.0;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    // "Load more replies" node — a light indented row, not a card.
     if (comment.isMore) {
-      return Padding(
-        padding: EdgeInsets.fromLTRB(10 + indent, 0, 10, 8),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: widget.loadingMore
-                ? null
-                : (comment.moreChildren.isNotEmpty
-                    ? widget.onOpenThread
-                    : widget.onLoadMore),
-            icon: widget.loadingMore
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : Icon(Icons.add_circle_outline_rounded,
-                    size: 18, color: cs.primary),
-            label: Text(comment.moreChildren.isEmpty
-                ? 'Continue thread →'
-                : '${comment.moreCount} more replies'),
-          ),
-        ),
+      return M3ECommentMorePill(
+        label: comment.moreChildren.isEmpty
+            ? 'Continue thread →'
+            : '${comment.moreCount} more replies',
+        depth: comment.depth,
+        loading: widget.loadingMore,
+        onPressed: comment.moreChildren.isNotEmpty
+            ? widget.onOpenThread
+            : widget.onLoadMore,
       );
     }
 
-    final isMod = comment.distinguished == 'moderator';
-    final nameColor =
-        isMod ? Colors.green : (widget.isOwn ? cs.primary : cs.onSurface);
-    final edge = _railColors[(depth - 1).clamp(0, _railColors.length - 1)];
-
     return SwipeActions(
       enabled: ref.watch(
-          settingsControllerProvider.select((s) => s.swipeActions)),
+        settingsControllerProvider.select((s) => s.swipeActions),
+      ),
       onRight: () => _vote(1),
       onLeft: () => _vote(-1),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-        decoration: BoxDecoration(
-          color: widget.highlighted
-              ? cs.primaryContainer
-              : cs.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(14),
-          border: widget.highlighted
-              ? Border.all(color: cs.primary, width: 1.5)
-              : null,
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 5,
-                offset: const Offset(0, 1)),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            if (depth > 0)
-              Positioned.fill(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(width: (depth * 12.0).clamp(0.0, 72.0)),
-                    Container(
-                      width: 4,
-                      color: edge.withValues(alpha: 0.9),
-                    ),
-                  ],
-                ),
-              ),
-            Padding(
-              padding: EdgeInsets.only(
-                left: (depth * 12.0 + 8.0).clamp(8.0, 80.0),
-              ),
-              child: ClipRect(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Long-press collapses the whole subtree; tap re-expands a
-                    // collapsed comment (so a tap can't accidentally collapse).
-                    GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: widget.collapsed ? widget.onToggle : null,
-            onTapDown: widget.collapsed
-                ? (_) => setState(() => _headerPressed = true)
-                : null,
-            onTapUp: widget.collapsed
-                ? (_) => setState(() => _headerPressed = false)
-                : null,
-            onTapCancel: widget.collapsed
-                ? () => setState(() => _headerPressed = false)
-                : null,
-            onLongPress: () {
-              _headerPressed = false;
-              HapticFeedback.selectionClick();
-              widget.onToggle();
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 100),
-              color: _headerPressed
-                  ? cs.onSurface.withValues(alpha: 0.08)
-                  : Colors.transparent,
-              child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _AuthorDot(name: comment.author, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'u/${comment.author}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: nameColor,
-                      ),
-                    ),
-                  if (comment.author == widget.opAuthor &&
-                      comment.author != '[deleted]') ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(
-                          color: cs.primaryContainer,
-                          borderRadius: BorderRadius.circular(6)),
-                      child: Text('OP',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: cs.onPrimaryContainer)),
-                    ),
-                  ],
-                  const SizedBox(width: 8),
-                  Text('· ${timeAgo(comment.created)}',
-                      style:
-                          TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-                  if (widget.collapsed)
-                    Icon(Icons.unfold_more_rounded,
-                        size: 16, color: cs.onSurfaceVariant),
-                ],
-              ),
-              ),
-              ),
-            ),
-          ),
-          if (!widget.collapsed) ...[
-            if (widget.markdownBody != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                child: widget.markdownBody!,
-              ),
-            if (commentMedia.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                child: _CommentMediaList(media: commentMedia),
-              ),
-            _actions(cs),
-          ] else
-            Padding(
-              padding: const EdgeInsets.fromLTRB(40, 0, 12, 8),
-              child: Text(
-                comment.body.replaceAll('\n', ' '),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: cs.onSurfaceVariant,
-                    fontStyle: FontStyle.italic),
-              ),
-            ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+      child: M3ECommentCard(
+        author: comment.author,
+        created: comment.created,
+        depth: comment.depth,
+        isOp: comment.author == widget.opAuthor,
+        isDeleted: comment.author == '[deleted]',
+        collapsed: widget.collapsed,
+        score: _score,
+        scoreHidden: comment.scoreHidden,
+        likes: _likes,
+        saved: _saved,
+        highlighted: widget.highlighted,
+        collapsedPreview: comment.body.replaceAll('\n', ' '),
+        body: widget.markdownBody,
+        media: commentMedia.isEmpty
+            ? null
+            : _CommentMediaList(media: commentMedia),
+        onToggle: widget.onToggle,
+        onUpvote: () => _vote(1),
+        onDownvote: () => _vote(-1),
+        onReply: widget.onReply,
+        onSave: () => _toggleSave(),
+        overflowAction: _overflowMenu(colorScheme),
       ),
     );
   }
 
-  Widget _actions(ColorScheme cs) {
-    final votes = Theme.of(context).extension<VoteColors>()!;
-    final up = _likes == true;
-    final down = _likes == false;
-    final scoreColor = up ? votes.up : (down ? votes.down : cs.onSurfaceVariant);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          iconSize: 18,
-          onPressed: () => _vote(1),
-          icon: Icon(Icons.arrow_upward_rounded,
-              color: up ? votes.up : cs.onSurfaceVariant),
-        ),
-        Text(
-          widget.comment.scoreHidden ? '–' : compactNumber(_score),
-          style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w700, color: scoreColor),
-        ),
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          iconSize: 18,
-          onPressed: () => _vote(-1),
-          icon: Icon(Icons.arrow_downward_rounded,
-              color: down ? votes.down : cs.onSurfaceVariant),
-        ),
-        _CommentActionBtn(
-          icon: Icons.reply_rounded,
-          label: 'Reply',
-          onTap: widget.onReply,
-        ),
-        const SizedBox(width: 16),
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          iconSize: 18,
-          tooltip: 'Collapse thread',
-          onPressed: widget.onToggle,
-          color: cs.onSurfaceVariant,
-          icon: const Icon(Icons.unfold_less_rounded),
-        ),
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          iconSize: 18,
-          onPressed: _toggleSave,
-          color: _saved ? cs.primary : cs.onSurfaceVariant,
-          icon: Icon(_saved
-              ? Icons.bookmark_rounded
-              : Icons.bookmark_border_rounded),
-        ),
-        PopupMenuButton<String>(
-          icon: Icon(Icons.more_horiz_rounded,
-              size: 18, color: cs.onSurfaceVariant),
-          padding: EdgeInsets.zero,
-          onSelected: (v) {
-            switch (v) {
-              case 'copy':
-                Clipboard.setData(ClipboardData(text: widget.comment.body));
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Copied')));
-              case 'share':
-                shareUrl(context, 'https://reddit.com${widget.comment.permalink}');
-              case 'edit':
-                widget.onEdit();
-              case 'delete':
-                widget.onDelete();
-              case 'block':
-                confirmBlockUser(context, ref, widget.comment.author);
-            }
-          },
-          itemBuilder: (_) => [
-            const PopupMenuItem(value: 'copy', child: Text('Copy text')),
-            if (widget.comment.permalink.isNotEmpty)
-              const PopupMenuItem(value: 'share', child: Text('Share')),
-            if (widget.isOwn) ...[
-              const PopupMenuItem(value: 'edit', child: Text('Edit')),
-              const PopupMenuItem(value: 'delete', child: Text('Delete')),
-            ],
-            if (!widget.isOwn && widget.comment.author != '[deleted]')
-              PopupMenuItem(
-                  value: 'block', child: Text('Block u/${widget.comment.author}')),
-          ],
-        ),
-        ],
+  Widget _overflowMenu(ColorScheme colorScheme) {
+    return PopupMenuButton<String>(
+      icon: Icon(
+        Icons.more_horiz_rounded,
+        size: 18,
+        color: colorScheme.onSurfaceVariant,
       ),
+      tooltip: 'More actions',
+      padding: EdgeInsets.zero,
+      onSelected: (value) {
+        switch (value) {
+          case 'copy':
+            Clipboard.setData(ClipboardData(text: widget.comment.body));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Copied')),
+            );
+          case 'share':
+            shareUrl(
+              context,
+              'https://reddit.com${widget.comment.permalink}',
+            );
+          case 'edit':
+            widget.onEdit();
+          case 'delete':
+            widget.onDelete();
+          case 'block':
+            confirmBlockUser(context, ref, widget.comment.author);
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(value: 'copy', child: Text('Copy text')),
+        if (widget.comment.permalink.isNotEmpty)
+          const PopupMenuItem(value: 'share', child: Text('Share')),
+        if (widget.isOwn) ...[
+          const PopupMenuItem(value: 'edit', child: Text('Edit')),
+          const PopupMenuItem(value: 'delete', child: Text('Delete')),
+        ],
+        if (!widget.isOwn && widget.comment.author != '[deleted]')
+          PopupMenuItem(
+            value: 'block',
+            child: Text('Block u/${widget.comment.author}'),
+          ),
+      ],
     );
   }
+
 }
 
 class _CommentMediaList extends StatelessWidget {
@@ -1346,70 +1168,9 @@ class _StaticCommentGifState extends State<_StaticCommentGif> {
   }
 }
 
-class _CommentActionBtn extends StatelessWidget {
-  const _CommentActionBtn(
-      {required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return TextButton.icon(
-      onPressed: onTap,
-      style: TextButton.styleFrom(
-        foregroundColor: cs.onSurfaceVariant,
-        visualDensity: VisualDensity.compact,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        minimumSize: const Size(0, 36),
-      ),
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 12.5)),
-    );
-  }
-}
 
-/// Small colored avatar with the author's initial (color derived from name).
-class _AuthorDot extends StatelessWidget {
-  const _AuthorDot({required this.name, this.size = 20});
-  final String name;
-  final double size;
 
-  static const _palette = [
-    Color(0xFF7C5CE0),
-    Color(0xFF4FA89B),
-    Color(0xFFC77E4A),
-    Color(0xFFC46A96),
-    Color(0xFF5B82CE),
-    Color(0xFF5FA85A),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final clean = name.replaceFirst('u/', '');
-    final deleted = clean.isEmpty || clean.startsWith('[');
-    var h = 0;
-    for (final r in clean.codeUnits) {
-      h = (h * 31 + r) & 0x7fffffff;
-    }
-    final color =
-        deleted ? Theme.of(context).colorScheme.outline : _palette[h % _palette.length];
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Text(
-        deleted ? '?' : clean[0].toUpperCase(),
-        style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: size * 0.5),
-      ),
-    );
-  }
-}
 
 class _VotePill extends StatelessWidget {
   const _VotePill({
