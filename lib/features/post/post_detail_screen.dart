@@ -9,11 +9,12 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/format.dart';
+import '../../core/media_aspect_ratio.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
+import '../../core/url_launcher_helper.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
@@ -578,13 +579,17 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
       case PostType.gallery:
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
+        if (isYouTubeUrl(p.url)) {
+          launchSmartUrl(p.url);
+          break;
+        }
         openVideoViewer(
             context, p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
             title: p.title,
             downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
             externalUrl: p.url);
       case PostType.link:
-        launchUrl(Uri.parse(p.url), mode: LaunchMode.externalApplication);
+        launchSmartUrl(p.url);
       case PostType.self:
         break;
     }
@@ -667,8 +672,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
               selectable: true,
               onTapLink: (_, href, __) {
                 if (href != null) {
-                  launchUrl(Uri.parse(href),
-                      mode: LaunchMode.externalApplication);
+                  launchSmartUrl(href);
                 }
               },
             ),
@@ -753,11 +757,10 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     }
     final url =
         p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
-    final aspect = (p.previewWidth != null &&
-            p.previewHeight != null &&
-            p.previewHeight! > 0)
-        ? (p.previewWidth! / p.previewHeight!).clamp(0.5, 2.0)
-        : 16 / 9;
+    final aspect = boundedMediaAspectRatio(
+      width: p.previewWidth,
+      height: p.previewHeight,
+    );
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth =
         (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
