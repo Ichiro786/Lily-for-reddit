@@ -13,19 +13,15 @@ Widget _harness(Widget child) => MaterialApp(
 M3ECommentCard _card({required int depth, bool collapsed = false}) {
   return M3ECommentCard(
     author: 'alice',
-    created: DateTime.utc(2026, 1, 1),
+    timeAgo: '1h',
+    body: 'Comment body',
     depth: depth,
     isOp: depth == 0,
-    isDeleted: false,
-    collapsed: collapsed,
+    isCollapsed: collapsed,
     score: 42,
-    scoreHidden: false,
-    likes: null,
-    saved: false,
-    body: const Text('Comment body'),
-    onToggle: () {},
-    onUpvote: () {},
-    onDownvote: () {},
+    replyCount: collapsed ? 2 : 0,
+    onToggleCollapse: () {},
+    onVote: (_) {},
     onReply: () {},
     onSave: () {},
   );
@@ -71,20 +67,15 @@ void main() {
         StatefulBuilder(
           builder: (context, setState) => M3ECommentCard(
             author: 'alice',
-            created: DateTime.utc(2026, 1, 1),
+            timeAgo: '1h',
+            body: 'Expanded comment body',
             depth: 1,
             isOp: true,
-            isDeleted: false,
-            collapsed: collapsed,
+            isCollapsed: collapsed,
             score: 42,
-            scoreHidden: false,
-            likes: null,
-            saved: false,
-            body: const Text('Expanded comment body'),
-            collapsedPreview: 'Expanded comment body',
-            onToggle: () => setState(() => collapsed = !collapsed),
-            onUpvote: () {},
-            onDownvote: () {},
+            replyCount: 2,
+            onToggleCollapse: () => setState(() => collapsed = !collapsed),
+            onVote: (_) {},
             onReply: () {},
             onSave: () {},
           ),
@@ -97,12 +88,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(collapsed, isTrue);
     expect(find.text('Expanded comment body'), findsOneWidget);
-    expect(find.byIcon(Icons.expand_more_rounded), findsOneWidget);
+    expect(find.text('+2'), findsOneWidget);
 
     await tester.tap(find.text('u/alice'));
     await tester.pumpAndSettle();
     expect(collapsed, isFalse);
-    expect(find.byIcon(Icons.expand_less_rounded), findsOneWidget);
+    expect(find.text('Expanded comment body'), findsOneWidget);
   });
 
   testWidgets('compose dock sends text and exposes gallery action',

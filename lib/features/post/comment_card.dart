@@ -1,538 +1,242 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../core/format.dart';
-import '../../core/theme/shape_tokens.dart';
+class M3ECommentCard extends StatefulWidget {
+  final String author;
+  final String timeAgo;
+  final String body;
+  final int score;
+  final int depth;
+  final bool isOp;
+  final bool isCollapsed;
+  final VoidCallback? onToggleCollapse;
+  final VoidCallback? onReply;
+  final VoidCallback? onSave;
+  final ValueChanged<int>? onVote;
+  final int replyCount;
 
-class M3ECommentCard extends StatelessWidget {
   const M3ECommentCard({
     super.key,
     required this.author,
-    required this.created,
-    required this.depth,
-    required this.isOp,
-    required this.isDeleted,
-    required this.collapsed,
-    required this.score,
-    required this.scoreHidden,
-    required this.likes,
-    required this.saved,
-    required this.onToggle,
-    required this.onUpvote,
-    required this.onDownvote,
-    required this.onReply,
-    required this.onSave,
-    this.body,
-    this.media,
-    this.overflowAction,
-    this.collapsedPreview,
-    this.highlighted = false,
+    required this.timeAgo,
+    required this.body,
+    this.score = 0,
+    this.depth = 0,
+    this.isOp = false,
+    this.isCollapsed = false,
+    this.onToggleCollapse,
+    this.onReply,
+    this.onSave,
+    this.onVote,
+    this.replyCount = 0,
   });
 
-  final String author;
-  final DateTime created;
-  final int depth;
-  final bool isOp;
-  final bool isDeleted;
-  final bool collapsed;
-  final int score;
-  final bool scoreHidden;
-  final bool? likes;
-  final bool saved;
-  final Widget? body;
-  final Widget? media;
-  final Widget? overflowAction;
-  final String? collapsedPreview;
-  final bool highlighted;
-  final VoidCallback onToggle;
-  final VoidCallback onUpvote;
-  final VoidCallback onDownvote;
-  final VoidCallback onReply;
-  final VoidCallback onSave;
+  @override
+  State<M3ECommentCard> createState() => _M3ECommentCardState();
+}
 
-  Color _railColor(ColorScheme colorScheme) {
-    final palette = [
-      colorScheme.primary,
-      colorScheme.secondary,
-      colorScheme.tertiary,
-    ];
-    if (depth <= 0) return palette.first;
-    return palette[(depth - 1) % palette.length];
+class _M3ECommentCardState extends State<M3ECommentCard> {
+  int _voteState = 0;
+
+  Color _getDepthRailColor(ColorScheme scheme, int depth) {
+    switch ((depth - 1) % 4) {
+      case 0:
+        return const Color(0xFFA78BFA); // Iris Purple
+      case 1:
+        return const Color(0xFF7DD3FC); // Sky Blue
+      case 2:
+        return const Color(0xFFF9A8D4); // Soft Pink
+      default:
+        return const Color(0xFFFDE047); // Soft Amber
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final railColor = _railColor(colorScheme);
-    final upvoted = likes == true;
-    final downvoted = likes == false;
-    final scoreColor = upvoted
-        ? colorScheme.primary
-        : downvoted
-            ? colorScheme.error
-            : colorScheme.onSurfaceVariant;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final hasDepth = widget.depth > 0;
 
-    return RepaintBoundary(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: highlighted
-              ? colorScheme.primaryContainer
-              : colorScheme.surfaceContainer,
-          borderRadius: ShapeTokens.medium,
-          border: highlighted
-              ? Border.all(color: colorScheme.primary, width: 1.5)
-              : null,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            if (depth > 0)
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onToggle,
-                  child: Container(
-                    key: ValueKey<String>('comment-depth-rail-$depth'),
-                    width: 3,
-                    decoration: BoxDecoration(
-                      color: railColor,
-                      borderRadius: ShapeTokens.extraSmall,
-                    ),
-                  ),
-                ),
+    return Padding(
+      padding: EdgeInsets.only(
+        left: hasDepth ? (widget.depth * 12.0).clamp(12.0, 48.0) : 12.0,
+        right: 12.0,
+        top: 4.0,
+        bottom: 4.0,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasDepth) ...[
+            Container(
+              width: 3.5,
+              margin: const EdgeInsets.only(right: 8, top: 4, bottom: 4),
+              decoration: BoxDecoration(
+                color: _getDepthRailColor(colorScheme, widget.depth),
+                borderRadius: BorderRadius.circular(2),
               ),
-            Padding(
-              padding: EdgeInsets.only(left: depth > 0 ? 18 : 12),
+            ),
+          ],
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.all(12),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Author row
                   GestureDetector(
+                    onTap: widget.onToggleCollapse,
                     behavior: HitTestBehavior.opaque,
-                    onTap: onToggle,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(0, 10, 12, 8),
-                      child: Row(
-                        children: [
-                          _AuthorAvatar(
-                            author: author,
-                            deleted: isDeleted,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    isDeleted ? '[deleted]' : 'u/$author',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(
-                                          color: isDeleted
-                                              ? colorScheme.onSurfaceVariant
-                                              : colorScheme.onSurface,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                ),
-                                if (isOp && !isDeleted) ...[
-                                  const SizedBox(width: 6),
-                                  _OpBadge(colorScheme: colorScheme),
-                                ],
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text(
-                                    '·  ${timeAgo(created)}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          color: colorScheme.onSurfaceVariant,
-                                        ),
-                                  ),
-                                ),
-                              ],
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 13,
+                          backgroundColor: colorScheme.primaryContainer,
+                          child: Text(
+                            widget.author.isNotEmpty ? widget.author[0].toUpperCase() : 'U',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.onPrimaryContainer,
                             ),
                           ),
-                          Icon(
-                            collapsed
-                                ? Icons.expand_more_rounded
-                                : Icons.expand_less_rounded,
-                            size: 20,
-                            color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'u/${widget.author}',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: widget.isOp ? colorScheme.primary : colorScheme.onSurface,
+                          ),
+                        ),
+                        if (widget.isOp) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'OP',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
                           ),
                         ],
+                        const SizedBox(width: 6),
+                        Text(
+                          '· ${widget.timeAgo}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (widget.isCollapsed && widget.replyCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '+${widget.replyCount}',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (!widget.isCollapsed) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.body,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface,
+                        height: 1.35,
                       ),
                     ),
-                  ),
-                  ClipRect(
-                    child: AnimatedSize(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      alignment: Alignment.topCenter,
-                      child: collapsed
-                          ? Padding(
-                              padding: const EdgeInsets.fromLTRB(0, 0, 12, 12),
-                              child: Text(
-                                collapsedPreview ?? '',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                              ),
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                if (body != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 12),
-                                    child: body,
-                                  ),
-                                if (media != null) media!,
-                                _CommentActions(
-                                  score: score,
-                                  scoreHidden: scoreHidden,
-                                  scoreColor: scoreColor,
-                                  upvoted: upvoted,
-                                  downvoted: downvoted,
-                                  saved: saved,
-                                  onUpvote: onUpvote,
-                                  onDownvote: onDownvote,
-                                  onReply: onReply,
-                                  onSave: onSave,
-                                  overflowAction: overflowAction,
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AuthorAvatar extends StatelessWidget {
-  const _AuthorAvatar({required this.author, required this.deleted});
-
-  final String author;
-  final bool deleted;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 28,
-      height: 28,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: deleted
-            ? colorScheme.surfaceContainerHighest
-            : colorScheme.secondaryContainer,
-        shape: BoxShape.circle,
-      ),
-      child: Text(
-        deleted || author.isEmpty ? '?' : author[0].toUpperCase(),
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: colorScheme.onSecondaryContainer,
-              fontWeight: FontWeight.w700,
-            ),
-      ),
-    );
-  }
-}
-
-class _OpBadge extends StatelessWidget {
-  const _OpBadge({required this.colorScheme});
-
-  final ColorScheme colorScheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
-        borderRadius: ShapeTokens.extraSmall,
-      ),
-      child: Text(
-        'OP',
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.w800,
-            ),
-      ),
-    );
-  }
-}
-
-class _CommentActions extends StatelessWidget {
-  const _CommentActions({
-    required this.score,
-    required this.scoreHidden,
-    required this.scoreColor,
-    required this.upvoted,
-    required this.downvoted,
-    required this.saved,
-    required this.onUpvote,
-    required this.onDownvote,
-    required this.onReply,
-    required this.onSave,
-    this.overflowAction,
-  });
-
-  final int score;
-  final bool scoreHidden;
-  final Color scoreColor;
-  final bool upvoted;
-  final bool downvoted;
-  final bool saved;
-  final VoidCallback onUpvote;
-  final VoidCallback onDownvote;
-  final VoidCallback onReply;
-  final VoidCallback onSave;
-  final Widget? overflowAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 8, 8, 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Material(
-              color: colorScheme.surfaceContainerHighest,
-              shape: const RoundedRectangleBorder(
-                borderRadius: ShapeTokens.full,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _SmallIconButton(
-                    icon: Icons.arrow_upward_rounded,
-                    color: upvoted
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
-                    tooltip: 'Upvote',
-                    onPressed: onUpvote,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      scoreHidden ? '–' : compactNumber(score),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: scoreColor,
-                            fontWeight: FontWeight.w800,
+                    const SizedBox(height: 10),
+                    // Action items
+                    Row(
+                      children: [
+                        InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _voteState = _voteState == 1 ? 0 : 1);
+                            widget.onVote?.call(_voteState);
+                          },
+                          child: Icon(
+                            Icons.arrow_upward_rounded,
+                            size: 18,
+                            color: _voteState == 1 ? const Color(0xFFFF5722) : colorScheme.onSurfaceVariant,
                           ),
-                    ),
-                  ),
-                  _SmallIconButton(
-                    icon: Icons.arrow_downward_rounded,
-                    color: downvoted
-                        ? colorScheme.error
-                        : colorScheme.onSurfaceVariant,
-                    tooltip: 'Downvote',
-                    onPressed: onDownvote,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            _CommentPill(
-              icon: Icons.reply_rounded,
-              label: 'Reply',
-              onPressed: onReply,
-            ),
-            const SizedBox(width: 8),
-            _SmallIconButton(
-              icon: saved
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_border_rounded,
-              color: saved ? colorScheme.primary : colorScheme.onSurfaceVariant,
-              tooltip: saved ? 'Unsave' : 'Save',
-              onPressed: onSave,
-              background: colorScheme.surfaceContainerHighest,
-            ),
-            const SizedBox(width: 4),
-            overflowAction ??
-                _SmallIconButton(
-                  icon: Icons.more_horiz_rounded,
-                  color: colorScheme.onSurfaceVariant,
-                  tooltip: 'More actions',
-                  onPressed: () {},
-                  background: colorScheme.surfaceContainerHighest,
-                ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SmallIconButton extends StatelessWidget {
-  const _SmallIconButton({
-    required this.icon,
-    required this.color,
-    required this.tooltip,
-    required this.onPressed,
-    this.background,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String tooltip;
-  final VoidCallback onPressed;
-  final Color? background;
-
-  @override
-  Widget build(BuildContext context) {
-    final child = IconButton(
-      onPressed: onPressed,
-      tooltip: tooltip,
-      icon: Icon(icon, color: color),
-      iconSize: 18,
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-    );
-    if (background == null) return child;
-    return Material(
-      color: background,
-      shape: const RoundedRectangleBorder(borderRadius: ShapeTokens.full),
-      clipBehavior: Clip.antiAlias,
-      child: child,
-    );
-  }
-}
-
-class _CommentPill extends StatelessWidget {
-  const _CommentPill({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: colorScheme.surfaceContainerHighest,
-      shape: const RoundedRectangleBorder(borderRadius: ShapeTokens.full),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 17, color: colorScheme.onSurfaceVariant),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class M3ECommentMorePill extends StatelessWidget {
-  const M3ECommentMorePill({
-    super.key,
-    required this.label,
-    required this.depth,
-    required this.onPressed,
-    this.loading = false,
-  });
-
-  final String label;
-  final int depth;
-  final VoidCallback onPressed;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final palette = [
-      colorScheme.primary,
-      colorScheme.secondary,
-      colorScheme.tertiary,
-    ];
-    final accent = palette[depth <= 0 ? 0 : (depth - 1) % palette.length];
-    final indent = (depth * 12).clamp(0, 72).toDouble();
-    return Padding(
-      padding: EdgeInsets.fromLTRB(8 + indent, 4, 8, 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Material(
-          color: colorScheme.surfaceContainerHighest,
-          shape: const RoundedRectangleBorder(borderRadius: ShapeTokens.full),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: loading ? null : onPressed,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (loading)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      size: 18,
-                      color: accent,
-                    ),
-                  const SizedBox(width: 7),
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
                         ),
-                  ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Text(
+                            '${widget.score + _voteState}',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: _voteState == 1 ? const Color(0xFFFF5722) : colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _voteState = _voteState == -1 ? 0 : -1);
+                            widget.onVote?.call(_voteState);
+                          },
+                          child: Icon(
+                            Icons.arrow_downward_rounded,
+                            size: 18,
+                            color: _voteState == -1 ? colorScheme.error : colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        InkWell(
+                          onTap: widget.onReply,
+                          child: Row(
+                            children: [
+                              Icon(Icons.reply_rounded, size: 18, color: colorScheme.onSurfaceVariant),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Reply',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          onTap: widget.onSave,
+                          child: Icon(Icons.bookmark_outline_rounded, size: 18, color: colorScheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(Icons.more_horiz_rounded, size: 18, color: colorScheme.onSurfaceVariant),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

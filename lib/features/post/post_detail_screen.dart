@@ -1,15 +1,11 @@
-import 'dart:ui' as ui;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/providers.dart';
@@ -28,11 +24,9 @@ import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
 import '../settings/settings_controller.dart';
 import 'comments_controller.dart';
-import 'compose_sheet.dart';
 import 'comment_card.dart';
 import 'comment_compose_bar.dart';
 import 'post_actions.dart';
-import 'comment_media_helper.dart';
 import 'interactive_spoiler.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
@@ -417,53 +411,39 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 return RepaintBoundary(
                   child: _CommentTile(
                     key: ValueKey(c.fullname),
-                  comment: c,
-                  markdownBody: presentation.markdownBody,
-                  highlighted: _currentMatchId == c.fullname,
-                  isOwn: c.author == username,
-                  opAuthor: thread.post.author,
-                  collapsed: thread.collapsed.contains(c.id),
-                  loadingMore: thread.loadingMore.contains(c.fullname),
-                  onToggle: () => notifier.toggleCollapse(c.id),
-                  onLoadMore: () => notifier.loadMore(c),
-                  onOpenThread: () {
-                    final focusId = c.moreChildren.isNotEmpty
-                        ? c.moreChildren.first
-                        : c.id;
-                    context.push(
-                      '/comments/${Uri.encodeComponent(thread.post.subreddit)}/${thread.post.id}?comment=${Uri.encodeComponent(focusId)}',
-                    );
-                  },
-                  onReply: () async {
-                    final reply = await showReplySheet(context, ref,
+                    comment: c,
+                    opAuthor: thread.post.author,
+                    collapsed: thread.collapsed.contains(c.id),
+                    loadingMore: thread.loadingMore.contains(c.fullname),
+                    onToggle: () => notifier.toggleCollapse(c.id),
+                    onLoadMore: () => notifier.loadMore(c),
+                    onOpenThread: () {
+                      final focusId = c.moreChildren.isNotEmpty
+                          ? c.moreChildren.first
+                          : c.id;
+                      context.push(
+                        '/comments/${Uri.encodeComponent(thread.post.subreddit)}/${thread.post.id}?comment=${Uri.encodeComponent(focusId)}',
+                      );
+                    },
+                    onReply: () async {
+                      final reply = await showReplySheet(
+                        context,
+                        ref,
                         parentFullname: c.fullname,
                         parentDepth: c.depth,
-                        replyingTo: c.author);
-                    if (reply != null) {
-                      notifier.insertReply(c.fullname, reply);
-                      ref
-                          .read(postOverridesProvider.notifier)
-                          .bumpComments(thread.post, 1);
-                      ref
-                          .read(interestStoreProvider.notifier)
-                          .bump(thread.post.subreddit, 2.5);
-                    }
-                  },
-                  onEdit: () async {
-                    final newText = await showEditSheet(context, ref,
-                        thingFullname: c.fullname, initialText: c.body);
-                    if (newText != null) notifier.applyEdit(c.fullname, newText);
-                  },
-                  onDelete: () async {
-                    final ok = await _confirmDelete(context, 'comment');
-                    if (ok) {
-                      await ref
-                          .read(redditRepositoryProvider)
-                          .deleteThing(c.fullname);
-                      notifier.removeComment(c.fullname);
-                    }
-                  },
-                ),
+                        replyingTo: c.author,
+                      );
+                      if (reply != null) {
+                        notifier.insertReply(c.fullname, reply);
+                        ref
+                            .read(postOverridesProvider.notifier)
+                            .bumpComments(thread.post, 1);
+                        ref
+                            .read(interestStoreProvider.notifier)
+                            .bump(thread.post.subreddit, 2.5);
+                      }
+                    },
+                  ),
                 );
               },
                   ),
@@ -829,13 +809,12 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             final numComments = ov?.numComments ?? p.numComments;
             return M3EPostActionBar(
               score: score,
-              likes: likes,
               commentCount: numComments,
-              saved: saved,
-              onUpvote: () => _vote(1),
-              onDownvote: () => _vote(-1),
-              onComment: widget.onComments ?? () {},
-              onSave: () async {
+              voteState: likes == true ? 1 : (likes == false ? -1 : 0),
+              isSaved: saved,
+              onVote: _vote,
+              onCommentTap: widget.onComments,
+              onSaveTap: () async {
                 final overrides = ref.read(postOverridesProvider.notifier);
                 final next = !overrides.effective(p).saved;
                 overrides.setSaved(p, next);
@@ -847,7 +826,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                   overrides.setSaved(p, !next);
                 }
               },
-              onShare: () => shareUrl(
+              onShareTap: () => shareUrl(
                 context,
                 p.url,
                 subject: p.title,
@@ -951,8 +930,6 @@ class _CommentTile extends ConsumerStatefulWidget {
   const _CommentTile({
     super.key,
     required this.comment,
-    required this.markdownBody,
-    required this.isOwn,
     required this.opAuthor,
     required this.collapsed,
     required this.loadingMore,
@@ -960,24 +937,16 @@ class _CommentTile extends ConsumerStatefulWidget {
     required this.onLoadMore,
     required this.onOpenThread,
     required this.onReply,
-    required this.onEdit,
-    required this.onDelete,
-    this.highlighted = false,
   });
 
   final Comment comment;
-  final Widget? markdownBody;
-  final bool isOwn;
   final String opAuthor;
   final bool collapsed;
   final bool loadingMore;
-  final bool highlighted; // current in-post search match
   final VoidCallback onToggle;
   final VoidCallback onLoadMore;
   final VoidCallback onOpenThread;
   final VoidCallback onReply;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
 
   @override
   ConsumerState<_CommentTile> createState() => _CommentTileState();
@@ -1025,19 +994,52 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
   @override
   Widget build(BuildContext context) {
     final comment = widget.comment;
-    final commentMedia = extractCommentMedia(comment.body);
     final colorScheme = Theme.of(context).colorScheme;
 
     if (comment.isMore) {
-      return M3ECommentMorePill(
-        label: comment.moreChildren.isEmpty
-            ? 'Continue thread'
-            : 'View ${comment.moreCount} more replies',
-        depth: comment.depth,
-        loading: widget.loadingMore,
-        onPressed: comment.moreChildren.isNotEmpty
-            ? widget.onOpenThread
-            : widget.onLoadMore,
+      return Padding(
+        padding: EdgeInsets.only(
+          left: (comment.depth * 12.0).clamp(12.0, 48.0),
+          right: 12,
+          top: 4,
+          bottom: 4,
+        ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: InkWell(
+            onTap: widget.loadingMore
+                ? null
+                : (comment.moreChildren.isNotEmpty
+                    ? widget.onOpenThread
+                    : widget.onLoadMore),
+            borderRadius: ShapeTokens.full,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: ShapeTokens.full,
+              ),
+              child: widget.loadingMore
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          comment.moreChildren.isEmpty
+                              ? 'Continue thread'
+                              : 'View ${comment.moreCount} more replies',
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                      ],
+                    ),
+            ),
+          ),
+        ),
       );
     }
 
@@ -1049,257 +1051,19 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       onLeft: () => _vote(-1),
       child: M3ECommentCard(
         author: comment.author,
-        created: comment.created,
+        timeAgo: timeAgo(comment.created),
+        body: comment.body,
         depth: comment.depth,
         isOp: comment.author == widget.opAuthor,
-        isDeleted: comment.author == '[deleted]',
-        collapsed: widget.collapsed,
+        isCollapsed: widget.collapsed,
         score: _score,
-        scoreHidden: comment.scoreHidden,
-        likes: _likes,
-        saved: _saved,
-        highlighted: widget.highlighted,
-        collapsedPreview: comment.body.replaceAll('\n', ' '),
-        body: widget.markdownBody,
-        media: commentMedia.isEmpty
-            ? null
-            : _CommentMediaList(media: commentMedia),
-        onToggle: widget.onToggle,
-        onUpvote: () => _vote(1),
-        onDownvote: () => _vote(-1),
+        replyCount: comment.replies.length,
+        onToggleCollapse: widget.onToggle,
+        onVote: _vote,
         onReply: widget.onReply,
-        onSave: () => _toggleSave(),
-        overflowAction: _overflowMenu(colorScheme),
+        onSave: _toggleSave,
       ),
     );
   }
 
-  Widget _overflowMenu(ColorScheme colorScheme) {
-    return PopupMenuButton<String>(
-      icon: Icon(
-        Icons.more_horiz_rounded,
-        size: 18,
-        color: colorScheme.onSurfaceVariant,
-      ),
-      tooltip: 'More actions',
-      padding: EdgeInsets.zero,
-      onSelected: (value) {
-        switch (value) {
-          case 'copy':
-            Clipboard.setData(ClipboardData(text: widget.comment.body));
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Copied')),
-            );
-          case 'share':
-            shareUrl(
-              context,
-              'https://reddit.com${widget.comment.permalink}',
-            );
-          case 'edit':
-            widget.onEdit();
-          case 'delete':
-            widget.onDelete();
-          case 'block':
-            confirmBlockUser(context, ref, widget.comment.author);
-        }
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem(value: 'copy', child: Text('Copy text')),
-        if (widget.comment.permalink.isNotEmpty)
-          const PopupMenuItem(value: 'share', child: Text('Share')),
-        if (widget.isOwn) ...[
-          const PopupMenuItem(value: 'edit', child: Text('Edit')),
-          const PopupMenuItem(value: 'delete', child: Text('Delete')),
-        ],
-        if (!widget.isOwn && widget.comment.author != '[deleted]')
-          PopupMenuItem(
-            value: 'block',
-            child: Text('Block u/${widget.comment.author}'),
-          ),
-      ],
-    );
-  }
-
-}
-
-class _CommentMediaList extends StatelessWidget {
-  const _CommentMediaList({required this.media});
-
-  final List<CommentMedia> media;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final item in media)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: _CommentMediaImage(media: item),
-          ),
-      ],
-    );
-  }
-}
-
-class _CommentMediaImage extends StatelessWidget {
-  const _CommentMediaImage({required this.media});
-
-  final CommentMedia media;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    const cacheWidth = 600;
-    const cacheHeight = 600;
-    return GestureDetector(
-      onTap: () => openImageViewer(context, media.url, title: 'Comment media'),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 300),
-        child: ClipRRect(
-          borderRadius: ShapeTokens.extraSmall,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-            if (media.isGif)
-              _StaticCommentGif(
-                url: media.url,
-                cacheWidth: cacheWidth,
-                cacheHeight: cacheHeight,
-              )
-            else
-              CachedNetworkImage(
-                imageUrl: media.url,
-                memCacheWidth: cacheWidth,
-                memCacheHeight: cacheHeight,
-                fit: BoxFit.contain,
-                width: double.infinity,
-                height: 300,
-                placeholder: (_, __) => const SizedBox(
-                  height: 96,
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-                errorWidget: (_, __, ___) => const SizedBox(
-                  height: 64,
-                  child: Center(child: Icon(Icons.broken_image_outlined)),
-                ),
-              ),
-            if (media.isGif)
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colorScheme.scrim.withValues(alpha: 0.62),
-                  shape: BoxShape.circle,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Icon(
-                    Icons.play_arrow_rounded,
-                    color: colorScheme.onSurface,
-                    size: 28,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StaticCommentGif extends StatefulWidget {
-  const _StaticCommentGif({
-    required this.url,
-    required this.cacheWidth,
-    required this.cacheHeight,
-  });
-
-  final String url;
-  final int cacheWidth;
-  final int cacheHeight;
-
-  @override
-  State<_StaticCommentGif> createState() => _StaticCommentGifState();
-}
-
-class _StaticCommentGifState extends State<_StaticCommentGif> {
-  ui.Image? _image;
-  ImageStream? _stream;
-  ImageStreamListener? _listener;
-  Object? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _resolve();
-  }
-
-  @override
-  void didUpdateWidget(covariant _StaticCommentGif oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url) {
-      _image = null;
-      _error = null;
-      _removeListener();
-      _resolve();
-    }
-  }
-
-  void _resolve() {
-    final stream = ResizeImage(
-      CachedNetworkImageProvider(widget.url),
-      width: widget.cacheWidth,
-      height: widget.cacheHeight,
-    ).resolve(const ImageConfiguration());
-    late final ImageStreamListener listener;
-    listener = ImageStreamListener(
-      (info, _) {
-        stream.removeListener(listener);
-        if (mounted) setState(() => _image = info.image);
-      },
-      onError: (error, stackTrace) {
-        stream.removeListener(listener);
-        if (mounted) setState(() => _error = error);
-      },
-    );
-    _stream = stream;
-    _listener = listener;
-    stream.addListener(listener);
-  }
-
-  void _removeListener() {
-    final stream = _stream;
-    final listener = _listener;
-    if (stream != null && listener != null) stream.removeListener(listener);
-    _stream = null;
-    _listener = null;
-  }
-
-  @override
-  void dispose() {
-    _removeListener();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_error != null) {
-      return const SizedBox(
-        height: 64,
-        child: Center(child: Icon(Icons.broken_image_outlined)),
-      );
-    }
-    if (_image == null) {
-      return const SizedBox(
-        height: 96,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    return RawImage(
-      image: _image,
-      fit: BoxFit.contain,
-      width: double.infinity,
-      height: 300,
-    );
-  }
 }
