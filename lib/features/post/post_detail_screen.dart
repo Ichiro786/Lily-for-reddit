@@ -21,6 +21,7 @@ import '../../models/post.dart';
 import '../auth/auth_controller.dart';
 import '../feed/post_overrides.dart';
 import '../feed/swipe_actions.dart';
+import '../media/attachment.dart';
 import '../media/gallery_carousel.dart';
 import '../media/media_viewers.dart';
 import '../media/nsfw_blur.dart';
@@ -137,12 +138,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     CommentsController notifier,
     PostThread thread,
     String text,
+    MediaAttachment? attachment,
   ) async {
-    final reply = await ref.read(redditRepositoryProvider).reply(
-          parentFullname: thread.post.fullname,
-          text: text,
-          depth: 0,
-        );
+    final repo = ref.read(redditRepositoryProvider);
+    final reply = attachment == null
+        ? await repo.reply(
+            parentFullname: thread.post.fullname,
+            text: text,
+            depth: 0,
+          )
+        : await repo.replyWithImage(
+            parentFullname: thread.post.fullname,
+            text: text,
+            bytes: attachment.bytes,
+            filename: attachment.filename,
+            mimeType: attachment.mimeType,
+            depth: 0,
+          );
     notifier.insertReply(thread.post.fullname, reply);
     ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
     ref
@@ -429,8 +441,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               right: 0,
               bottom: 0,
               child: M3ECommentComposeBar(
-                onSend: (text) => _sendQuickReply(notifier, thread, text),
-                onAttach: () => _openFullReplyComposer(notifier, thread),
+                onSend: (text, attachment) =>
+                    _sendQuickReply(notifier, thread, text, attachment),
+                onAttach: pickImageAttachment,
               ),
             ),
           if (_searchOpen && thread != null)

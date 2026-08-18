@@ -60,6 +60,8 @@ void main() {
 
     refresh.complete();
     await refreshFuture;
+    await tester.pump(const Duration(milliseconds: 75));
+    expect(find.byType(M3EScallopedSpinner), findsOneWidget);
     await tester.pumpAndSettle();
     expect(find.byType(M3EScallopedSpinner), findsNothing);
   });

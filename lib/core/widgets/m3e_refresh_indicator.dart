@@ -68,17 +68,17 @@ class _M3EScallopedSpinnerState extends State<M3EScallopedSpinner>
         child: AnimatedBuilder(
           animation: _rotation,
           builder: (_, __) {
-            final pulse = widget.refreshing
-                ? 1 + math.sin(_rotation.value * math.pi * 2) * 0.06
+            final eased = Curves.easeInOutCubic.transform(_rotation.value);
+            final breathing = widget.refreshing
+                ? 0.92 + (0.16 * (0.5 + 0.5 *
+                    math.sin(_rotation.value * math.pi * 2)))
                 : 1.0;
             return CustomPaint(
               painter: _M3EScallopedPainter(
                 color: color,
                 progress: progress,
-                rotation: widget.refreshing
-                    ? _rotation.value * math.pi * 2
-                    : 0,
-                scale: pulse,
+                rotation: widget.refreshing ? eased * math.pi * 2 : 0,
+                scale: breathing,
               ),
             );
           },
@@ -106,28 +106,44 @@ class _M3EScallopedPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     final maxRadius = math.min(size.width, size.height) / 2;
     final morph = Curves.easeOutCubic.transform(progress);
-    final radius = (maxRadius * (0.42 + morph * 0.52) * scale)
-        .clamp(1.0, maxRadius)
-        .toDouble();
-    final amplitude = 0.16 * morph;
+    final radius = (maxRadius * morph * scale).clamp(0.0, maxRadius).toDouble();
+    if (radius <= 0.1) return;
+
     const lobes = 10;
-    const samplesPerLobe = 12;
+    const samplesPerLobe = 4;
     final sampleCount = lobes * samplesPerLobe;
-    final path = Path();
+    final points = <Offset>[];
+    final amplitude = 0.17 * morph;
 
     for (var i = 0; i < sampleCount; i++) {
       final theta = (i / sampleCount) * math.pi * 2 + rotation;
-      final lobeOffset = math.sin(theta * lobes);
-      final pointRadius = radius * (1 + amplitude * lobeOffset);
-      final point = center + Offset(
-        math.cos(theta) * pointRadius,
-        math.sin(theta) * pointRadius,
+      final harmonic = math.sin(theta * lobes);
+      final pointRadius = radius * (0.82 + amplitude * harmonic);
+      points.add(
+        center + Offset(
+          math.cos(theta) * pointRadius,
+          math.sin(theta) * pointRadius,
+        ),
       );
-      if (i == 0) {
-        path.moveTo(point.dx, point.dy);
-      } else {
-        path.lineTo(point.dx, point.dy);
-      }
+    }
+
+    final path = Path();
+    for (var i = 0; i < sampleCount; i++) {
+      final p0 = points[(i - 1 + sampleCount) % sampleCount];
+      final p1 = points[i];
+      final p2 = points[(i + 1) % sampleCount];
+      final p3 = points[(i + 2) % sampleCount];
+      final control1 = p1 + (p2 - p0) / 6;
+      final control2 = p2 - (p3 - p1) / 6;
+      if (i == 0) path.moveTo(p1.dx, p1.dy);
+      path.cubicTo(
+        control1.dx,
+        control1.dy,
+        control2.dx,
+        control2.dy,
+        p2.dx,
+        p2.dy,
+      );
     }
     path.close();
 
@@ -165,16 +181,34 @@ class M3ERefreshIndicator extends StatefulWidget {
   M3ERefreshIndicatorState createState() => M3ERefreshIndicatorState();
 }
 
-class M3ERefreshIndicatorState extends State<M3ERefreshIndicator> {
+class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
+    with SingleTickerProviderStateMixin {
   double _pullExtent = 0;
   bool _refreshing = false;
   bool _thresholdReached = false;
+  late final AnimationController _dismiss;
 
   double get _progress =>
       (_pullExtent / widget.triggerExtent).clamp(0.0, 1.0).toDouble();
 
+  @override
+  void initState() {
+    super.initState();
+    _dismiss = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+  }
+
+  @override
+  void dispose() {
+    _dismiss.dispose();
+    super.dispose();
+  }
+
   Future<void> show() async {
     if (_refreshing) return;
+    _dismiss.forward();
     setState(() {
       _refreshing = true;
       _pullExtent = widget.triggerExtent;
@@ -194,7 +228,8 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator> {
       _setPullExtent(_pullExtent - notification.overscroll);
     } else if (notification is ScrollUpdateNotification &&
         notification.metrics.pixels < notification.metrics.minScrollExtent) {
-      _setPullExtent(notification.metrics.minScrollExtent - notification.metrics.pixels);
+      _setPullExtent(
+          notification.metrics.minScrollExtent - notification.metrics.pixels);
     } else if (notification is ScrollEndNotification && _pullExtent > 0) {
       if (_progress >= 1) {
         _startRefresh();
@@ -207,6 +242,9 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator> {
 
   void _setPullExtent(double extent) {
     final next = extent.clamp(0.0, widget.triggerExtent * 1.35).toDouble();
+    if (next > 0 && !_dismiss.isAnimating && _dismiss.value < 1) {
+      _dismiss.forward();
+    }
     if (next >= widget.triggerExtent && !_thresholdReached) {
       _thresholdReached = true;
       HapticFeedback.mediumImpact();
@@ -220,6 +258,7 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator> {
 
   void _startRefresh() {
     if (_refreshing) return;
+    _dismiss.forward();
     setState(() {
       _refreshing = true;
       _pullExtent = widget.triggerExtent;
@@ -237,6 +276,7 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator> {
           _pullExtent = 0;
           _thresholdReached = false;
         });
+        _dismiss.reverse();
       }
     }
   }
@@ -247,42 +287,59 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator> {
       _pullExtent = 0;
       _thresholdReached = false;
     });
+    _dismiss.reverse();
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final visible = _refreshing || _pullExtent > 0;
-    return NotificationListener<ScrollNotification>(
-      onNotification: _onScrollNotification,
-      child: Stack(
-        children: [
-          widget.child,
-          if (visible)
-            Positioned(
-              top: 8 + (_pullExtent * 0.22),
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Center(
-                  child: Material(
-                    color: colorScheme.surfaceContainerHigh,
-                    elevation: 3,
-                    shadowColor: Colors.black.withValues(alpha: 0.22),
-                    shape: const CircleBorder(),
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: M3EScallopedSpinner(
-                        progress: _progress,
-                        refreshing: _refreshing,
+    return AnimatedBuilder(
+      animation: _dismiss,
+      builder: (context, child) {
+        final visible = _refreshing || _pullExtent > 0 || _dismiss.value > 0;
+        return NotificationListener<ScrollNotification>(
+          onNotification: _onScrollNotification,
+          child: Stack(
+            children: [
+              child!,
+              if (visible)
+                Positioned(
+                  top: 8 + (_pullExtent * 0.22),
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: Opacity(
+                        opacity: _dismiss.value,
+                        child: Transform.scale(
+                          scale: 0.72 + (_dismiss.value * 0.28),
+                          child: Material(
+                            color: colorScheme.surfaceContainerHigh,
+                            elevation: 3,
+                            shadowColor: Colors.black.withValues(alpha: 0.22),
+                            shape: const CircleBorder(),
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: M3EScallopedSpinner(
+                                progress: _refreshing
+                                    ? 1
+                                    : (_pullExtent > 0
+                                        ? _progress
+                                        : _dismiss.value),
+                                refreshing: _refreshing,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }

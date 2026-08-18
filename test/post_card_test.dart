@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import 'package:luli_for_reddit/core/media_aspect_ratio.dart';
 import 'package:luli_for_reddit/core/storage/interaction_vault.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
 import 'package:luli_for_reddit/data/reddit_repository.dart';
@@ -89,6 +90,17 @@ Widget _postHarness({required PostDisplay display}) {
 }
 
 void main() {
+  test('portrait media aspect ratio clamps to 0.4 without distortion', () {
+    expect(
+      boundedMediaAspectRatio(width: 400, height: 2000),
+      closeTo(0.4, 0.0001),
+    );
+    expect(
+      boundedMediaAspectRatio(width: 1920, height: 1080),
+      closeTo(1.7778, 0.0001),
+    );
+  });
+
   setUpAll(() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
   });
