@@ -6,6 +6,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../../core/route_observer.dart';
 import '../../core/startup_metrics.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/m3e_refresh_indicator.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
 import '../history/history_store.dart';
@@ -31,7 +32,7 @@ class PostListView extends ConsumerStatefulWidget {
 
 class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   final _scroll = ScrollController();
-  final _refreshKey = GlobalKey<RefreshIndicatorState>();
+  final _refreshKey = GlobalKey<M3ERefreshIndicatorState>();
 
   @override
   void initState() {
@@ -90,12 +91,9 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
         ref.read(feedControllerProvider(widget.feedKey).notifier);
     final hasPending = async.valueOrNull?.hasPending ?? false;
 
-    final refreshable = RefreshIndicator(
+    final refreshable = M3ERefreshIndicator(
       key: _refreshKey,
-      onRefresh: () {
-        HapticFeedback.mediumImpact();
-        return notifier.refresh();
-      },
+      onRefresh: notifier.refresh,
       child: async.when(
         loading: () => ListView(
           padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
