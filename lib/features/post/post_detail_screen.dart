@@ -322,19 +322,19 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     tooltip: 'Sort comments',
                     child: Row(
                       children: [
-                        Icon(Icons.sort_rounded,
-                            size: 18, color: colorScheme.primary),
+                        const Icon(Icons.sort_rounded,
+                            size: 18, color: Color(0xFFA78BFA)),
                         const SizedBox(width: 6),
                         Text(
                           'BEST COMMENTS',
                           style: theme.textTheme.labelSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
-                            color: colorScheme.primary,
+                            color: const Color(0xFFA78BFA),
                           ),
                         ),
-                        Icon(Icons.keyboard_arrow_down_rounded,
-                            size: 18, color: colorScheme.primary),
+                        const Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 18, color: Color(0xFFA78BFA)),
                       ],
                     ),
                   ),
@@ -712,11 +712,11 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
+                  color: const Color(0xFFA78BFA).withValues(alpha: 0.18),
                   borderRadius: ShapeTokens.extraSmall),
               child: Text(p.linkFlairText!,
-                  style:
-                      TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                  style: const TextStyle(
+                      fontSize: 12, color: Color(0xFFA78BFA))),
             ),
           ],
           if (p.crosspostFrom != null) ...[
@@ -864,7 +864,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                       )
                     else
                       Container(color: cs.surfaceContainerHighest),
-                    if (p.type == PostType.video)
+                    if (p.type == PostType.video) ...[
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -877,6 +877,30 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                           size: 36,
                         ),
                       ),
+                      Positioned(
+                        right: 12,
+                        bottom: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: cs.scrim.withValues(alpha: 0.78),
+                            borderRadius: ShapeTokens.extraSmall,
+                          ),
+                          child: Text(
+                            'VIDEO',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: cs.onSurface,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.4,
+                                ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

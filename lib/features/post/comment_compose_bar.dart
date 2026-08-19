@@ -52,9 +52,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     try {
       final picked = await _picker.pickImage(source: ImageSource.gallery);
       if (picked != null) {
-        setState(() {
-          _selectedImage = picked;
-        });
+        setState(() => _selectedImage = picked);
         widget.onImageSelected?.call(picked);
       }
     } catch (_) {}
@@ -66,9 +64,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
       HapticFeedback.mediumImpact();
       widget.onSubmit?.call(text);
       _controller.clear();
-      setState(() {
-        _selectedImage = null;
-      });
+      setState(() => _selectedImage = null);
     }
   }
 
@@ -81,7 +77,12 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 8,
+          bottom: MediaQuery.of(context).padding.bottom + 8,
+        ),
         decoration: const BoxDecoration(
           color: Colors.black,
           border: null,
@@ -91,7 +92,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
           children: [
             if (_selectedImage != null)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
                     Stack(
@@ -100,25 +101,20 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                         Container(
                           width: 48,
                           height: 48,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: colorScheme.surfaceContainerHighest,
-                          ),
                           alignment: Alignment.center,
-                          child: Icon(
-                            Icons.image_rounded,
-                            color: colorScheme.primary,
-                            size: 24,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
                           ),
+                          child: Icon(Icons.image_rounded,
+                              color: colorScheme.primary, size: 24),
                         ),
                         Positioned(
                           top: -4,
                           right: -4,
                           child: GestureDetector(
                             onTap: () {
-                              setState(() {
-                                _selectedImage = null;
-                              });
+                              setState(() => _selectedImage = null);
                               widget.onImageSelected?.call(null);
                             },
                             child: Container(
@@ -127,11 +123,8 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                                 color: colorScheme.error,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(
-                                Icons.close_rounded,
-                                size: 12,
-                                color: Colors.white,
-                              ),
+                              child: const Icon(Icons.close_rounded,
+                                  size: 12, color: Colors.white),
                             ),
                           ),
                         ),
@@ -144,67 +137,67 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
               children: [
                 Expanded(
                   child: Container(
-                    height: 44,
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E24),
+                      color: const Color(0xFF1E1F25),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Row(
                       children: [
-                        const SizedBox(width: 16),
                         Expanded(
                           child: TextField(
                             controller: _controller,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurface,
-                            ),
+                            onSubmitted: (_) => _handleSend(),
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(color: colorScheme.onSurface),
                             decoration: InputDecoration(
                               hintText: widget.hintText,
                               hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                                color: colorScheme.onSurfaceVariant,
                               ),
                               border: InputBorder.none,
                               isDense: true,
                               contentPadding: EdgeInsets.zero,
                             ),
                             textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => _handleSend(),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.add_photo_alternate_outlined),
-                          iconSize: 20,
-                          color: colorScheme.onSurfaceVariant,
-                          padding: const EdgeInsets.all(8),
-                          constraints: const BoxConstraints(),
-                          onPressed: _pickImage,
+                        InkWell(
+                          onTap: _pickImage,
+                          borderRadius: BorderRadius.circular(999),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.add_photo_alternate_outlined,
+                              size: 22,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 8),
                       ],
                     ),
                   ),
                 ),
-                // Hide Jump FAB completely when keyboard is open to prevent collision
                 if (!isKeyboardOpen && widget.onJumpNext != null) ...[
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: IconButton.filledTonal(
+                  const SizedBox(width: 10),
+                  Container(
+                    height: 48,
+                    width: 48,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2E2E38),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 24,
+                        color: Color(0xFFA78BFA),
+                      ),
                       onPressed: () {
                         HapticFeedback.selectionClick();
                         widget.onJumpNext?.call();
                       },
-                      style: IconButton.styleFrom(
-                        backgroundColor: colorScheme.surfaceContainerHighest,
-                        foregroundColor: colorScheme.onSurface,
-                        shape: const CircleBorder(),
-                        padding: EdgeInsets.zero,
-                      ),
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 22,
-                      ),
                     ),
                   ),
                 ],
