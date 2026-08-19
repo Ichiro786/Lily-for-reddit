@@ -795,7 +795,6 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
               ),
             );
           }),
-          const Divider(height: 24),
         ],
       ),
     );
@@ -1036,7 +1035,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       onRight: () => _vote(1),
       onLeft: () => _vote(-1),
       child: Container(
-        color: colorScheme.surfaceContainer,
+        color: Colors.black,
         child: M3ECommentCard(
           author: comment.author,
           timeAgo: timeAgo(comment.created),
