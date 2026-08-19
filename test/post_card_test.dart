@@ -157,7 +157,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
     await tester.tap(find.byIcon(Icons.arrow_downward_rounded));
     await tester.tap(find.byIcon(Icons.bookmark_outline_rounded));
-    expect(find.byIcon(Icons.arrow_outward_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.shortcut_rounded), findsOneWidget);
 
     expect(upvotes, 1);
     expect(downvotes, 1);

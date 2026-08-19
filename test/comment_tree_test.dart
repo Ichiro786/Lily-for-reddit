@@ -45,9 +45,9 @@ void main() {
 
     final expected = [
       const Color(0xFFA78BFA),
-      const Color(0xFF7DD3FC),
-      const Color(0xFFF9A8D4),
-      const Color(0xFFFDE047),
+      const Color(0xFF38BDF8),
+      const Color(0xFFF472B6),
+      const Color(0xFFFACC15),
     ];
     for (var depth = 1; depth <= 4; depth++) {
       final rail = tester.widget<Container>(

@@ -23,7 +23,7 @@ class M3EPostActionBar extends StatelessWidget {
     this.onShareTap,
   });
 
-  String _formatNumber(int number) {
+  String _formatCount(int number) {
     if (number >= 1000000) return '${(number / 1000000).toStringAsFixed(1)}M';
     if (number >= 1000) return '${(number / 1000).toStringAsFixed(1)}k';
     return number.toString();
@@ -33,16 +33,17 @@ class M3EPostActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final pillBg = colorScheme.surfaceContainerHighest;
+    // Distinct dark tonal surface for action capsules.
+    final pillBg = colorScheme.surfaceContainerHighest.withValues(alpha: 0.55);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          // 1. Segmented Vote Pill [ ↑ | score | ↓ ]
+          // 1. Upvote / Score / Downvote Capsule
           Container(
-            height: 42,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
               color: pillBg,
               borderRadius: BorderRadius.circular(999),
@@ -51,6 +52,7 @@ class M3EPostActionBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
+                  visualDensity: VisualDensity.compact,
                   icon: Icon(
                     Icons.arrow_upward_rounded,
                     size: 20,
@@ -63,18 +65,22 @@ class M3EPostActionBar extends StatelessWidget {
                     onVote?.call(voteState == 1 ? 0 : 1);
                   },
                 ),
-                Text(
-                  _formatNumber(score + voteState),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: voteState == 1
-                        ? const Color(0xFFFF5722)
-                        : (voteState == -1
-                            ? colorScheme.error
-                            : colorScheme.onSurface),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    _formatCount(score + voteState),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: voteState == 1
+                          ? const Color(0xFFFF5722)
+                          : (voteState == -1
+                              ? colorScheme.error
+                              : colorScheme.onSurface),
+                    ),
                   ),
                 ),
                 IconButton(
+                  visualDensity: VisualDensity.compact,
                   icon: Icon(
                     Icons.arrow_downward_rounded,
                     size: 20,
@@ -92,7 +98,7 @@ class M3EPostActionBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
 
-          // 2. Comment Count Pill [ 💬 count ]
+          // 2. Comment Count Capsule
           Expanded(
             child: InkWell(
               onTap: () {
@@ -101,7 +107,7 @@ class M3EPostActionBar extends StatelessWidget {
               },
               borderRadius: BorderRadius.circular(999),
               child: Container(
-                height: 42,
+                height: 44,
                 decoration: BoxDecoration(
                   color: pillBg,
                   borderRadius: BorderRadius.circular(999),
@@ -111,10 +117,10 @@ class M3EPostActionBar extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.chat_bubble_outline_rounded,
-                        size: 18, color: colorScheme.onSurfaceVariant),
-                    const SizedBox(width: 6),
+                        size: 19, color: colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 8),
                     Text(
-                      _formatNumber(commentCount),
+                      _formatCount(commentCount),
                       style: theme.textTheme.labelMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: colorScheme.onSurface,
@@ -127,7 +133,7 @@ class M3EPostActionBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
 
-          // 3. Bookmark Pill [ 🔖 ]
+          // 3. Bookmark Pill
           InkWell(
             onTap: () {
               HapticFeedback.selectionClick();
@@ -135,8 +141,8 @@ class M3EPostActionBar extends StatelessWidget {
             },
             borderRadius: BorderRadius.circular(999),
             child: Container(
-              height: 42,
-              width: 50,
+              height: 44,
+              width: 52,
               decoration: BoxDecoration(
                 color: pillBg,
                 borderRadius: BorderRadius.circular(999),
@@ -151,7 +157,7 @@ class M3EPostActionBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
 
-          // 4. Share Pill [ ↗️ ]
+          // 4. Smooth Curved Share Pill
           InkWell(
             onTap: () {
               HapticFeedback.selectionClick();
@@ -159,15 +165,18 @@ class M3EPostActionBar extends StatelessWidget {
             },
             borderRadius: BorderRadius.circular(999),
             child: Container(
-              height: 42,
-              width: 50,
+              height: 44,
+              width: 52,
               decoration: BoxDecoration(
                 color: pillBg,
                 borderRadius: BorderRadius.circular(999),
               ),
               alignment: Alignment.center,
-              child: Icon(Icons.arrow_outward_rounded,
-                  size: 20, color: colorScheme.onSurfaceVariant),
+              child: Icon(
+                Icons.shortcut_rounded,
+                size: 22,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],
