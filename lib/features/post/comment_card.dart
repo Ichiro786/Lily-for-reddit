@@ -76,12 +76,12 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
     final colorScheme = theme.colorScheme;
     final hasDepth = widget.depth > 0;
 
-    // Distinct card surface that pops on top of AMOLED pure black.
-    final cardSurfaceColor = colorScheme.surfaceContainer.withValues(alpha: 0.95);
+    // Distinct dark charcoal (#16161C) that cleanly contrasts against #000000 AMOLED black.
+    const cardSurfaceColor = Color(0xFF16161C);
 
     return Padding(
       padding: EdgeInsets.only(
-        left: hasDepth ? (widget.depth * 14.0).clamp(14.0, 48.0) : 12.0,
+        left: hasDepth ? (widget.depth * 16.0).clamp(16.0, 48.0) : 12.0,
         right: 12.0,
         top: 4.0,
         bottom: 4.0,
@@ -89,7 +89,7 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 3.5dp vibrant multi-color depth rail.
+          // 3.5dp vibrant multi-color depth rail for nested replies.
           if (hasDepth)
             Container(
               key: ValueKey<String>('comment-depth-rail-${widget.depth}'),
@@ -108,7 +108,7 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                 color: cardSurfaceColor,
                 borderRadius: BorderRadius.circular(20),
               ),
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -133,18 +133,14 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'u/${widget.author}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: widget.isOp
-                                  ? colorScheme.primary
-                                  : colorScheme.onSurface,
-                            ),
+                        Text(
+                          'u/${widget.author}',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: widget.isOp
+                                ? const Color(0xFFA78BFA)
+                                : colorScheme.onSurface,
                           ),
                         ),
                         if (widget.isOp) ...[
@@ -153,13 +149,14 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
-                              color: colorScheme.primary.withValues(alpha: 0.2),
+                              color:
+                                  const Color(0xFFA78BFA).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(
+                            child: const Text(
                               'OP',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: colorScheme.primary,
+                              style: TextStyle(
+                                color: Color(0xFFA78BFA),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 10,
                               ),
@@ -170,24 +167,26 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                         Text(
                           '· ${widget.timeAgo}',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                            color: colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.7),
                             fontSize: 12,
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        const Spacer(),
                         if (widget.isCollapsed && widget.replyCount > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: colorScheme.surfaceContainerHighest,
+                              color: const Color(0xFF22222A),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
                               '+${widget.replyCount}',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: colorScheme.primary,
+                              style: const TextStyle(
+                                color: Color(0xFFA78BFA),
                                 fontWeight: FontWeight.bold,
+                                fontSize: 11,
                               ),
                             ),
                           ),
@@ -208,9 +207,10 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Bottom action controls.
+                    // Blueprint-aligned action controls.
                     Row(
                       children: [
+                        // 1. Upvote.
                         InkWell(
                           onTap: () {
                             HapticFeedback.selectionClick();
@@ -238,6 +238,7 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                             ),
                           ),
                         ),
+                        // 2. Downvote.
                         InkWell(
                           onTap: () {
                             HapticFeedback.selectionClick();
@@ -253,7 +254,9 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                                 : colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 14),
+
+                        // 3. Reply action, left-aligned next to votes.
                         InkWell(
                           onTap: widget.onReply,
                           child: Row(
@@ -272,7 +275,18 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                             ],
                           ),
                         ),
+                        const SizedBox(width: 14),
+
+                        // 4. Overflow action, grouped left next to Reply.
+                        InkWell(
+                          onTap: widget.onOverflow,
+                          child: Icon(Icons.more_horiz_rounded,
+                              size: 18, color: colorScheme.onSurfaceVariant),
+                        ),
+
                         const Spacer(),
+
+                        // 5. Save bookmark, right-aligned.
                         InkWell(
                           onTap: () {
                             setState(() => _isSaved = !_isSaved);
@@ -284,20 +298,16 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                                 : Icons.bookmark_outline_rounded,
                             size: 18,
                             color: _isSaved
-                                ? colorScheme.primary
+                                ? const Color(0xFFA78BFA)
                                 : colorScheme.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(width: 12),
+
+                        // 6. Award / badge action, right-aligned.
                         InkWell(
                           onTap: widget.onAward,
                           child: Icon(Icons.military_tech_outlined,
-                              size: 18, color: colorScheme.onSurfaceVariant),
-                        ),
-                        const SizedBox(width: 12),
-                        InkWell(
-                          onTap: widget.onOverflow,
-                          child: Icon(Icons.more_horiz_rounded,
                               size: 18, color: colorScheme.onSurfaceVariant),
                         ),
                       ],
@@ -307,7 +317,7 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                   // Nested expansion pill.
                   if (widget.replyCount > 0 &&
                       widget.onLoadMoreReplies != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     InkWell(
                       onTap: widget.onLoadMoreReplies,
                       borderRadius: BorderRadius.circular(999),
@@ -315,7 +325,7 @@ class _M3ECommentCardState extends State<M3ECommentCard> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
+                          color: const Color(0xFF22222A),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Row(
