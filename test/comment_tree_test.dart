@@ -86,7 +86,7 @@ void main() {
     await tester.tap(find.text('u/alice'));
     await tester.pumpAndSettle();
     expect(collapsed, isTrue);
-    expect(find.text('Expanded comment body'), findsOneWidget);
+    expect(find.text('Expanded comment body'), findsNothing);
     expect(find.text('+2'), findsOneWidget);
 
     await tester.tap(find.text('u/alice'));
@@ -118,6 +118,7 @@ void main() {
     expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
     await tester.tap(find.text('Reply'));
     await tester.tap(find.byIcon(Icons.bookmark_outline_rounded));
+    await tester.pump();
     expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
     expect(replies, 1);
