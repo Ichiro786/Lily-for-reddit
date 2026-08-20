@@ -1,0 +1,6 @@
+{
+  "name": "Lily for Reddit",
+  "description": "A Material 3 Expressive Reddit client featuring frontpage and 'For You' feeds, subreddit explorer, nested comments, media viewer, inbox, and custom feeds.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
