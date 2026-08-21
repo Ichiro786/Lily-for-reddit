@@ -173,7 +173,7 @@ void main() {
   });
 
   testWidgets('action bar remains inside a narrow phone width', (tester) async {
-    var exception;
+    Object? exception;
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.dark(null),
