@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/shape_tokens.dart';
 
 class M3EPostActionBar extends StatelessWidget {
   final int score;
@@ -40,103 +41,101 @@ class M3EPostActionBar extends StatelessWidget {
     final voteColors = theme.extension<VoteColors>();
     final upvoteColor = voteColors?.up ?? colorScheme.primary;
     final downvoteColor = voteColors?.down ?? colorScheme.error;
+    final gaps = <Widget>[];
+
+    void addGap() {
+      if (gaps.isNotEmpty) gaps.add(const SizedBox(width: 6));
+    }
+
+    addGap();
+    gaps.add(
+      _VoteGroup(
+        score: _formatCount(score + voteState),
+        voteState: voteState,
+        upvoteColor: upvoteColor,
+        downvoteColor: downvoteColor,
+        onUpvote: () {
+          HapticFeedback.selectionClick();
+          onVote?.call(voteState == 1 ? 0 : 1);
+        },
+        onDownvote: () {
+          HapticFeedback.selectionClick();
+          onVote?.call(voteState == -1 ? 0 : -1);
+        },
+      ),
+    );
+    addGap();
+    gaps.add(
+      _CompactAction(
+        semanticsLabel: '${_formatCount(commentCount)} comments',
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onCommentTap?.call();
+        },
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+            const SizedBox(width: 4),
+            Text(
+              _formatCount(commentCount),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    addGap();
+    gaps.add(
+      _CompactAction(
+        semanticsLabel: 'Share',
+        circular: true,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onShareTap?.call();
+        },
+        child: const Icon(Icons.shortcut_rounded, size: 19),
+      ),
+    );
+    addGap();
+    gaps.add(
+      _CompactAction(
+        semanticsLabel: isSaved ? 'Unsave' : 'Save',
+        circular: true,
+        foregroundColor:
+            isSaved ? colorScheme.primary : colorScheme.onSurfaceVariant,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onSaveTap?.call();
+        },
+        child: Icon(
+          isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+          size: 19,
+        ),
+      ),
+    );
+    if (onMoreTap != null) {
+      addGap();
+      gaps.add(
+        _CompactAction(
+          semanticsLabel: 'More options',
+          circular: true,
+          onTap: onMoreTap!,
+          child: const Icon(Icons.more_horiz_rounded, size: 19),
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // The header still exposes More on very compact widths. Omitting the
-          // duplicate row action there keeps the interaction bar overflow-free.
-          final showMore = onMoreTap != null && constraints.maxWidth >= 300;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                flex: 3,
-                child: _VoteGroup(
-                  score: _formatCount(score + voteState),
-                  voteState: voteState,
-                  upvoteColor: upvoteColor,
-                  downvoteColor: downvoteColor,
-                  onUpvote: () {
-                    HapticFeedback.selectionClick();
-                    onVote?.call(voteState == 1 ? 0 : 1);
-                  },
-                  onDownvote: () {
-                    HapticFeedback.selectionClick();
-                    onVote?.call(voteState == -1 ? 0 : -1);
-                  },
-                ),
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: _CompactAction(
-                  tooltip: 'Open comments',
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onCommentTap?.call();
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          _formatCount(commentCount),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: _CompactAction(
-                  tooltip: 'Share post',
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onShareTap?.call();
-                  },
-                  child: const Icon(Icons.shortcut_rounded, size: 19),
-                ),
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: _CompactAction(
-                  tooltip: isSaved ? 'Unsave post' : 'Save post',
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onSaveTap?.call();
-                  },
-                  foregroundColor:
-                      isSaved ? colorScheme.primary : colorScheme.onSurfaceVariant,
-                  child: Icon(
-                    isSaved
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_outline_rounded,
-                    size: 19,
-                  ),
-                ),
-              ),
-              if (showMore) ...[
-                const SizedBox(width: 5),
-                Expanded(
-                  child: _CompactAction(
-                    tooltip: 'Post options',
-                    onTap: onMoreTap!,
-                    child: const Icon(Icons.more_horiz_rounded, size: 19),
-                  ),
-                ),
-              ],
-            ],
-          );
-        },
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(children: gaps),
       ),
     );
   }
@@ -170,7 +169,7 @@ class _VoteGroup extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHigh.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: ShapeTokens.full,
         border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.3)),
       ),
       child: Row(
@@ -182,7 +181,8 @@ class _VoteGroup extends StatelessWidget {
             color: voteState == 1 ? upvoteColor : cs.onSurfaceVariant,
             onPressed: onUpvote,
           ),
-          Flexible(
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 24, maxWidth: 76),
             child: Text(
               score,
               maxLines: 1,
@@ -234,41 +234,46 @@ class _VoteIcon extends StatelessWidget {
 
 class _CompactAction extends StatelessWidget {
   const _CompactAction({
-    required this.tooltip,
+    required this.semanticsLabel,
     required this.onTap,
     required this.child,
+    this.circular = false,
     this.foregroundColor,
   });
 
-  final String tooltip;
+  final String semanticsLabel;
   final VoidCallback onTap;
   final Widget child;
+  final bool circular;
   final Color? foregroundColor;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final shape = circular
+        ? const CircleBorder()
+        : RoundedRectangleBorder(borderRadius: ShapeTokens.small);
     return Semantics(
       button: true,
-      label: tooltip,
+      label: semanticsLabel,
       child: Material(
         color: cs.surfaceContainerLow.withValues(alpha: 0.72),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.24)),
-        ),
+        shape: shape,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: SizedBox(
-            height: 40,
-            child: Center(
-              child: IconTheme(
-                data: IconThemeData(
-                  color: foregroundColor ?? cs.onSurfaceVariant,
-                  size: 19,
+          customBorder: shape,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Center(
+                child: IconTheme(
+                  data: IconThemeData(
+                    color: foregroundColor ?? cs.onSurfaceVariant,
+                    size: 19,
+                  ),
+                  child: child,
                 ),
-                child: child,
               ),
             ),
           ),

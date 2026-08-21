@@ -198,6 +198,30 @@ void main() {
     expect(find.byIcon(Icons.bookmark_outline_rounded), findsOneWidget);
   });
 
+  testWidgets('action controls expose readable semantics and More callback',
+      (tester) async {
+    var more = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(null),
+        home: Scaffold(
+          body: M3EPostActionBar(
+            score: 3700,
+            commentCount: 148,
+            onCommentTap: () {},
+            onSaveTap: () {},
+            onShareTap: () {},
+            onMoreTap: () => more++,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.bySemanticsLabel('148 comments'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+    expect(more, 1);
+  });
+
   testWidgets('post media uses the model aspect ratio instead of a fixed height',
       (tester) async {
     await tester.pumpWidget(_postHarness(display: PostDisplay.card));
@@ -222,6 +246,30 @@ void main() {
 
     final ratio = tester.widget<AspectRatio>(find.byType(AspectRatio).first);
     expect(ratio.aspectRatio, closeTo(4 / 3, 0.001));
+  });
+
+  testWidgets('very tall media gets an intentional full-view affordance',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsControllerProvider
+              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.card))),
+          interactionVaultProvider.overrideWith(_TestInteractionVault.new),
+          historyContainsProvider.overrideWith((ref, id) => false),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(null, amoled: true),
+          home: Scaffold(
+            body: PostCard(post: _imagePost(width: 300, height: 2400)),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('View full'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('settings switch between full and compact card layouts',

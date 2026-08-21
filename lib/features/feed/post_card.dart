@@ -718,10 +718,17 @@ class _PostCardState extends ConsumerState<PostCard> {
   Widget _mediaPreview(ColorScheme cs) {
     final p = widget.post;
     final url = p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+    final rawAspect = p.previewWidth != null &&
+            p.previewHeight != null &&
+            p.previewWidth! > 0 &&
+            p.previewHeight! > 0
+        ? p.previewWidth! / p.previewHeight!
+        : 16 / 9;
     final renderAspect = boundedMediaAspectRatio(
       width: p.previewWidth,
       height: p.previewHeight,
     );
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.72;
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth =
         (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
@@ -741,7 +748,8 @@ class _PostCardState extends ConsumerState<PostCard> {
           borderRadius: ShapeTokens.large,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final height = constraints.maxWidth / renderAspect;
+              final naturalHeight = constraints.maxWidth / renderAspect;
+              final height = naturalHeight > maxHeight ? maxHeight : naturalHeight;
               return InlineVideo(
                 key: ValueKey('iv_${p.id}'),
                 url: videoUrl,
@@ -754,55 +762,74 @@ class _PostCardState extends ConsumerState<PostCard> {
         ),
       );
     }
+
+    Widget mediaStack(bool capped) => Stack(
+          fit: StackFit.expand,
+          children: [
+            if (url != null)
+              CachedNetworkImage(
+                imageUrl: url,
+                memCacheWidth: cacheWidth,
+                memCacheHeight: cacheHeight,
+                fit: BoxFit.contain,
+                alignment: Alignment.center,
+                placeholder: (_, __) =>
+                    Container(color: cs.surfaceContainerHighest),
+                errorWidget: (_, __, ___) => Container(
+                  color: cs.surfaceContainerHighest,
+                  child: Icon(Icons.broken_image_outlined,
+                      color: cs.onSurfaceVariant),
+                ),
+              )
+            else
+              Container(color: cs.surfaceContainerHighest),
+            if (p.type == PostType.video)
+              const Center(child: _PlayBadge()),
+            if (p.type == PostType.gallery)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _Pill(
+                    icon: Icons.collections_rounded,
+                    label: '${p.gallery.length}'),
+              ),
+            if (p.type == PostType.gif)
+              const Positioned(top: 8, left: 8, child: _Pill(label: 'GIF')),
+            if (p.type == PostType.video)
+              const Positioned(
+                bottom: 8,
+                right: 8,
+                child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
+              ),
+            if (capped)
+              Positioned(
+                left: 8,
+                bottom: 8,
+                child: _Pill(
+                  icon: Icons.open_in_full_rounded,
+                  label: 'View full',
+                ),
+              ),
+          ],
+        );
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: ClipRRect(
         borderRadius: ShapeTokens.large,
         child: GestureDetector(
           onTap: _openMedia,
-          child: AspectRatio(
-            aspectRatio: renderAspect,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (url != null)
-                  CachedNetworkImage(
-                    imageUrl: url,
-                    memCacheWidth: cacheWidth,
-                    memCacheHeight: cacheHeight,
-                    fit: BoxFit.contain,
-                    alignment: Alignment.center,
-                    placeholder: (_, __) =>
-                        Container(color: cs.surfaceContainerHighest),
-                    errorWidget: (_, __, ___) => Container(
-                      color: cs.surfaceContainerHighest,
-                      child: Icon(Icons.broken_image_outlined,
-                          color: cs.onSurfaceVariant),
-                    ),
-                  )
-                else
-                  Container(color: cs.surfaceContainerHighest),
-                if (p.type == PostType.video)
-                  const Center(child: _PlayBadge()),
-                if (p.type == PostType.gallery)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: _Pill(
-                        icon: Icons.collections_rounded,
-                        label: '${p.gallery.length}'),
-                  ),
-                if (p.type == PostType.gif)
-                  const Positioned(
-                      top: 8, left: 8, child: _Pill(label: 'GIF')),
-                if (p.type == PostType.video)
-                  const Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
-                  ),
-              ],
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final naturalHeight = constraints.maxWidth / renderAspect;
+              final capped = naturalHeight > maxHeight || rawAspect < 0.4;
+              final height = capped ? maxHeight : naturalHeight;
+              return SizedBox(
+                width: double.infinity,
+                height: height,
+                child: mediaStack(capped),
+              );
+            },
           ),
         ),
       ),
