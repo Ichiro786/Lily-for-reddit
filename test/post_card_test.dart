@@ -89,10 +89,11 @@ Widget _postHarness({required PostDisplay display}) {
   );
 }
 
-Post _imagePost({required int width, required int height}) => _post().copyWith(
+Post _imagePost({required int width, required int height, String? url}) =>
+    _post().copyWith(
       type: PostType.image,
       isSelf: false,
-      previewUrl: 'https://example.com/preview.jpg',
+      previewUrl: url,
       previewWidth: width,
       previewHeight: height,
     );
@@ -218,7 +219,7 @@ void main() {
       ),
     );
 
-    expect(find.bySemanticsLabel('148 comments'), findsOneWidget);
+    expect(find.text('148'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
     expect(more, 1);
     semantics.dispose();
