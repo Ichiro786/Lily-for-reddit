@@ -12,6 +12,7 @@ class M3EPostActionBar extends StatelessWidget {
   final VoidCallback? onCommentTap;
   final VoidCallback? onSaveTap;
   final VoidCallback? onShareTap;
+  final VoidCallback? onMoreTap;
 
   const M3EPostActionBar({
     super.key,
@@ -23,6 +24,7 @@ class M3EPostActionBar extends StatelessWidget {
     this.onCommentTap,
     this.onSaveTap,
     this.onShareTap,
+    this.onMoreTap,
   });
 
   String _formatCount(int number) {
@@ -38,153 +40,239 @@ class M3EPostActionBar extends StatelessWidget {
     final voteColors = theme.extension<VoteColors>();
     final upvoteColor = voteColors?.up ?? colorScheme.primary;
     final downvoteColor = voteColors?.down ?? colorScheme.error;
-    // Distinct dark tonal surface for action capsules.
-    final pillBg = colorScheme.surfaceContainerHighest.withValues(alpha: 0.55);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          // 1. Upvote / Score / Downvote Capsule
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            decoration: BoxDecoration(
-              color: pillBg,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(
-                    Icons.arrow_upward_rounded,
-                    size: 20,
-                    color: voteState == 1
-                        ? upvoteColor
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                  onPressed: () {
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // The header still exposes More on very compact widths. Omitting the
+          // duplicate row action there keeps the interaction bar overflow-free.
+          final showMore = onMoreTap != null && constraints.maxWidth >= 300;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                flex: 3,
+                child: _VoteGroup(
+                  score: _formatCount(score + voteState),
+                  voteState: voteState,
+                  upvoteColor: upvoteColor,
+                  downvoteColor: downvoteColor,
+                  onUpvote: () {
                     HapticFeedback.selectionClick();
                     onVote?.call(voteState == 1 ? 0 : 1);
                   },
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Text(
-                    _formatCount(score + voteState),
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: voteState == 1
-                          ? upvoteColor
-                          : (voteState == -1
-                              ? downvoteColor
-                              : colorScheme.onSurface),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(
-                    Icons.arrow_downward_rounded,
-                    size: 20,
-                    color: voteState == -1
-                        ? downvoteColor
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                  onPressed: () {
+                  onDownvote: () {
                     HapticFeedback.selectionClick();
                     onVote?.call(voteState == -1 ? 0 : -1);
                   },
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // 2. Comment Count Capsule
-          Expanded(
-            child: InkWell(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onCommentTap?.call();
-              },
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                height: 44,
-                decoration: BoxDecoration(
-                  color: pillBg,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.chat_bubble_outline_rounded,
-                        size: 19, color: colorScheme.onSurfaceVariant),
-                    const SizedBox(width: 8),
-                    Text(
-                      _formatCount(commentCount),
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _CompactAction(
+                  tooltip: 'Open comments',
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onCommentTap?.call();
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          _formatCount(commentCount),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _CompactAction(
+                  tooltip: 'Share post',
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onShareTap?.call();
+                  },
+                  child: const Icon(Icons.shortcut_rounded, size: 19),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _CompactAction(
+                  tooltip: isSaved ? 'Unsave post' : 'Save post',
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onSaveTap?.call();
+                  },
+                  foregroundColor:
+                      isSaved ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                  child: Icon(
+                    isSaved
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_outline_rounded,
+                    size: 19,
+                  ),
+                ),
+              ),
+              if (showMore) ...[
+                const SizedBox(width: 5),
+                Expanded(
+                  child: _CompactAction(
+                    tooltip: 'Post options',
+                    onTap: onMoreTap!,
+                    child: const Icon(Icons.more_horiz_rounded, size: 19),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _VoteGroup extends StatelessWidget {
+  const _VoteGroup({
+    required this.score,
+    required this.voteState,
+    required this.upvoteColor,
+    required this.downvoteColor,
+    required this.onUpvote,
+    required this.onDownvote,
+  });
+
+  final String score;
+  final int voteState;
+  final Color upvoteColor;
+  final Color downvoteColor;
+  final VoidCallback onUpvote;
+  final VoidCallback onDownvote;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final scoreColor = voteState == 1
+        ? upvoteColor
+        : (voteState == -1 ? downvoteColor : cs.onSurface);
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHigh.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _VoteIcon(
+            tooltip: 'Upvote',
+            icon: Icons.arrow_upward_rounded,
+            color: voteState == 1 ? upvoteColor : cs.onSurfaceVariant,
+            onPressed: onUpvote,
+          ),
+          Flexible(
+            child: Text(
+              score,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: scoreColor,
+                  ),
             ),
           ),
-          const SizedBox(width: 8),
-
-          // 3. Bookmark Pill
-          InkWell(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onSaveTap?.call();
-            },
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              height: 44,
-              width: 52,
-              decoration: BoxDecoration(
-                color: pillBg,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                size: 20,
-                color: isSaved ? colorScheme.primary : colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // 4. Smooth Curved Share Pill
-          InkWell(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onShareTap?.call();
-            },
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              height: 44,
-              width: 52,
-              decoration: BoxDecoration(
-                color: pillBg,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.shortcut_rounded,
-                size: 22,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
+          _VoteIcon(
+            tooltip: 'Downvote',
+            icon: Icons.arrow_downward_rounded,
+            color: voteState == -1 ? downvoteColor : cs.onSurfaceVariant,
+            onPressed: onDownvote,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _VoteIcon extends StatelessWidget {
+  const _VoteIcon({
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18, color: color),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _CompactAction extends StatelessWidget {
+  const _CompactAction({
+    required this.tooltip,
+    required this.onTap,
+    required this.child,
+    this.foregroundColor,
+  });
+
+  final String tooltip;
+  final VoidCallback onTap;
+  final Widget child;
+  final Color? foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: Material(
+        color: cs.surfaceContainerLow.withValues(alpha: 0.72),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.24)),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(
+            height: 40,
+            child: Center(
+              child: IconTheme(
+                data: IconThemeData(
+                  color: foregroundColor ?? cs.onSurfaceVariant,
+                  size: 19,
+                ),
+                child: child,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

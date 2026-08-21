@@ -435,7 +435,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     );
   }
 
-  /// Full-card presentation with a shorter media banner for faster scanning.
+  /// Full-card presentation with content-driven media height.
   Widget _cardsCard(BuildContext context) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
@@ -462,7 +462,7 @@ class _PostCardState extends ConsumerState<PostCard> {
               _flair(cs, p.linkFlairText!),
             ],
             const SizedBox(height: 12),
-            _bannerMedia(cs, 180),
+            _media(cs),
             if (p.isSelf && p.selftext.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
@@ -516,103 +516,6 @@ class _PostCardState extends ConsumerState<PostCard> {
         settingsControllerProvider.select((s) => s.midResThumbnails));
     if (!midResThumbnails) return p.previewUrl;
     return p.previewMedUrl ?? p.thumbnailUrl ?? p.previewUrl;
-  }
-
-  Widget _bannerMedia(ColorScheme cs, double height) {
-    final p = widget.post;
-    if (p.type == PostType.self) return const SizedBox.shrink();
-    if (p.type == PostType.link) return _linkPreview(cs);
-    final blurNsfw =
-        ref.watch(settingsControllerProvider.select((s) => s.blurNsfw));
-    final blur = (p.over18 && blurNsfw) || p.spoiler;
-    if (p.type == PostType.gallery && p.gallery.isNotEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: NsfwBlur(
-          blur: blur,
-          child: GalleryCarousel(
-              images: p.gallery, title: p.title, height: height),
-        ),
-      );
-    }
-    final url =
-        _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final cacheWidth =
-        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
-    final cacheHeight = (height * dpr).round().clamp(1, 1080).toInt();
-    // Inline autoplay for videos (when enabled and not NSFW-blurred).
-    if (p.type == PostType.video &&
-        !blur &&
-        ref.watch(settingsControllerProvider.select((s) => s.autoplayMedia))) {
-      final vurl = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
-      if (vurl.isNotEmpty && !vurl.toLowerCase().endsWith('.gif')) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: ClipRRect(
-            borderRadius: ShapeTokens.large,
-            child: InlineVideo(
-              key: ValueKey('iv_${p.id}'),
-              url: vurl,
-              poster: url,
-              height: height,
-              onTap: _openMedia,
-            ),
-          ),
-        );
-      }
-    }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: NsfwBlur(
-        blur: blur,
-        child: ClipRRect(
-          borderRadius: ShapeTokens.large,
-          child: GestureDetector(
-            onTap: _openMedia,
-            child: SizedBox(
-              height: height,
-              width: double.infinity,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (url != null)
-                    CachedNetworkImage(
-                      imageUrl: url,
-                      memCacheWidth: cacheWidth,
-                      memCacheHeight: cacheHeight,
-                      fit: BoxFit.cover,
-                    alignment: Alignment.topCenter,
-                      placeholder: (_, __) =>
-                          Container(color: cs.surfaceContainerHighest),
-                      errorWidget: (_, __, ___) =>
-                          Container(color: cs.surfaceContainerHighest),
-                    )
-                  else
-                    Container(color: cs.surfaceContainerHighest),
-                  if (p.type == PostType.video)
-                    const Center(child: _PlayBadge()),
-                  if (p.type == PostType.gallery)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: _Pill(
-                          icon: Icons.collections_rounded,
-                          label: '${p.gallery.length}'),
-                    ),
-                if (p.type == PostType.video)
-                  const Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   /// Small square thumbnail for compact / mini layouts (null if no media).
@@ -824,6 +727,33 @@ class _PostCardState extends ConsumerState<PostCard> {
         (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
     final cacheHeight =
         (cacheWidth / renderAspect).ceil().clamp(1, 1080).toInt();
+    final autoplay = ref.watch(
+      settingsControllerProvider.select((s) => s.autoplayMedia),
+    );
+    final videoUrl = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
+    if (p.type == PostType.video &&
+        autoplay &&
+        videoUrl.isNotEmpty &&
+        !videoUrl.toLowerCase().endsWith('.gif')) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: ClipRRect(
+          borderRadius: ShapeTokens.large,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final height = constraints.maxWidth / renderAspect;
+              return InlineVideo(
+                key: ValueKey('iv_${p.id}'),
+                url: videoUrl,
+                poster: url,
+                height: height,
+                onTap: _openMedia,
+              );
+            },
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: ClipRRect(
@@ -840,8 +770,8 @@ class _PostCardState extends ConsumerState<PostCard> {
                     imageUrl: url,
                     memCacheWidth: cacheWidth,
                     memCacheHeight: cacheHeight,
-                    fit: BoxFit.cover,
-                    alignment: Alignment.topCenter,
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
                     placeholder: (_, __) =>
                         Container(color: cs.surfaceContainerHighest),
                     errorWidget: (_, __, ___) => Container(
@@ -961,6 +891,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       onSaveTap: _toggleSave,
       onShareTap: () =>
           shareUrl(context, widget.post.url, subject: widget.post.title),
+      onMoreTap: _showPostMenu,
     );
   }
 }

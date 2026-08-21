@@ -89,6 +89,14 @@ Widget _postHarness({required PostDisplay display}) {
   );
 }
 
+Post _imagePost({required int width, required int height}) => _post().copyWith(
+      type: PostType.image,
+      isSelf: false,
+      previewUrl: 'https://example.com/preview.jpg',
+      previewWidth: width,
+      previewHeight: height,
+    );
+
 void main() {
   test('feed media bounds preserve portrait and landscape safety limits', () {
     expect(
@@ -162,6 +170,58 @@ void main() {
     expect(upvotes, 1);
     expect(downvotes, 1);
     expect(saves, 1);
+  });
+
+  testWidgets('action bar remains inside a narrow phone width', (tester) async {
+    var exception;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(null),
+        home: Scaffold(
+          body: SizedBox(
+            width: 240,
+            child: M3EPostActionBar(
+              score: 1234567,
+              commentCount: 987654,
+              onCommentTap: () {},
+              onSaveTap: () {},
+              onShareTap: () {},
+              onMoreTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    exception = tester.takeException();
+    expect(exception, isNull);
+    expect(find.byIcon(Icons.shortcut_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark_outline_rounded), findsOneWidget);
+  });
+
+  testWidgets('post media uses the model aspect ratio instead of a fixed height',
+      (tester) async {
+    await tester.pumpWidget(_postHarness(display: PostDisplay.card));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsControllerProvider
+              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.card))),
+          interactionVaultProvider.overrideWith(_TestInteractionVault.new),
+          historyContainsProvider.overrideWith((ref, id) => false),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(null, amoled: true),
+          home: Scaffold(
+            body: PostCard(post: _imagePost(width: 4000, height: 3000)),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final ratio = tester.widget<AspectRatio>(find.byType(AspectRatio).first);
+    expect(ratio.aspectRatio, closeTo(4 / 3, 0.001));
   });
 
   testWidgets('settings switch between full and compact card layouts',
