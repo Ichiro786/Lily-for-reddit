@@ -201,6 +201,7 @@ void main() {
   testWidgets('action controls expose readable semantics and More callback',
       (tester) async {
     var more = 0;
+    final semantics = tester.ensureSemantics();
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.dark(null),
@@ -220,6 +221,7 @@ void main() {
     expect(find.bySemanticsLabel('148 comments'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
     expect(more, 1);
+    semantics.dispose();
   });
 
   testWidgets('post media uses the model aspect ratio instead of a fixed height',
@@ -261,7 +263,11 @@ void main() {
         child: MaterialApp(
           theme: AppTheme.dark(null, amoled: true),
           home: Scaffold(
-            body: PostCard(post: _imagePost(width: 300, height: 2400)),
+            body: ListView(
+              children: [
+                PostCard(post: _imagePost(width: 300, height: 2400)),
+              ],
+            ),
           ),
         ),
       ),

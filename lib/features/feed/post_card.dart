@@ -824,10 +824,16 @@ class _PostCardState extends ConsumerState<PostCard> {
               final naturalHeight = constraints.maxWidth / renderAspect;
               final capped = naturalHeight > maxHeight || rawAspect < 0.4;
               final height = capped ? maxHeight : naturalHeight;
-              return SizedBox(
-                width: double.infinity,
-                height: height,
-                child: mediaStack(capped),
+              if (capped) {
+                return SizedBox(
+                  width: double.infinity,
+                  height: height,
+                  child: mediaStack(true),
+                );
+              }
+              return AspectRatio(
+                aspectRatio: renderAspect,
+                child: mediaStack(false),
               );
             },
           ),
