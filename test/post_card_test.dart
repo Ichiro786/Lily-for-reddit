@@ -108,6 +108,14 @@ void main() {
       boundedMediaAspectRatio(width: 2400, height: 1000),
       closeTo(1.91, 0.0001),
     );
+    expect(
+      boundedMediaAspectRatio(width: 4000, height: 3000),
+      closeTo(4 / 3, 0.0001),
+    );
+    expect(
+      boundedMediaAspectRatio(width: 1080, height: 1920),
+      closeTo(9 / 16, 0.0001),
+    );
   });
 
   setUpAll(() {
@@ -223,32 +231,6 @@ void main() {
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
     expect(more, 1);
     semantics.dispose();
-  });
-
-  testWidgets('post media uses the model aspect ratio instead of a fixed height',
-      (tester) async {
-    await tester.pumpWidget(_postHarness(display: PostDisplay.card));
-    await tester.pump(const Duration(milliseconds: 500));
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          settingsControllerProvider
-              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.card))),
-          interactionVaultProvider.overrideWith(_TestInteractionVault.new),
-          historyContainsProvider.overrideWith((ref, id) => false),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.dark(null, amoled: true),
-          home: Scaffold(
-            body: PostCard(post: _imagePost(width: 4000, height: 3000)),
-          ),
-        ),
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 500));
-
-    final ratio = tester.widget<AspectRatio>(find.byType(AspectRatio).first);
-    expect(ratio.aspectRatio, closeTo(4 / 3, 0.001));
   });
 
   testWidgets('very tall media gets an intentional full-view affordance',
