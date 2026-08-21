@@ -222,12 +222,53 @@ class _PostCardState extends ConsumerState<PostCard> {
         }
       },
       child: GestureDetector(
-        onLongPress: _showTuneSheet,
+        onLongPress: widget.post.feedReason != null
+            ? _showTuneSheet
+            : _showPostMenu,
         child: SwipeActions(
           enabled: swipeActions,
           onRight: () => _vote(1),
           onLeft: () => _vote(-1),
           child: card,
+        ),
+      ),
+    );
+  }
+
+  void _showPostMenu() {
+    final post = widget.post;
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.bookmark_add_outlined),
+              title: Text(post.saved ? 'Unsave post' : 'Save post'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _toggleSave();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.ios_share_rounded),
+              title: const Text('Share post'),
+              onTap: () {
+                Navigator.pop(ctx);
+                shareUrl(context, post.url, subject: post.title);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.open_in_new_rounded),
+              title: const Text('Open post'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openDetail();
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -328,8 +369,12 @@ class _PostCardState extends ConsumerState<PostCard> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: cs.surfaceContainer,
-        borderRadius: ShapeTokens.large,
+                      color: cs.surfaceContainer,
+              borderRadius: ShapeTokens.large,
+              border: Border.all(
+                color: cs.outlineVariant.withValues(alpha: 0.18),
+              ),
+
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(
@@ -713,7 +758,9 @@ class _PostCardState extends ConsumerState<PostCard> {
             ),
           const SizedBox(width: 2),
           IconButton(
-            onPressed: _showTuneSheet,
+            onPressed: widget.post.feedReason != null
+                ? _showTuneSheet
+                : _showPostMenu,
             tooltip: 'More actions',
             visualDensity: VisualDensity.compact,
             iconSize: 20,
@@ -727,10 +774,14 @@ class _PostCardState extends ConsumerState<PostCard> {
   Widget _flair(ColorScheme cs, String text) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest,
-            borderRadius: ShapeTokens.extraSmall),
+            color: cs.primaryContainer.withValues(alpha: 0.72),
+            borderRadius: ShapeTokens.full),
         child: Text(text,
-            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: cs.onPrimaryContainer,
+            )),
       );
 
   Widget _media(ColorScheme cs) {

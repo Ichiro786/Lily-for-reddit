@@ -155,7 +155,7 @@ class SettingsController extends Notifier<Settings> {
       useDynamicColor: p.getBool('useDynamicColor') ?? false,
       seedColor: p.getInt('seedColor') ?? AppTheme.seed.toARGB32(),
       blurNsfw: p.getBool('blurNsfw') ?? true,
-      defaultSort: PostSort.values[p.getInt('defaultSort') ?? PostSort.best.index],
+      defaultSort: PostSort.values[p.getInt('defaultSort') ?? PostSort.hot.index],
       postDisplay:
           PostDisplay.values[p.getInt('postDisplay') ?? PostDisplay.large.index],
       swipeActions: p.getBool('swipeActions') ?? true,

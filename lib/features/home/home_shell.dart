@@ -173,6 +173,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           ),
         ),
       ),
+      floatingActionButton: _index == 0
+          ? FloatingActionButton(
+              tooltip: 'Create post',
+              onPressed: () => context.push('/submit'),
+              child: const Icon(Icons.add_rounded),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: ValueListenableBuilder<bool>(
         valueListenable: _chrome,
         builder: (_, visible, __) => M3EFloatingNavBar(
@@ -385,7 +393,10 @@ class _FrontpageTab extends ConsumerWidget {
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                        ?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                        ),
                   ),
                   if (forYou) ...[
                     const SizedBox(width: 8),
@@ -402,7 +413,7 @@ class _FrontpageTab extends ConsumerWidget {
                   if (expandable)
                     IconButton(
                       tooltip: 'Toolbar',
-                      icon: const Icon(Icons.more_horiz_rounded),
+                      icon: const Icon(Icons.more_vert_rounded),
                       onPressed: () =>
                           _showFloatingToolbar(context, ref, username),
                     ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/theme/app_theme.dart';
+
 class M3EPostActionBar extends StatelessWidget {
   final int score;
   final int commentCount;
@@ -33,6 +35,9 @@ class M3EPostActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final voteColors = theme.extension<VoteColors>();
+    final upvoteColor = voteColors?.up ?? colorScheme.primary;
+    final downvoteColor = voteColors?.down ?? colorScheme.error;
     // Distinct dark tonal surface for action capsules.
     final pillBg = colorScheme.surfaceContainerHighest.withValues(alpha: 0.55);
 
@@ -57,7 +62,7 @@ class M3EPostActionBar extends StatelessWidget {
                     Icons.arrow_upward_rounded,
                     size: 20,
                     color: voteState == 1
-                        ? const Color(0xFFFF5722)
+                        ? upvoteColor
                         : colorScheme.onSurfaceVariant,
                   ),
                   onPressed: () {
@@ -72,9 +77,9 @@ class M3EPostActionBar extends StatelessWidget {
                     style: theme.textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: voteState == 1
-                          ? const Color(0xFFFF5722)
+                          ? upvoteColor
                           : (voteState == -1
-                              ? colorScheme.error
+                              ? downvoteColor
                               : colorScheme.onSurface),
                     ),
                   ),
@@ -85,7 +90,7 @@ class M3EPostActionBar extends StatelessWidget {
                     Icons.arrow_downward_rounded,
                     size: 20,
                     color: voteState == -1
-                        ? colorScheme.error
+                        ? downvoteColor
                         : colorScheme.onSurfaceVariant,
                   ),
                   onPressed: () {

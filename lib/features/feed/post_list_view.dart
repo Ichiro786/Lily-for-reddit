@@ -7,6 +7,7 @@ import '../../core/route_observer.dart';
 import '../../core/startup_metrics.dart';
 import '../../core/theme/shape_tokens.dart';
 import '../../core/widgets/error_view.dart';
+import '../../core/widgets/m3e_loading_indicator.dart';
 import '../../core/widgets/m3e_refresh_indicator.dart';
 import '../../data/reddit_repository.dart';
 import '../../models/post.dart';
@@ -139,6 +140,25 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                     !(p.feedReason != null && history.containsId(p.id)))
                 .toList();
           }
+          if (posts.isEmpty) {
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+              children: [
+                if (widget.header != null) widget.header!,
+                if (widget.showSortBar)
+                  _SortBar(
+                    sort: state.sort,
+                    time: state.time,
+                    onPick: notifier.changeSort,
+                    forYou: forYouFeed && widget.feedKey.isEmpty,
+                    onForYou: widget.feedKey.isEmpty
+                        ? notifier.selectForYou
+                        : null,
+                  ),
+                _EmptyFeed(onRefresh: notifier.refresh),
+              ],
+            );
+          }
           final itemCount =
               (widget.showSortBar ? 1 : 0) + posts.length + 1;
           return ListView.separated(
@@ -160,9 +180,10 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                     sort: state.sort,
                     time: state.time,
                     onPick: notifier.changeSort,
-                    isFrontpage: widget.feedKey.isEmpty,
                     forYou: forYouFeed && widget.feedKey.isEmpty,
-                    onForYou: notifier.selectForYou,
+                    onForYou: widget.feedKey.isEmpty
+                        ? notifier.selectForYou
+                        : null,
                   );
                 }
                 index -= 1;
@@ -184,7 +205,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(
                   child: state.loadingMore
-                      ? const CircularProgressIndicator()
+                      ? const M3ELoadingIndicator.small()
                       : state.hasMore
                           ? const SizedBox.shrink()
                           : Text('— end —',
@@ -222,6 +243,45 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _EmptyFeed extends StatelessWidget {
+  const _EmptyFeed({required this.onRefresh});
+
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 72, 24, 32),
+      child: Column(
+        children: [
+          Icon(Icons.inbox_rounded, size: 42, color: cs.primary),
+          const SizedBox(height: 14),
+          Text(
+            'No posts yet',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Pull to refresh or try another feed sort.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 18),
+          FilledButton.tonalIcon(
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Refresh'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -284,79 +344,115 @@ class _SortBar extends StatelessWidget {
     required this.sort,
     required this.time,
     required this.onPick,
-    this.isFrontpage = false,
     this.forYou = false,
     this.onForYou,
   });
+
   final PostSort sort;
   final TopTime time;
   final void Function(PostSort, {TopTime? time}) onPick;
-  final bool isFrontpage;
   final bool forYou;
   final VoidCallback? onForYou;
 
+  static const _frontpageSorts = <PostSort>[
+    PostSort.hot,
+    PostSort.newest,
+    PostSort.rising,
+    PostSort.top,
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final label = forYou
-        ? 'For You · Beta'
-        : (sort.needsTime ? '${sort.label} · ${time.label}' : sort.label);
+    final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-      child: Row(
-        children: [
-          ActionChip(
-            avatar: Icon(
-                forYou ? Icons.auto_awesome_rounded : Icons.sort_rounded,
-                size: 18),
-            label: Text(label),
-            onPressed: () => _showSortSheet(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSortSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
           children: [
-            if (isFrontpage && onForYou != null)
-              ListTile(
-                leading: const Icon(Icons.auto_awesome_rounded),
-                title: const Text('For You'),
-                subtitle: const Text('Personalized · Beta'),
-                trailing: forYou ? const Icon(Icons.check_rounded) : null,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  onForYou!();
-                },
+            if (onForYou != null) ...[
+              _chip(
+                context,
+                label: 'For You',
+                icon: Icons.auto_awesome_rounded,
+                selected: forYou,
+                onPressed: onForYou!,
               ),
-            for (final s in PostSort.values)
-              ListTile(
-                leading: Icon(_iconFor(s)),
-                title: Text(s.label),
-                trailing:
-                    (!forYou && s == sort) ? const Icon(Icons.check_rounded) : null,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  if (s.needsTime) {
-                    _showTimeSheet(context, s);
-                  } else {
-                    onPick(s);
-                  }
-                },
+              const SizedBox(width: 8),
+            ],
+            for (var i = 0; i < _frontpageSorts.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              _chip(
+                context,
+                label: _frontpageSorts[i].label,
+                icon: _iconFor(_frontpageSorts[i]),
+                selected: !forYou && sort == _frontpageSorts[i],
+                onPressed: () => onPick(
+                  _frontpageSorts[i],
+                  time: _frontpageSorts[i] == PostSort.top ? time : null,
+                ),
               ),
+            ],
+            if (sort == PostSort.best && !forYou) ...[
+              const SizedBox(width: 8),
+              _chip(
+                context,
+                label: 'Best',
+                icon: Icons.star_rounded,
+                selected: true,
+                onPressed: () => onPick(PostSort.best),
+              ),
+            ],
+            if (sort == PostSort.top && !forYou) ...[
+              const SizedBox(width: 8),
+              ActionChip(
+                avatar: const Icon(Icons.schedule_rounded, size: 16),
+                label: Text(time.label),
+                onPressed: () => _showTimeSheet(context),
+                backgroundColor: cs.surfaceContainerLow,
+                side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.35)),
+                shape: const StadiumBorder(),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  void _showTimeSheet(BuildContext context, PostSort s) {
+  Widget _chip(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onPressed,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return FilterChip(
+      selected: selected,
+      showCheckmark: selected,
+      onSelected: (_) => onPressed(),
+      avatar: Icon(icon, size: 16),
+      label: Text(label),
+      labelStyle: TextStyle(
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+        color: selected ? cs.onPrimary : cs.onSurface,
+      ),
+      selectedColor: cs.primary,
+      backgroundColor: cs.surfaceContainerLow,
+      checkmarkColor: cs.onPrimary,
+      side: BorderSide(
+        color: selected
+            ? cs.primary
+            : cs.outlineVariant.withValues(alpha: 0.4),
+      ),
+      shape: const StadiumBorder(),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+    );
+  }
+
+  void _showTimeSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -370,7 +466,7 @@ class _SortBar extends StatelessWidget {
                 trailing: t == time ? const Icon(Icons.check_rounded) : null,
                 onTap: () {
                   Navigator.pop(ctx);
-                  onPick(s, time: t);
+                  onPick(PostSort.top, time: t);
                 },
               ),
           ],
