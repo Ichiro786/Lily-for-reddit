@@ -413,11 +413,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 child: Center(child: Text('No comments yet')),
                               );
                             }
-                            final c = presentations[index].comment;
+                            final presentation = presentations[index];
+                            final c = presentation.comment;
                             return RepaintBoundary(
                               child: _CommentTile(
                                 key: ValueKey(c.fullname),
                                 comment: c,
+                                richBody: presentation.markdownBody,
                                 opAuthor: thread.post.author,
                                 collapsed: thread.collapsed.contains(c.id),
                                 loadingMore:
@@ -757,7 +759,9 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
               builders: {
                 'spoiler': RedditSpoilerBuilder(),
               },
-              selectable: true,
+              inlineSyntaxes: [SpoilerInlineSyntax()],
+              // Selection disabled: selectable mode ignores element builders,
+              // which would break interactive spoilers here too.
               onTapLink: (_, href, __) {
                 if (href != null) {
                   launchSmartUrl(href);
@@ -918,6 +922,7 @@ class _CommentTile extends ConsumerStatefulWidget {
   const _CommentTile({
     super.key,
     required this.comment,
+    this.richBody,
     required this.opAuthor,
     required this.collapsed,
     required this.loadingMore,
@@ -928,6 +933,10 @@ class _CommentTile extends ConsumerStatefulWidget {
   });
 
   final Comment comment;
+
+  /// Pre-rendered Markdown/spoiler body from the flattened-comment pipeline
+  /// (null when collapsed or empty).
+  final Widget? richBody;
   final String opAuthor;
   final bool collapsed;
   final bool loadingMore;
@@ -1041,6 +1050,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           author: comment.author,
           timeAgo: timeAgo(comment.created),
           body: comment.body,
+          richBody: widget.richBody,
           depth: comment.depth,
           isOp: comment.author == widget.opAuthor,
           score: _score,

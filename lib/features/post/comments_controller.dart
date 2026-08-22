@@ -3,7 +3,6 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
-import '../../core/url_launcher_helper.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import 'comment_media_helper.dart';
@@ -216,28 +215,19 @@ final flattenedCommentPresentationProvider =
 
   final out = <FlattenedComment>[];
   void walk(Comment comment) {
-    final body = commentTextWithoutMedia(comment.body);
+    final isCollapsed = thread.collapsed.contains(comment.id);
+    // Collapsed nodes hide their body entirely, so no Markdown is built for
+    // them; expanded nodes render through the shared spoiler-aware pipeline.
+    final body =
+        isCollapsed ? '' : commentTextWithoutMedia(comment.body);
     out.add(
       FlattenedComment(
         comment: comment,
-        markdownBody: body.isEmpty
-            ? null
-            : MarkdownBody(
-                data: normalizeRedditSpoilers(body),
-                builders: {
-                  'spoiler': RedditSpoilerBuilder(),
-                },
-                selectable: true,
-                styleSheet: args.$2,
-                onTapLink: (_, href, __) {
-                  if (href != null) {
-                    launchSmartUrl(href);
-                  }
-                },
-              ),
+        markdownBody:
+            body.isEmpty ? null : buildCommentMarkdownBody(body, args.$2),
       ),
     );
-    if (!comment.isMore && !thread.collapsed.contains(comment.id)) {
+    if (!comment.isMore && !isCollapsed) {
       for (final reply in comment.replies) {
         walk(reply);
       }

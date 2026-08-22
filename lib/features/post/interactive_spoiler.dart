@@ -3,6 +3,50 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../../core/theme/shape_tokens.dart';
+import '../../core/url_launcher_helper.dart';
+
+/// Turns the `<spoiler>…</spoiler>` tags produced by [normalizeRedditSpoilers]
+/// into real markdown elements, which is what lets [RedditSpoilerBuilder]
+/// replace them with an [InteractiveSpoiler] widget. Without this syntax the
+/// markdown package emits raw HTML text and the builder never fires.
+class SpoilerInlineSyntax extends md.InlineSyntax {
+  SpoilerInlineSyntax() : super(r'<spoiler>([\s\S]*?)</spoiler>');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    parser.addNode(md.Element('spoiler', [md.Text(match[1] ?? '')]));
+    return true;
+  }
+}
+
+/// The single intentional rendering path for comment Markdown.
+///
+/// Composes the existing spoiler pipeline ([normalizeRedditSpoilers] +
+/// [RedditSpoilerBuilder]) with link handling so every consumer — the
+/// flattened-comment presentation provider and tests — renders comment bodies
+/// identically instead of duplicating configuration.
+///
+/// Text selection is deliberately NOT enabled: flutter_markdown ignores
+/// element builders while building selectable spans, which would silently
+/// disable interactive spoilers. Working spoilers take priority.
+MarkdownBody buildCommentMarkdownBody(
+  String body,
+  MarkdownStyleSheet styleSheet,
+) {
+  return MarkdownBody(
+    data: normalizeRedditSpoilers(body),
+    builders: {
+      'spoiler': RedditSpoilerBuilder(),
+    },
+    inlineSyntaxes: [SpoilerInlineSyntax()],
+    styleSheet: styleSheet,
+    onTapLink: (_, href, __) {
+      if (href != null) {
+        launchSmartUrl(href);
+      }
+    },
+  );
+}
 
 class InteractiveSpoiler extends StatefulWidget {
   const InteractiveSpoiler({super.key, required this.text});

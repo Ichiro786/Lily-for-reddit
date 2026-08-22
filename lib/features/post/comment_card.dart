@@ -15,6 +15,11 @@ class M3ECommentCard extends StatelessWidget {
   final String author;
   final String timeAgo;
   final String body;
+
+  /// Pre-rendered Markdown/spoiler body from the flattened-comment pipeline.
+  /// When null (or when collapsed) [body] renders as plain text instead, so
+  /// exactly one rendering path is ever used per comment.
+  final Widget? richBody;
   final int score;
   final int voteState; // 1 = upvoted, -1 = downvoted, 0 = none
   final bool isSaved;
@@ -35,6 +40,7 @@ class M3ECommentCard extends StatelessWidget {
     required this.author,
     required this.timeAgo,
     required this.body,
+    this.richBody,
     this.score = 0,
     this.voteState = 0,
     this.isSaved = false,
@@ -210,17 +216,21 @@ class M3ECommentCard extends StatelessWidget {
                     ),
                   ),
 
-                  // Comment body text.
+                  // Comment body text — the pre-rendered Markdown/spoiler
+                  // widget when supplied, plain text otherwise.
                   if (!isCollapsed) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      body,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurface,
-                        fontSize: 14,
-                        height: 1.35,
+                    if (richBody != null)
+                      richBody!
+                    else
+                      Text(
+                        body,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontSize: 14,
+                          height: 1.35,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 10),
 
                     // Blueprint-aligned action controls.
