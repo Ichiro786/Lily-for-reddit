@@ -540,7 +540,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                 imageUrl: url,
                 memCacheWidth: cacheSize,
                 memCacheHeight: cacheSize,
-                fit: BoxFit.cover,
+                fit: BoxFit.contain,
                 placeholder: (_, __) =>
                     Container(color: cs.surfaceContainerHighest),
                 errorWidget: (_, __, ___) => Container(
@@ -735,32 +735,54 @@ class _PostCardState extends ConsumerState<PostCard> {
       settingsControllerProvider.select((s) => s.autoplayMedia),
     );
     final videoUrl = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
+
+    Widget viewFullButton() => Semantics(
+          button: true,
+          label: 'View full image',
+          child: TextButton.icon(
+            onPressed: _openMedia,
+            icon: const Icon(Icons.open_in_full_rounded, size: 16),
+            label: const Text('View full'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        );
+
     if (p.type == PostType.video &&
         autoplay &&
         videoUrl.isNotEmpty &&
         !videoUrl.toLowerCase().endsWith('.gif')) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 4),
-        child: ClipRRect(
-          borderRadius: ShapeTokens.large,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final naturalHeight = constraints.maxWidth / renderAspect;
-              final height = naturalHeight > maxHeight ? maxHeight : naturalHeight;
-              return InlineVideo(
-                key: ValueKey('iv_${p.id}'),
-                url: videoUrl,
-                poster: url,
-                height: height,
-                onTap: _openMedia,
-              );
-            },
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final naturalHeight = constraints.maxWidth / renderAspect;
+            final capped = naturalHeight > maxHeight || extremePortrait;
+            final height = capped ? maxHeight : naturalHeight;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: ShapeTokens.large,
+                  child: InlineVideo(
+                    key: ValueKey('iv_${p.id}'),
+                    url: videoUrl,
+                    poster: url,
+                    height: height,
+                    onTap: _openMedia,
+                  ),
+                ),
+                if (capped) viewFullButton(),
+              ],
+            );
+          },
         ),
       );
     }
 
-    Widget mediaStack(bool capped) => Stack(
+    Widget mediaStack() => Stack(
           fit: StackFit.expand,
           children: [
             if (url != null)
@@ -798,43 +820,39 @@ class _PostCardState extends ConsumerState<PostCard> {
                 right: 8,
                 child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
               ),
-            if (capped)
-              Positioned(
-                left: 8,
-                bottom: 8,
-                child: _Pill(
-                  icon: Icons.open_in_full_rounded,
-                  label: 'View full',
-                ),
-              ),
           ],
         );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: ClipRRect(
-        borderRadius: ShapeTokens.large,
-        child: GestureDetector(
-          onTap: _openMedia,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final naturalHeight = constraints.maxWidth / renderAspect;
-              final capped = naturalHeight > maxHeight || extremePortrait;
-              final height = capped ? maxHeight : naturalHeight;
-              if (capped) {
-                return SizedBox(
-                  width: double.infinity,
-                  height: height,
-                  child: mediaStack(true),
-                );
-              }
-              return AspectRatio(
-                aspectRatio: renderAspect,
-                child: mediaStack(false),
-              );
-            },
-          ),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final naturalHeight = constraints.maxWidth / renderAspect;
+          final capped = naturalHeight > maxHeight || extremePortrait;
+          final media = ClipRRect(
+            borderRadius: ShapeTokens.large,
+            child: GestureDetector(
+              onTap: _openMedia,
+              child: capped
+                  ? SizedBox(
+                      width: double.infinity,
+                      height: maxHeight,
+                      child: mediaStack(),
+                    )
+                  : AspectRatio(
+                      aspectRatio: renderAspect,
+                      child: mediaStack(),
+                    ),
+            ),
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              media,
+              if (capped) viewFullButton(),
+            ],
+          );
+        },
       ),
     );
   }
@@ -867,7 +885,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                         .toInt(),
                     width: 72,
                     height: 72,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     alignment: Alignment.topCenter,
                     errorWidget: (_, __, ___) =>
                         const SizedBox(width: 72, height: 72),

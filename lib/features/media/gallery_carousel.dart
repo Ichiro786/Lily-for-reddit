@@ -149,35 +149,39 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
                   ],
                 ),
               ),
-            if (capped)
-              Positioned(
-                left: 8,
-                bottom: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: colorScheme.scrim.withValues(alpha: 0.54),
-                    borderRadius: ShapeTokens.extraSmall,
-                  ),
-                  child: Text(
-                    'View full',
-                    style: TextStyle(
-                      color: colorScheme.onSurface,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
           ],
         );
 
         final viewport = widget.height == null && !capped
             ? AspectRatio(aspectRatio: aspect, child: stack)
             : SizedBox(width: double.infinity, height: displayHeight, child: stack);
-        return ClipRRect(
-          borderRadius: ShapeTokens.large,
-          child: viewport,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: ShapeTokens.large,
+              child: viewport,
+            ),
+            if (capped)
+              Semantics(
+                button: true,
+                label: 'View full gallery',
+                child: TextButton.icon(
+                  onPressed: () => openGalleryViewer(
+                    context,
+                    widget.images,
+                    title: widget.title,
+                    initialIndex: _index,
+                  ),
+                  icon: const Icon(Icons.open_in_full_rounded, size: 16),
+                  label: const Text('View full'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
