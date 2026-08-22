@@ -26,7 +26,6 @@ class SubredditScreen extends ConsumerStatefulWidget {
 
 class _SubredditScreenState extends ConsumerState<SubredditScreen> {
   bool? _subOverride;
-  bool _notificationsEnabled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -93,10 +92,6 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
       subreddit: s,
       joined: subscribed,
       onJoinToggle: () => _toggleSub(s, subscribed),
-      notificationsEnabled: _notificationsEnabled,
-      onNotificationToggle: () {
-        setState(() => _notificationsEnabled = !_notificationsEnabled);
-      },
       accessLabel: s.over18 ? '18+ public' : 'Public',
       categoryLabel: s.title.isEmpty ? 'Community' : s.title,
     );

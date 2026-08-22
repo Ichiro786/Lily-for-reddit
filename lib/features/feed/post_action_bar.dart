@@ -49,8 +49,10 @@ class M3EPostActionBar extends StatelessWidget {
 
     addGap();
     gaps.add(
+      // [score] is the effective score already adjusted by PostOverridesController;
+      // [voteState] colors the controls only and must never shift the number.
       _VoteGroup(
-        score: _formatCount(score + voteState),
+        score: _formatCount(score),
         voteState: voteState,
         upvoteColor: upvoteColor,
         downvoteColor: downvoteColor,

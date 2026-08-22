@@ -34,8 +34,6 @@ void main() {
           subreddit: _subreddit(bannerUrl: 'https://example.com/banner.jpg'),
           joined: false,
           onJoinToggle: () {},
-          notificationsEnabled: false,
-          onNotificationToggle: () {},
           onlineCount: 420,
           createdAt: DateTime.utc(2012, 3, 14),
           accessLabel: 'Public',
@@ -64,8 +62,6 @@ void main() {
           subreddit: _subreddit(),
           joined: false,
           onJoinToggle: () {},
-          notificationsEnabled: false,
-          onNotificationToggle: () {},
         ),
       ),
     );
@@ -104,26 +100,24 @@ void main() {
     expect(selected, PostSort.hot);
   });
 
-  testWidgets('join and notification capsules invoke their callbacks',
-      (tester) async {
+  testWidgets('join capsule invokes its callback', (tester) async {
+    // Intentional update (Phase 1): the notification capsule was removed —
+    // the repository exposes no Reddit API for subreddit notifications, so
+    // keeping a purely cosmetic toggle was misleading.
     var joins = 0;
-    var notifications = 0;
     await tester.pumpWidget(
       _harness(
         M3ESubredditHeader(
           subreddit: _subreddit(),
           joined: false,
           onJoinToggle: () => joins++,
-          notificationsEnabled: false,
-          onNotificationToggle: () => notifications++,
         ),
       ),
     );
 
     await tester.tap(find.text('Join'));
-    await tester.tap(find.byTooltip('Enable notifications'));
+    expect(find.byTooltip('Enable notifications'), findsNothing);
 
     expect(joins, 1);
-    expect(notifications, 1);
   });
 }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
+import '../../core/root_messenger.dart';
 import '../../core/theme/shape_tokens.dart';
 import '../../models/subreddit.dart';
 import '../history/history_store.dart';
@@ -81,7 +83,15 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             ListTile(
               leading: const Icon(Icons.link_rounded),
               title: const Text('Copy community link'),
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                Navigator.pop(context);
+                // Same URL form used by the subreddit screen's share action.
+                final url = 'https://reddit.com/r/${subreddit.name}';
+                Clipboard.setData(ClipboardData(text: url));
+                showRootSnackBar(
+                  const SnackBar(content: Text('Community link copied')),
+                );
+              },
             ),
           ],
         ),

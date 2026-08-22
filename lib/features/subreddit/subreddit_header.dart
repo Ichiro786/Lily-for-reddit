@@ -13,8 +13,6 @@ class M3ESubredditHeader extends StatefulWidget {
     required this.subreddit,
     required this.joined,
     required this.onJoinToggle,
-    required this.notificationsEnabled,
-    required this.onNotificationToggle,
     this.onlineCount,
     this.createdAt,
     this.accessLabel,
@@ -24,8 +22,6 @@ class M3ESubredditHeader extends StatefulWidget {
   final Subreddit subreddit;
   final bool joined;
   final VoidCallback onJoinToggle;
-  final bool notificationsEnabled;
-  final VoidCallback onNotificationToggle;
   final int? onlineCount;
   final DateTime? createdAt;
   final String? accessLabel;
@@ -94,16 +90,6 @@ class _M3ESubredditHeaderState extends State<M3ESubredditHeader> {
                         colorScheme: colorScheme,
                       ),
                       const Spacer(),
-                      _IconPill(
-                        icon: widget.notificationsEnabled
-                            ? Icons.notifications_active_rounded
-                            : Icons.notifications_none_rounded,
-                        tooltip: widget.notificationsEnabled
-                            ? 'Mute notifications'
-                            : 'Enable notifications',
-                        onPressed: widget.onNotificationToggle,
-                      ),
-                      const SizedBox(width: 8),
                       _JoinButton(
                         joined: widget.joined,
                         onPressed: widget.onJoinToggle,
@@ -304,35 +290,6 @@ class _JoinButton extends StatelessWidget {
           const SizedBox(width: 6),
           Text(joined ? 'Joined' : 'Join'),
         ],
-      ),
-    );
-  }
-}
-
-class _IconPill extends StatelessWidget {
-  const _IconPill({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: colorScheme.surfaceContainerHighest,
-      elevation: 1,
-      shape: const RoundedRectangleBorder(borderRadius: ShapeTokens.full),
-      clipBehavior: Clip.antiAlias,
-      child: IconButton(
-        onPressed: onPressed,
-        tooltip: tooltip,
-        icon: Icon(icon, color: colorScheme.onSurfaceVariant),
-        visualDensity: VisualDensity.compact,
       ),
     );
   }

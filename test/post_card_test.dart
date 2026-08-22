@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import 'package:luli_for_reddit/core/media_aspect_ratio.dart';
+import 'package:luli_for_reddit/core/network/reddit_client.dart';
+import 'package:luli_for_reddit/core/providers.dart';
 import 'package:luli_for_reddit/core/storage/interaction_vault.dart';
+import 'package:luli_for_reddit/core/storage/secure_store.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
 import 'package:luli_for_reddit/data/reddit_repository.dart';
+import 'package:luli_for_reddit/features/auth/auth_repository.dart';
 import 'package:luli_for_reddit/features/feed/compact_post_card.dart';
 import 'package:luli_for_reddit/features/feed/post_action_bar.dart';
 import 'package:luli_for_reddit/features/feed/post_card.dart';
@@ -18,8 +23,20 @@ class _TestInteractionVault extends InteractionVault {
   @override
   InteractionVaultState build() => const InteractionVaultState();
 
+  // In-memory only: skip persistence so tests never touch platform storage
+  // and never depend on the base class' late-initialized preference keys.
   @override
-  void recordDwell(String postId) {}
+  void recordInteraction(
+    String postId, {
+    bool? upvoted,
+    bool? saved,
+    bool? commentOpened,
+    bool? downvoted,
+    bool? dismissed,
+  }) {}
+
+  @override
+  void markSeen(String postId) {}
 }
 
 class _TestSettingsController extends SettingsController {
@@ -28,6 +45,19 @@ class _TestSettingsController extends SettingsController {
 
   @override
   Settings build() => value;
+}
+
+/// Repository stub whose network mutations succeed silently, so optimistic
+/// update paths can be exercised offline.
+class _NoopRedditRepository extends RedditRepository {
+  _NoopRedditRepository()
+      : super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
+
+  @override
+  Future<void> vote(String fullname, int dir) async {}
+
+  @override
+  Future<void> setSaved(String fullname, bool saved) async {}
 }
 
 Settings _settings(PostDisplay display) => Settings(
@@ -73,7 +103,10 @@ Post _post() => Post(
       isSelf: true,
     );
 
-Widget _postHarness({required PostDisplay display}) {
+Widget _postHarness({
+  required PostDisplay display,
+  List<Override> additionalOverrides = const [],
+}) {
   return ProviderScope(
     key: ValueKey<String>('settings-${display.name}'),
     overrides: [
@@ -81,6 +114,7 @@ Widget _postHarness({required PostDisplay display}) {
           .overrideWith(() => _TestSettingsController(_settings(display))),
       interactionVaultProvider.overrideWith(_TestInteractionVault.new),
       historyContainsProvider.overrideWith((ref, id) => false),
+      ...additionalOverrides,
     ],
     child: MaterialApp(
       theme: AppTheme.dark(null, amoled: true),
@@ -302,5 +336,87 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(CompactPostCard), findsOneWidget);
     expect(find.byType(M3EPostActionBar), findsOneWidget);
+  });
+
+  testWidgets('action bar renders the effective score exactly once',
+      (tester) async {
+    // Regression (Phase 1): the bar used to display score + voteState even
+    // though callers pass the override-adjusted effective score, producing a
+    // double-counted number for every vote state.
+    Future<void> pump(int score, int voteState) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(null),
+          home: Scaffold(
+            body: M3EPostActionBar(
+              score: score,
+              commentCount: 3,
+              voteState: voteState,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    await pump(100, 0); // neutral
+    expect(find.text('100'), findsOneWidget);
+
+    await pump(101, 1); // upvoted effective state
+    expect(find.text('101'), findsOneWidget);
+    expect(find.text('102'), findsNothing);
+
+    await pump(99, -1); // downvoted / switched effective state
+    expect(find.text('99'), findsOneWidget);
+    expect(find.text('98'), findsNothing);
+  });
+
+  testWidgets('voting through the card adjusts the displayed score exactly once',
+      (tester) async {
+    // Regression (Phase 1): end-to-end optimistic path — PostCard ->
+    // PostOverridesController -> M3EPostActionBar — with one delta per tap.
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsControllerProvider.overrideWith(
+              () => _TestSettingsController(_settings(PostDisplay.large))),
+          interactionVaultProvider.overrideWith(_TestInteractionVault.new),
+          historyContainsProvider.overrideWith((ref, id) => false),
+          sharedPrefsProvider.overrideWithValue(prefs),
+          redditRepositoryProvider.overrideWith((ref) {
+            return _NoopRedditRepository();
+          }),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(null, amoled: true),
+          home: Scaffold(
+            body: ListView(children: [
+              PostCard(post: _post().copyWith(score: 100)),
+            ]),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('100'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('101'), findsOneWidget);
+    expect(find.text('102'), findsNothing);
+
+    // Switching directions applies the single net delta (-2 from up).
+    await tester.tap(find.byIcon(Icons.arrow_downward_rounded));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('99'), findsOneWidget);
+    expect(find.text('98'), findsNothing);
+
+    // And back to upvoted (+2 net).
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('101'), findsOneWidget);
   });
 }

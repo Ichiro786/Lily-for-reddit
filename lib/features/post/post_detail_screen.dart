@@ -326,7 +326,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                             size: 18, color: Color(0xFFA78BFA)),
                         const SizedBox(width: 6),
                         Text(
-                          'BEST COMMENTS',
+                          // Reflect the controller's active sort; the label
+                          // mapping is the single canonical source.
+                          (commentSortLabels[notifier.sort] ?? notifier.sort)
+                              .toUpperCase(),
                           style: theme.textTheme.labelSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
@@ -1043,6 +1046,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           depth: comment.depth,
           isOp: comment.author == widget.opAuthor,
           score: _score,
+          voteState: _likes == true ? 1 : (_likes == false ? -1 : 0),
+          isSaved: _saved,
           replyCount: comment.replies.length,
           avatarColor: colorScheme.primaryContainer,
           isCollapsed: widget.collapsed,

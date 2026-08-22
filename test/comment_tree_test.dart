@@ -97,19 +97,30 @@ void main() {
 
   testWidgets('expanded comment restores reply, save, and overflow actions',
       (tester) async {
+    // Intentional update (Phase 1): M3ECommentCard is now a controlled
+    // presenter — the parent owns vote/save state. This harness mirrors
+    // _CommentTileState and flips [isSaved] when onSave fires, so the visual
+    // sync path through a rebuild is exercised instead of internal card state.
     var replies = 0;
     var saves = 0;
     var overflows = 0;
+    var saved = false;
     await tester.pumpWidget(
       _harness(
-        M3ECommentCard(
-          author: 'alice',
-          timeAgo: '1h',
-          body: 'Comment body',
-          score: 12,
-          onReply: () => replies++,
-          onSave: () => saves++,
-          onOverflow: () => overflows++,
+        StatefulBuilder(
+          builder: (context, setState) => M3ECommentCard(
+            author: 'alice',
+            timeAgo: '1h',
+            body: 'Comment body',
+            score: 12,
+            isSaved: saved,
+            onReply: () => replies++,
+            onSave: () => setState(() {
+              saves++;
+              saved = !saved;
+            }),
+            onOverflow: () => overflows++,
+          ),
         ),
       ),
     );
@@ -173,5 +184,88 @@ void main() {
 
     expect(find.byType(TextField), findsOneWidget);
     expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsNothing);
+  });
+
+  testWidgets('renders the authoritative score verbatim; taps emit direction',
+      (tester) async {
+    // Regression (Phase 1): the card used to add its own voteState to score,
+    // double-counting the parent's optimistic delta. It must render [score]
+    // exactly and only report the tapped direction.
+    final votes = <int>[];
+    await tester.pumpWidget(
+      _harness(
+        M3ECommentCard(
+          author: 'alice',
+          timeAgo: '1h',
+          body: 'Comment body',
+          score: 100,
+          onVote: votes.add,
+        ),
+      ),
+    );
+    expect(find.text('100'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+    await tester.tap(find.byIcon(Icons.arrow_downward_rounded));
+    await tester.pump();
+
+    expect(votes, [1, -1]);
+    expect(find.text('100'), findsOneWidget);
+    expect(find.text('101'), findsNothing);
+    expect(find.text('99'), findsNothing);
+  });
+
+  testWidgets('initial vote and saved interaction state come from props',
+      (tester) async {
+    // Regression (Phase 1): already-voted/already-saved comments used to
+    // render as neutral because the card initialised internal state.
+    await tester.pumpWidget(
+      _harness(
+        M3ECommentCard(
+          author: 'alice',
+          timeAgo: '1h',
+          body: 'Comment body',
+          score: 42,
+          voteState: 1,
+          isSaved: true,
+        ),
+      ),
+    );
+
+    expect(find.text('42'), findsOneWidget);
+    final up =
+        tester.widget<Icon>(find.byIcon(Icons.arrow_upward_rounded));
+    expect(up.color, const Color(0xFFFF5722));
+    expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark_outline_rounded), findsNothing);
+  });
+
+  testWidgets('interaction visuals follow new state across rebuilds',
+      (tester) async {
+    Widget build(int voteState, bool isSaved) => _harness(
+          M3ECommentCard(
+            key: const ValueKey<String>('card'),
+            author: 'alice',
+            timeAgo: '1h',
+            body: 'Comment body',
+            score: 7,
+            voteState: voteState,
+            isSaved: isSaved,
+          ),
+        );
+
+    await tester.pumpWidget(build(0, false));
+    expect(find.byIcon(Icons.bookmark_rounded), findsNothing);
+
+    await tester.pumpWidget(build(-1, true));
+
+    final cs =
+        Theme.of(tester.element(find.byType(M3ECommentCard))).colorScheme;
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.arrow_downward_rounded)).color,
+      cs.error,
+    );
+    expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
+    expect(find.text('7'), findsOneWidget);
   });
 }
