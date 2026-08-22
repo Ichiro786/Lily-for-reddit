@@ -26,6 +26,7 @@ import '../media/nsfw_blur.dart';
 import '../settings/settings_controller.dart';
 import 'comments_controller.dart';
 import 'comment_card.dart';
+import 'comment_overrides.dart';
 import 'compose_sheet.dart';
 import 'comment_compose_bar.dart';
 import 'post_actions.dart';
@@ -596,22 +597,20 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     });
   }
 
-  Future<void> _vote(int dir) async {
-    final overrides = ref.read(postOverridesProvider.notifier);
-    final cur = overrides.effective(widget.post);
-    final current = cur.likes == true ? 1 : (cur.likes == false ? -1 : 0);
-    final target = current == dir ? 0 : dir;
-    overrides.setVote(widget.post, target);
-    if (target == 1) {
-      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
-    } else if (target == -1) {
-      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, -1.5);
-    }
-    try {
-      await ref.read(redditRepositoryProvider).vote(widget.post.fullname, target);
-    } catch (_) {
-      overrides.setVote(widget.post, current);
-    }
+  Future<void> _vote(int dir) {
+    return ref.read(postOverridesProvider.notifier).vote(widget.post, dir,
+        (targetDir) async {
+      if (targetDir == 1) {
+        ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
+      } else if (targetDir == -1) {
+        ref
+            .read(interestStoreProvider.notifier)
+            .bump(widget.post.subreddit, -1.5);
+      }
+      await ref
+          .read(redditRepositoryProvider)
+          .vote(widget.post.fullname, targetDir);
+    });
   }
 
   void _openMedia() {
@@ -783,17 +782,15 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
               isSaved: saved,
               onVote: _vote,
               onCommentTap: widget.onComments,
-              onSaveTap: () async {
-                final overrides = ref.read(postOverridesProvider.notifier);
-                final next = !overrides.effective(p).saved;
-                overrides.setSaved(p, next);
-                try {
-                  await ref
-                      .read(redditRepositoryProvider)
-                      .setSaved(p.fullname, next);
-                } catch (_) {
-                  overrides.setSaved(p, !next);
-                }
+              onSaveTap: () {
+                ref
+                    .read(postOverridesProvider.notifier)
+                    .toggleSave(
+                      p,
+                      (next) => ref
+                          .read(redditRepositoryProvider)
+                          .setSaved(p.fullname, next),
+                    );
               },
               onShareTap: () => shareUrl(
                 context,
@@ -950,42 +947,23 @@ class _CommentTile extends ConsumerStatefulWidget {
 }
 
 class _CommentTileState extends ConsumerState<_CommentTile> {
-  late bool? _likes = widget.comment.likes;
-  late int _score = widget.comment.score;
-  late bool _saved = widget.comment.saved;
-
-
-  Future<void> _vote(int dir) async {
-    final current = _likes == true ? 1 : (_likes == false ? -1 : 0);
-    final target = current == dir ? 0 : dir;
-    setState(() {
-      _score += target - current;
-      _likes = target == 1 ? true : (target == -1 ? false : null);
-    });
-    try {
-      await ref
-          .read(redditRepositoryProvider)
-          .vote(widget.comment.fullname, target);
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _score -= target - current;
-          _likes = current == 1 ? true : (current == -1 ? false : null);
-        });
-      }
-    }
+  Future<void> _vote(int dir) {
+    return ref.read(commentOverridesProvider.notifier).vote(
+          widget.comment,
+          dir,
+          (targetDir) => ref
+              .read(redditRepositoryProvider)
+              .vote(widget.comment.fullname, targetDir),
+        );
   }
 
-  Future<void> _toggleSave() async {
-    final next = !_saved;
-    setState(() => _saved = next);
-    try {
-      await ref
-          .read(redditRepositoryProvider)
-          .setSaved(widget.comment.fullname, next);
-    } catch (_) {
-      if (mounted) setState(() => _saved = !next);
-    }
+  Future<void> _toggleSave() {
+    return ref.read(commentOverridesProvider.notifier).toggleSave(
+          widget.comment,
+          (next) => ref
+              .read(redditRepositoryProvider)
+              .setSaved(widget.comment.fullname, next),
+        );
   }
 
   @override
@@ -1046,16 +1024,27 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       ),
       onRight: () => _vote(1),
       onLeft: () => _vote(-1),
-      child: M3ECommentCard(
+      child: Builder(builder: (context) {
+        // Narrow subscription: only this comment's override triggers a
+        // rebuild, mirroring the M3EPostActionBar pattern.
+        final ov = ref.watch(commentOverridesProvider
+            .select((m) => m[comment.fullname]));
+        final effective = ov ??
+            CommentOverride(
+              likes: comment.likes,
+              score: comment.score,
+              saved: comment.saved,
+            );
+        return M3ECommentCard(
           author: comment.author,
           timeAgo: timeAgo(comment.created),
           body: comment.body,
           richBody: widget.richBody,
           depth: comment.depth,
           isOp: comment.author == widget.opAuthor,
-          score: _score,
-          voteState: _likes == true ? 1 : (_likes == false ? -1 : 0),
-          isSaved: _saved,
+          score: effective.score,
+          voteState: effective.voteDirection,
+          isSaved: effective.saved,
           replyCount: comment.replies.length,
           isCollapsed: widget.collapsed,
           onToggleCollapse: widget.onToggle,
@@ -1067,8 +1056,8 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           onLoadMoreReplies: comment.replies.isNotEmpty
               ? widget.onOpenThread
               : null,
-        ),
+        );
+      }),
     );
   }
-
 }

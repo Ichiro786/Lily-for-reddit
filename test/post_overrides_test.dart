@@ -129,4 +129,32 @@ void main() {
     expect(ov.numComments, 3);
     expect(ov.score, 101);
   });
+
+  test('controller vote reverts on API failure', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final post = _post();
+    final notifier = container.read(postOverridesProvider.notifier);
+
+    await notifier.vote(post, 1, (_) async {});
+    expect(notifier.effective(post).score, 101);
+
+    await notifier.vote(post, -1, (_) async => throw Exception('network'));
+    final ov = notifier.effective(post);
+    expect(ov.score, 101);
+    expect(ov.likes, isTrue);
+  });
+
+  test('controller save reverts on API failure', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final post = _post();
+    final notifier = container.read(postOverridesProvider.notifier);
+
+    await notifier.toggleSave(post, (_) async => throw Exception('network'));
+    expect(notifier.effective(post).saved, isFalse);
+
+    await notifier.toggleSave(post, (_) async {});
+    expect(notifier.effective(post).saved, isTrue);
+  });
 }

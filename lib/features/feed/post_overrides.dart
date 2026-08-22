@@ -17,6 +17,8 @@ class PostOverride {
   final int numComments;
   final bool saved;
 
+  int get voteDirection => likes == true ? 1 : (likes == false ? -1 : 0);
+
   PostOverride copyWith({
     bool? likes,
     bool clearLikes = false,
@@ -82,6 +84,43 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
         saved: existing?.saved ?? p.saved,
       ),
     );
+  }
+
+  int _directionOf(PostOverride o) =>
+      o.likes == true ? 1 : (o.likes == false ? -1 : 0);
+
+  /// Optimistic vote with revert-on-failure. [api] performs the network call
+  /// with the resolved target direction (0 clears the vote). Centralizes the
+  /// transition math previously duplicated in PostCard and _PostHeaderState;
+  /// callers keep their own telemetry hooks around this call.
+  Future<void> vote(
+    Post p,
+    int dir,
+    Future<void> Function(int targetDir) api,
+  ) async {
+    final previous = _directionOf(effective(p));
+    final target = previous == dir ? 0 : dir;
+    setVote(p, target);
+    try {
+      await api(target);
+    } catch (_) {
+      setVote(p, previous); // restore prior authoritative state
+    }
+  }
+
+  /// Optimistic save/unsave with revert-on-failure.
+  Future<void> toggleSave(
+    Post p,
+    Future<void> Function(bool next) api,
+  ) async {
+    final previous = effective(p).saved;
+    final next = !previous;
+    setSaved(p, next);
+    try {
+      await api(next);
+    } catch (_) {
+      setSaved(p, previous);
+    }
   }
 }
 

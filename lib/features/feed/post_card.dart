@@ -42,52 +42,59 @@ class _PostCardState extends ConsumerState<PostCard> {
   // Vote / score / saved / comment-count live in the shared post-overrides
   // store (keyed by post id) so the card stays in sync with the post-detail
   // screen and survives scrolling.
-  PostOverride get _ov =>
-      ref.read(postOverridesProvider.notifier).effective(widget.post);
 
-  Future<void> _vote(int dir) async {
+  Future<void> _vote(int dir) {
     final overrides = ref.read(postOverridesProvider.notifier);
-    final current = _ov.likes == true ? 1 : (_ov.likes == false ? -1 : 0);
-    final target = current == dir ? 0 : dir;
-    ref.read(interactionVaultProvider.notifier).recordUpvote(
-          widget.post.id,
-          target == 1,
-        );
-    if (target == -1) {
-      ref.read(interactionVaultProvider.notifier).recordDismissal(widget.post.id);
-    } else if (current == -1) {
-      ref.read(interactionVaultProvider.notifier).recordDismissal(widget.post.id, false);
-    }
-    overrides.setVote(widget.post, target);
-    // Learn: upvoting a community raises its affinity; downvoting lowers it.
-    if (target == 1) {
-      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
-      ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1);
-    } else if (target == -1) {
-      ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, -1.5);
-      ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, -0.8);
-    }
-    try {
-      await ref.read(redditRepositoryProvider).vote(widget.post.fullname, target);
-    } catch (_) {
-      overrides.setVote(widget.post, current); // revert
-    }
+    final previous = overrides.effective(widget.post).voteDirection;
+    return overrides.vote(widget.post, dir, (target) {
+      ref
+          .read(interactionVaultProvider.notifier)
+          .recordUpvote(widget.post.id, target == 1);
+      if (target == -1) {
+        ref
+            .read(interactionVaultProvider.notifier)
+            .recordDismissal(widget.post.id);
+      } else if (previous == -1) {
+        ref
+            .read(interactionVaultProvider.notifier)
+            .recordDismissal(widget.post.id, false);
+      }
+      // Learn: upvoting a community raises its affinity; downvoting lowers it.
+      if (target == 1) {
+        ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
+        ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1);
+      } else if (target == -1) {
+        ref
+            .read(interestStoreProvider.notifier)
+            .bump(widget.post.subreddit, -1.5);
+        ref
+            .read(keywordStoreProvider.notifier)
+            .bumpTitle(widget.post.title, -0.8);
+      }
+      return ref
+          .read(redditRepositoryProvider)
+          .vote(widget.post.fullname, target);
+    });
   }
 
-  Future<void> _toggleSave() async {
+  Future<void> _toggleSave() {
     final overrides = ref.read(postOverridesProvider.notifier);
-    final next = !_ov.saved;
-    ref.read(interactionVaultProvider.notifier).recordSave(widget.post.id, next);
-    overrides.setSaved(widget.post, next);
-    ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, next ? 3 : -3);
-    if (next) {
-      ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1.5);
-    }
-    try {
-      await ref.read(redditRepositoryProvider).setSaved(widget.post.fullname, next);
-    } catch (_) {
-      overrides.setSaved(widget.post, !next);
-    }
+    return overrides.toggleSave(widget.post, (next) {
+      ref
+          .read(interactionVaultProvider.notifier)
+          .recordSave(widget.post.id, next);
+      ref
+          .read(interestStoreProvider.notifier)
+          .bump(widget.post.subreddit, next ? 3 : -3);
+      if (next) {
+        ref
+            .read(keywordStoreProvider.notifier)
+            .bumpTitle(widget.post.title, 1.5);
+      }
+      return ref
+          .read(redditRepositoryProvider)
+          .setSaved(widget.post.fullname, next);
+    });
   }
 
   void _openDetail() {
