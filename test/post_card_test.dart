@@ -118,6 +118,36 @@ void main() {
     );
   });
 
+  test('feed media preserves intrinsic source ratios for variable-height layout', () {
+    expect(
+      intrinsicMediaAspectRatio(width: 4000, height: 3000),
+      closeTo(4 / 3, 0.0001),
+    );
+    expect(
+      intrinsicMediaAspectRatio(width: 1080, height: 1920),
+      closeTo(9 / 16, 0.0001),
+    );
+    expect(
+      intrinsicMediaAspectRatio(width: 300, height: 2400),
+      closeTo(1 / 8, 0.0001),
+    );
+    expect(
+      intrinsicMediaAspectRatio(width: 2400, height: 600),
+      closeTo(4, 0.0001),
+    );
+  });
+
+  test('feed media cap is derived from viewport metrics', () {
+    expect(
+      mediaViewportMaxHeight(viewportHeight: 800, verticalPadding: 24),
+      closeTo(728, 0.0001),
+    );
+    expect(
+      mediaViewportMaxHeight(viewportHeight: 300, verticalPadding: 24),
+      320,
+    );
+  });
+
   setUpAll(() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
   });

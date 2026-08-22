@@ -507,8 +507,6 @@ class _PostCardState extends ConsumerState<PostCard> {
     );
   }
 
-  /// Full-width media constrained to [height] (cover-cropped). Falls back to the
-  /// link preview / nothing for non-image posts.
   /// Feed preview URL, using the lower-resolution Reddit preview when the
   /// Data-saver thumbnails setting is enabled.
   String? _cardImg(Post p) {
@@ -717,18 +715,17 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   Widget _mediaPreview(ColorScheme cs) {
     final p = widget.post;
-    final url = p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
-    final rawAspect = p.previewWidth != null &&
-            p.previewHeight != null &&
-            p.previewWidth! > 0 &&
-            p.previewHeight! > 0
-        ? p.previewWidth! / p.previewHeight!
-        : 16 / 9;
-    final renderAspect = boundedMediaAspectRatio(
+    final url =
+        _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+    final renderAspect = intrinsicMediaAspectRatio(
       width: p.previewWidth,
       height: p.previewHeight,
     );
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.72;
+    final extremePortrait = renderAspect < 0.4;
+    final maxHeight = mediaViewportMaxHeight(
+      viewportHeight: MediaQuery.sizeOf(context).height,
+      verticalPadding: MediaQuery.viewPaddingOf(context).vertical,
+    );
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth =
         (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
@@ -822,7 +819,7 @@ class _PostCardState extends ConsumerState<PostCard> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final naturalHeight = constraints.maxWidth / renderAspect;
-              final capped = naturalHeight > maxHeight || rawAspect < 0.4;
+              final capped = naturalHeight > maxHeight || extremePortrait;
               final height = capped ? maxHeight : naturalHeight;
               if (capped) {
                 return SizedBox(
