@@ -214,9 +214,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final thread = async.valueOrNull;
 
     return Scaffold(
-      backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -322,8 +320,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     tooltip: 'Sort comments',
                     child: Row(
                       children: [
-                        const Icon(Icons.sort_rounded,
-                            size: 18, color: Color(0xFFA78BFA)),
+                        Icon(Icons.sort_rounded,
+                            size: 18, color: colorScheme.primary),
                         const SizedBox(width: 6),
                         Text(
                           // Reflect the controller's active sort; the label
@@ -333,11 +331,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           style: theme.textTheme.labelSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
-                            color: const Color(0xFFA78BFA),
+                            color: colorScheme.primary,
                           ),
                         ),
-                        const Icon(Icons.keyboard_arrow_down_rounded,
-                            size: 18, color: Color(0xFFA78BFA)),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 18, color: colorScheme.primary),
                       ],
                     ),
                   ),
@@ -715,11 +713,13 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                  color: const Color(0xFFA78BFA).withValues(alpha: 0.18),
-                  borderRadius: ShapeTokens.extraSmall),
+                  color: cs.primaryContainer.withValues(alpha: 0.72),
+                  borderRadius: ShapeTokens.full),
               child: Text(p.linkFlairText!,
-                  style: const TextStyle(
-                      fontSize: 12, color: Color(0xFFA78BFA))),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onPrimaryContainer)),
             ),
           ],
           if (p.crosspostFrom != null) ...[
@@ -1037,9 +1037,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       ),
       onRight: () => _vote(1),
       onLeft: () => _vote(-1),
-      child: Container(
-        color: Colors.black,
-        child: M3ECommentCard(
+      child: M3ECommentCard(
           author: comment.author,
           timeAgo: timeAgo(comment.created),
           body: comment.body,
@@ -1049,7 +1047,6 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           voteState: _likes == true ? 1 : (_likes == false ? -1 : 0),
           isSaved: _saved,
           replyCount: comment.replies.length,
-          avatarColor: colorScheme.primaryContainer,
           isCollapsed: widget.collapsed,
           onToggleCollapse: widget.onToggle,
           onVote: _vote,
@@ -1061,7 +1058,6 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               ? widget.onOpenThread
               : null,
         ),
-      ),
     );
   }
 

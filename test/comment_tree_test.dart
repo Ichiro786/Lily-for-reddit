@@ -28,34 +28,47 @@ M3ECommentCard _card({required int depth, bool collapsed = false}) {
 }
 
 void main() {
-  testWidgets('depth rails cycle through M3E primary, secondary, and tertiary',
+  testWidgets('depth rails consume tonal scheme accents, not hardcoded hues',
       (tester) async {
+    // Intentional update (Phase 2): rails were re-tokenized to cycle through
+    // the active ColorScheme accents (primary/secondary/tertiary) at reduced
+    // opacity. Expected colors are derived from the pumped theme itself so the
+    // assertion tracks tokenization rather than any specific hue.
+    const seed = Color(0xFF00695C); // deliberately not the legacy purple
+    final scheme = ColorScheme.fromSeed(seedColor: seed);
     await tester.pumpWidget(
-      _harness(
-        Column(
-          children: [
-            _card(depth: 1),
-            _card(depth: 2),
-            _card(depth: 3),
-            _card(depth: 4),
-          ],
+      MaterialApp(
+        theme: AppTheme.light(scheme),
+        home: Scaffold(
+          body: Column(
+            children: [
+              _card(depth: 1),
+              _card(depth: 2),
+              _card(depth: 3),
+              _card(depth: 4),
+            ],
+          ),
         ),
       ),
     );
 
-    final expected = [
-      const Color(0xFFA78BFA),
-      const Color(0xFF38BDF8),
-      const Color(0xFFF472B6),
-      const Color(0xFFFACC15),
-    ];
+    final context = tester.element(find.byType(M3ECommentCard).first);
+    final cs = Theme.of(context).colorScheme;
+    final expectedAccents = [cs.primary, cs.secondary, cs.tertiary];
+
     for (var depth = 1; depth <= 4; depth++) {
       final rail = tester.widget<Container>(
         find.byKey(ValueKey<String>('comment-depth-rail-$depth')),
       );
       final decoration = rail.decoration! as BoxDecoration;
-      expect(decoration.color, expected[depth - 1]);
+      final expected =
+          expectedAccents[(depth - 1) % expectedAccents.length];
+      expect(decoration.color, expected.withValues(alpha: 0.55));
+      // Rails stay visually subordinate to card content.
+      expect(decoration.color!.a, lessThan(1.0));
     }
+    // Nesting remains distinguishable while cycling.
+    expect(expectedAccents.toSet().length, 3);
   });
 
   testWidgets('tapping the comment header collapses and expands the body',
@@ -233,11 +246,19 @@ void main() {
     );
 
     expect(find.text('42'), findsOneWidget);
-    final up =
-        tester.widget<Icon>(find.byIcon(Icons.arrow_upward_rounded));
-    expect(up.color, const Color(0xFFFF5722));
+    final theme =
+        Theme.of(tester.element(find.byType(M3ECommentCard)));
+    final up = tester.widget<Icon>(find.byIcon(Icons.arrow_upward_rounded));
+    // Upvote accent comes from the canonical VoteColors extension.
+    expect(
+      up.color,
+      theme.extension<VoteColors>()!.up,
+    );
     expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.bookmark_outline_rounded), findsNothing);
+    expect(
+      find.byIcon(Icons.bookmark_outline_rounded),
+      findsNothing,
+    );
   });
 
   testWidgets('interaction visuals follow new state across rebuilds',

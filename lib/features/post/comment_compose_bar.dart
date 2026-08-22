@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/theme/shape_tokens.dart';
+
 class CommentComposeBar extends StatefulWidget {
   final TextEditingController? controller;
   final ValueChanged<String>? onSubmit;
@@ -83,9 +85,9 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
           top: 8,
           bottom: MediaQuery.of(context).padding.bottom + 8,
         ),
-        decoration: const BoxDecoration(
-          color: Colors.black,
-          border: null,
+        // Same elevated chrome surface as sheets and the floating nav dock.
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHigh,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -123,8 +125,8 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                                 color: colorScheme.error,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.close_rounded,
-                                  size: 12, color: Colors.white),
+                              child: Icon(Icons.close_rounded,
+                                  size: 12, color: colorScheme.onError),
                             ),
                           ),
                         ),
@@ -139,9 +141,11 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                   child: Container(
                     height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
+                    // Canonical filled-input surface from the app's
+                    // InputDecorationTheme family.
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E1F25),
-                      borderRadius: BorderRadius.circular(999),
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: ShapeTokens.full,
                     ),
                     child: Row(
                       children: [
@@ -184,15 +188,15 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                   Container(
                     height: 48,
                     width: 48,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2E2E38),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.keyboard_arrow_down_rounded,
                         size: 24,
-                        color: Color(0xFFA78BFA),
+                        color: colorScheme.primary,
                       ),
                       onPressed: () {
                         HapticFeedback.selectionClick();
