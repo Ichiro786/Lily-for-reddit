@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/storage/deferred_pref_writer.dart';
 import '../../models/post.dart';
 import '../settings/settings_controller.dart';
 import 'interest_store.dart' show userScopedPrefsKey;
@@ -44,12 +47,25 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
   static const _base = 'history';
   static const _cap = 500;
   late String _key;
+  late SharedPreferences _prefs;
   final _idSet = <String>{};
+  DeferredPrefWriter? _writer;
 
   @override
   List<HistoryEntry> build() {
     _key = userScopedPrefsKey(ref, _base); // per-account
-    final raw = ref.read(sharedPrefsProvider).getStringList(_key) ?? const [];
+    final prefs = ref.read(sharedPrefsProvider);
+    _prefs = prefs;
+    // Coalesced: a full 500-entry list rewrite per opened post collapses into
+    // one write per quiet window. Dispose flushes pending work. The writer
+    // captures [prefs] directly so disposal-time flushes never read through
+    // the dead container.
+    _writer = DeferredPrefWriter(_persist);
+    ref.onDispose(() {
+      unawaited(_writer?.flush());
+      _writer?.cancel();
+    });
+    final raw = prefs.getStringList(_key) ?? const [];
     final entries = [
       for (final s in raw)
         HistoryEntry.fromJson(jsonDecode(s) as Map<String, dynamic>),
@@ -69,13 +85,13 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
     if (list.length > _cap) list.removeRange(_cap, list.length);
     state = list;
     _rebuildIndex(state);
-    _persist();
+    _writer?.schedule();
   }
 
   void removeViewed(String id) {
     state = state.where((e) => e.id != id).toList();
     _idSet.remove(id);
-    _persist();
+    _writer?.schedule();
   }
 
   /// Removes entries older than [age]. Legacy entries (no timestamp) count as
@@ -85,13 +101,13 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
         DateTime.now().millisecondsSinceEpoch - age.inMilliseconds;
     state = state.where((e) => e.viewedAt >= cutoff).toList();
     _rebuildIndex(state);
-    _persist();
+    _writer?.schedule();
   }
 
   void clear() {
     state = [];
     _idSet.clear();
-    _persist();
+    _persist(); // explicit wipe: durable immediately
   }
 
   bool containsId(String id) => _idSet.contains(id);
@@ -102,10 +118,9 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
       ..addAll(entries.map((e) => e.id));
   }
 
-  void _persist() {
-    ref
-        .read(sharedPrefsProvider)
-        .setStringList(_key, [for (final e in state) jsonEncode(e.toJson())]);
+  Future<void> _persist() {
+    return _prefs.setStringList(
+        _key, [for (final e in state) jsonEncode(e.toJson())]);
   }
 }
 

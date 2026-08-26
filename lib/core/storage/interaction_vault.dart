@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/settings/settings_controller.dart'
     show sharedPrefsProvider;
+import 'deferred_pref_writer.dart';
 
 const interactionVaultMaxAge = Duration(days: 30);
 
@@ -108,6 +109,27 @@ class InteractionVault extends Notifier<InteractionVaultState> {
     final prefs = ref.read(sharedPrefsProvider);
     final cutoff = _cutoff();
 
+    // Coalesced persistence: bursts of dwell/vote/save events collapse into a
+    // single serialized write per key. Closures capture [prefs] directly so a
+    // flush during disposal never reads through the dead container.
+    final interactedWriter = DeferredPrefWriter(() async {
+      final payload = {
+        for (final entry in state.interactedPosts.entries)
+          entry.key: entry.value.toJson(),
+      };
+      await prefs.setString(_interactedKey, jsonEncode(payload));
+    });
+    final seenWriter = DeferredPrefWriter(
+        () => prefs.setString(_seenKey, jsonEncode(state.seenPosts)));
+    _interactedWriter = interactedWriter;
+    _seenWriter = seenWriter;
+    ref.onDispose(() {
+      unawaited(interactedWriter.flush());
+      unawaited(seenWriter.flush());
+      interactedWriter.cancel();
+      seenWriter.cancel();
+    });
+
     final interacted = _readInteractions(prefs.getString(_interactedKey));
     final rawSeen = _readSeen(prefs.getString(_seenKey));
     final seen = {
@@ -116,12 +138,24 @@ class InteractionVault extends Notifier<InteractionVaultState> {
     };
 
     if (seen.length != rawSeen.length) {
-      _persistSeen(seen);
+      _scheduleSeenPersist();
     }
     return InteractionVaultState(
       interactedPosts: Map.unmodifiable(interacted),
       seenPosts: Map.unmodifiable(seen),
     );
+  }
+
+  DeferredPrefWriter? _interactedWriter;
+  DeferredPrefWriter? _seenWriter;
+
+  void _scheduleInteractedPersist() => _interactedWriter?.schedule();
+  void _scheduleSeenPersist() => _seenWriter?.schedule();
+
+  /// Makes any pending coalesced writes durable immediately (tests, dispose).
+  Future<void> flushPersisted() async {
+    await _interactedWriter?.flush();
+    await _seenWriter?.flush();
   }
 
   void recordInteraction(
@@ -144,7 +178,7 @@ class InteractionVault extends Notifier<InteractionVaultState> {
     );
     final next = {...state.interactedPosts, postId: updated};
     state = state.copyWith(interactedPosts: Map.unmodifiable(next));
-    _persistInteractions(next);
+    _scheduleInteractedPersist();
   }
 
   void recordUpvote(String postId, bool value) =>
@@ -170,7 +204,7 @@ class InteractionVault extends Notifier<InteractionVaultState> {
       postId: now,
     };
     state = state.copyWith(seenPosts: Map.unmodifiable(next));
-    _persistSeen(next);
+    _scheduleSeenPersist();
   }
 
   void recordDwell(String postId) => markSeen(postId);
@@ -205,21 +239,6 @@ class InteractionVault extends Notifier<InteractionVaultState> {
 
   int _cutoff() =>
       DateTime.now().millisecondsSinceEpoch - interactionVaultMaxAge.inMilliseconds;
-
-  void _persistInteractions(Map<String, InteractionRecord> interactions) {
-    final payload = {
-      for (final entry in interactions.entries) entry.key: entry.value.toJson(),
-    };
-    unawaited(
-      ref.read(sharedPrefsProvider).setString(_interactedKey, jsonEncode(payload)),
-    );
-  }
-
-  void _persistSeen(Map<String, int> seen) {
-    unawaited(
-      ref.read(sharedPrefsProvider).setString(_seenKey, jsonEncode(seen)),
-    );
-  }
 }
 
 final interactionVaultProvider =

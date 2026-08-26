@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/storage/deferred_pref_writer.dart';
 import '../auth/auth_controller.dart';
 import '../settings/settings_controller.dart';
 
@@ -37,11 +40,22 @@ class InterestStore extends Notifier<Map<String, double>> {
   static const _base = 'interest_weights';
   static const _decayPerDay = 0.95;
   late String _key;
+  late SharedPreferences _prefs;
+  DeferredPrefWriter? _writer;
 
   @override
   Map<String, double> build() {
     _key = userScopedPrefsKey(ref, _base);
     final prefs = ref.read(sharedPrefsProvider);
+    _prefs = prefs;
+    // Coalesce bump-driven writes; dispose flushes pending work. The writer
+    // captures [prefs] directly so disposal-time flushes never read through
+    // the dead container.
+    _writer = DeferredPrefWriter(() => _persistMap());
+    ref.onDispose(() {
+      unawaited(_writer?.flush());
+      _writer?.cancel();
+    });
     final raw = prefs.getString(_key);
     if (raw == null) return {};
     Map<String, double> weights;
@@ -74,7 +88,6 @@ class InterestStore extends Notifier<Map<String, double>> {
   }
 
   double weightFor(String subreddit) => state[subreddit.toLowerCase()] ?? 0;
-
   void bump(String subreddit, double delta) {
     if (subreddit.isEmpty) return;
     // Only learn when history/personalization tracking is enabled.
@@ -82,7 +95,7 @@ class InterestStore extends Notifier<Map<String, double>> {
     final key = subreddit.toLowerCase();
     final next = ((state[key] ?? 0) + delta).clamp(-8.0, 40.0);
     state = {...state, key: next};
-    _persistMap(state);
+    _writer?.schedule(); // coalesced; flush serializes current state
   }
 
   /// Top affinity subreddits above [min], strongest first.
@@ -94,7 +107,7 @@ class InterestStore extends Notifier<Map<String, double>> {
 
   /// Forgets the learned affinity for one subreddit (used by the "Manage For
   /// You" screen to undo a "show less"/"show more"). Works regardless of the
-  /// track-history setting.
+  /// track-history setting. Explicit user action → persisted immediately.
   void reset(String subreddit) {
     final key = subreddit.toLowerCase();
     if (!state.containsKey(key)) return;
@@ -107,9 +120,13 @@ class InterestStore extends Notifier<Map<String, double>> {
     ref.read(sharedPrefsProvider).remove(_key);
   }
 
-  void _persistMap(Map<String, double> m) =>
-      ref.read(sharedPrefsProvider).setString(
-          _key, jsonEncode({...m, '_ts': DateTime.now().millisecondsSinceEpoch}));
+  Future<void> _persistMap([Map<String, double>? snapshot]) =>
+      _prefs.setString(
+          _key,
+          jsonEncode({
+            ...(snapshot ?? state),
+            '_ts': DateTime.now().millisecondsSinceEpoch
+          }));
 }
 
 final interestStoreProvider =
