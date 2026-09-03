@@ -13,6 +13,7 @@ import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../core/url_launcher_helper.dart';
 import '../../core/theme/shape_tokens.dart';
+import '../../core/widgets/error_view.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
 import '../auth/auth_controller.dart';
@@ -57,6 +58,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   // In-post comment search.
   bool _searchOpen = false;
   final TextEditingController _searchCtrl = TextEditingController();
+  // Owned here so a failed quick reply can restore the user's text.
+  final TextEditingController _composeCtrl = TextEditingController();
   List<int> _matchIndices = []; // list indices (ci + 1) of matching comments
   int _matchPos = 0;
   MediaAttachment? _pendingComposeAttachment;
@@ -79,6 +82,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _composeCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -128,9 +132,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     _scrollToMatch();
   }
 
-  /// Jumps the comment list to the next top-level (depth 0) comment, cycling
-  /// back to the first once past the last. List index 0 is the post header, so
-  /// comment `ci` lives at list index `ci + 1`.
   Future<void> _sendQuickReply(
     CommentsController notifier,
     PostThread thread,
@@ -138,26 +139,39 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     MediaAttachment? attachment,
   ) async {
     final repo = ref.read(redditRepositoryProvider);
-    final reply = attachment == null
-        ? await repo.reply(
-            parentFullname: thread.post.fullname,
-            text: text,
-            depth: 0,
-          )
-        : await repo.replyWithImage(
-            parentFullname: thread.post.fullname,
-            text: text,
-            bytes: attachment.bytes,
-            filename: attachment.filename,
-            mimeType: attachment.mimeType,
-            depth: 0,
-          );
-    notifier.insertReply(thread.post.fullname, reply);
-    ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
-    ref
-        .read(interestStoreProvider.notifier)
-        .bump(thread.post.subreddit, 2.5);
-    ref.read(keywordStoreProvider.notifier).bumpTitle(thread.post.title, 1);
+    try {
+      final reply = attachment == null
+          ? await repo.reply(
+              parentFullname: thread.post.fullname,
+              text: text,
+              depth: 0,
+            )
+          : await repo.replyWithImage(
+              parentFullname: thread.post.fullname,
+              text: text,
+              bytes: attachment.bytes,
+              filename: attachment.filename,
+              mimeType: attachment.mimeType,
+              depth: 0,
+            );
+      notifier.insertReply(thread.post.fullname, reply);
+      ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
+      ref
+          .read(interestStoreProvider.notifier)
+          .bump(thread.post.subreddit, 2.5);
+      ref.read(keywordStoreProvider.notifier).bumpTitle(thread.post.title, 1);
+    } catch (e) {
+      if (!mounted) return;
+      // The compose bar already cleared the text; put it back so a transient
+      // failure doesn't eat the user's comment.
+      if (_composeCtrl.text.trim().isEmpty) _composeCtrl.text = text;
+      if (_pendingComposeAttachment == null) {
+        setState(() => _pendingComposeAttachment = attachment);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("Couldn't post the comment: ${friendlyError(e)}"),
+      ));
+    }
   }
 
   Future<void> _onComposeImageSelected(XFile? file) async {
@@ -466,6 +480,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ),
           ),
           CommentComposeBar(
+            controller: _composeCtrl,
             onSubmit: (text) {
               if (thread == null) return;
               final attachment = _pendingComposeAttachment;
