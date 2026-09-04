@@ -49,13 +49,7 @@ jobs:
         run: flutter analyze
 
       - name: Run Flutter tests
-        id: flutter-test
-        continue-on-error: true
         run: flutter test
-
-      - name: Report test instability
-        if: steps.flutter-test.outcome == 'failure'
-        run: echo '::warning::flutter test failed; continuing because the test suite is currently allowed to be unstable.'
 
       # The Android build script eagerly reads release signing properties even
       # for a debug build. Use a disposable CI-only keystore; no release APK is
