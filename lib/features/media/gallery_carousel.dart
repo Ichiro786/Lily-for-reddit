@@ -82,7 +82,8 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
                   imageUrl: widget.images[i].url,
                   memCacheWidth: cacheWidth,
                   memCacheHeight: cacheHeight,
-                  fit: BoxFit.contain,
+                  fit: capped ? BoxFit.cover : BoxFit.cover,
+                  alignment: capped ? Alignment.topCenter : Alignment.center,
                   placeholder: (_, __) => const Center(
                     child: M3ELoadingIndicator.medium(),
                   ),

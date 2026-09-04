@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -180,6 +181,158 @@ void main() {
       mediaViewportMaxHeight(viewportHeight: 300, verticalPadding: 24),
       320,
     );
+  });
+
+  group('Post.fromData media parsing and URL unescaping', () {
+    test('unescapes XML entities in preview and resolution URLs', () {
+      final post = Post.fromData({
+        'id': 'p1',
+        'title': 'Test preview unescaping',
+        'preview': {
+          'images': [
+            {
+              'source': {
+                'url': 'https://preview.redd.it/test.jpg?width=1080&amp;crop=smart&amp;s=abc123xyz',
+                'width': 1080,
+                'height': 1920,
+              },
+              'resolutions': [
+                {
+                  'url': 'https://preview.redd.it/test.jpg?width=640&amp;crop=smart&amp;s=def456uvw',
+                  'width': 640,
+                  'height': 1137,
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(post.previewUrl, 'https://preview.redd.it/test.jpg?width=1080&crop=smart&s=abc123xyz');
+      expect(post.previewMedUrl, 'https://preview.redd.it/test.jpg?width=640&crop=smart&s=def456uvw');
+      expect(post.previewWidth, 1080);
+      expect(post.previewHeight, 1920);
+    });
+
+    test('unescapes XML entities in gallery image URLs', () {
+      final post = Post.fromData({
+        'id': 'p2',
+        'title': 'Test gallery unescaping',
+        'gallery_data': {
+          'items': [
+            {'media_id': 'm1'},
+          ],
+        },
+        'media_metadata': {
+          'm1': {
+            's': {
+              'u': 'https://preview.redd.it/gallery1.jpg?width=800&amp;s=xyz789',
+              'x': 800,
+              'y': 600,
+            },
+          },
+        },
+      });
+
+      expect(post.gallery.length, 1);
+      expect(post.gallery.first.url, 'https://preview.redd.it/gallery1.jpg?width=800&s=xyz789');
+      expect(post.gallery.first.width, 800);
+      expect(post.gallery.first.height, 600);
+      expect(post.type, PostType.gallery);
+    });
+
+    test('unescapes XML entities in thumbnail and main post URLs', () {
+      final post = Post.fromData({
+        'id': 'p3',
+        'title': 'Test thumb and URL unescaping',
+        'url': 'https://i.redd.it/img.jpg?auto=webp&amp;s=link123',
+        'thumbnail': 'https://b.thumbs.redditmedia.com/thumb.jpg?width=140&amp;crop=smart',
+      });
+
+      expect(post.url, 'https://i.redd.it/img.jpg?auto=webp&s=link123');
+      expect(post.thumbnailUrl, 'https://b.thumbs.redditmedia.com/thumb.jpg?width=140&crop=smart');
+    });
+
+    test('extracts video dimensions from reddit_video when preview is missing', () {
+      final post = Post.fromData({
+        'id': 'v1',
+        'title': 'Portrait video without preview',
+        'is_video': true,
+        'media': {
+          'reddit_video': {
+            'width': 1080,
+            'height': 1920,
+            'fallback_url': 'https://v.redd.it/vid.mp4',
+            'hls_url': 'https://v.redd.it/vid.m3u8',
+          },
+        },
+      });
+
+      expect(post.type, PostType.video);
+      expect(post.previewWidth, 1080);
+      expect(post.previewHeight, 1920);
+      expect(post.fallbackVideoUrl, 'https://v.redd.it/vid.mp4');
+      expect(post.hlsUrl, 'https://v.redd.it/vid.m3u8');
+    });
+
+    test('falls back to crosspost_parent_list for media metadata', () {
+      final post = Post.fromData({
+        'id': 'cp1',
+        'title': 'Crosspost with nested media',
+        'crosspost_parent_list': [
+          {
+            'id': 'orig1',
+            'is_video': true,
+            'media': {
+              'reddit_video': {
+                'width': 720,
+                'height': 1280,
+                'fallback_url': 'https://v.redd.it/parent.mp4',
+              },
+            },
+            'preview': {
+              'images': [
+                {
+                  'source': {
+                    'url': 'https://preview.redd.it/parent_thumb.jpg?width=720&amp;s=abc',
+                    'width': 720,
+                    'height': 1280,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      expect(post.type, PostType.video);
+      expect(post.previewWidth, 720);
+      expect(post.previewHeight, 1280);
+      expect(post.previewUrl, 'https://preview.redd.it/parent_thumb.jpg?width=720&s=abc');
+      expect(post.fallbackVideoUrl, 'https://v.redd.it/parent.mp4');
+    });
+  });
+
+  group('intrinsicMediaAspectRatio and dimension validation', () {
+    test('hasMediaDimensions validates positive non-null dimensions', () {
+      expect(hasMediaDimensions(width: 100, height: 100), isTrue);
+      expect(hasMediaDimensions(width: null, height: 100), isFalse);
+      expect(hasMediaDimensions(width: 100, height: null), isFalse);
+      expect(hasMediaDimensions(width: 0, height: 100), isFalse);
+      expect(hasMediaDimensions(width: 100, height: -1), isFalse);
+    });
+
+    test('intrinsicMediaAspectRatio defaults to 4/3 when dimensions are missing', () {
+      expect(intrinsicMediaAspectRatio(), closeTo(4 / 3, 0.0001));
+      expect(intrinsicMediaAspectRatio(width: null, height: null), closeTo(4 / 3, 0.0001));
+      expect(intrinsicMediaAspectRatio(width: 0, height: 0), closeTo(4 / 3, 0.0001));
+      expect(intrinsicMediaAspectRatio(width: -10, height: 100), closeTo(4 / 3, 0.0001));
+    });
+
+    test('intrinsicMediaAspectRatio supports caller-specified fallback', () {
+      expect(intrinsicMediaAspectRatio(fallback: 16 / 9), closeTo(16 / 9, 0.0001));
+      expect(intrinsicMediaAspectRatio(width: null, height: null, fallback: 1.0), 1.0);
+    });
   });
 
   setUpAll(() {
@@ -418,5 +571,102 @@ void main() {
     await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('101'), findsOneWidget);
+  });
+
+  testWidgets('compact card thumbnail uses BoxFit.cover and center alignment',
+      (tester) async {
+    final post = _imagePost(
+      width: 1200,
+      height: 800,
+      url: 'https://example.com/thumb.jpg',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsControllerProvider
+              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.mini))),
+          interactionVaultProvider.overrideWith(_TestInteractionVault.new),
+          historyContainsProvider.overrideWith((ref, id) => false),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(null, amoled: true),
+          home: Scaffold(body: PostCard(post: post)),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final imageFinder = find.byType(CachedNetworkImage);
+    expect(imageFinder, findsOneWidget);
+    final imageWidget = tester.widget<CachedNetworkImage>(imageFinder);
+    expect(imageWidget.fit, BoxFit.cover);
+    expect(imageWidget.alignment, Alignment.center);
+  });
+
+  testWidgets('link preview thumbnail uses BoxFit.cover and center alignment',
+      (tester) async {
+    final linkPost = _post().copyWith(
+      type: PostType.link,
+      isSelf: false,
+      thumbnailUrl: 'https://example.com/link_thumb.jpg',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsControllerProvider
+              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.large))),
+          interactionVaultProvider.overrideWith(_TestInteractionVault.new),
+          historyContainsProvider.overrideWith((ref, id) => false),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(null, amoled: true),
+          home: Scaffold(body: PostCard(post: linkPost)),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final imageFinder = find.byType(CachedNetworkImage);
+    expect(imageFinder, findsOneWidget);
+    final imageWidget = tester.widget<CachedNetworkImage>(imageFinder);
+    expect(imageWidget.fit, BoxFit.cover);
+    expect(imageWidget.alignment, Alignment.center);
+  });
+
+  testWidgets('capped tall media uses BoxFit.cover and Alignment.topCenter',
+      (tester) async {
+    final tallPost = _imagePost(
+      width: 300,
+      height: 2400,
+      url: 'https://example.com/tall_infographic.jpg',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          settingsControllerProvider
+              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.card))),
+          interactionVaultProvider.overrideWith(_TestInteractionVault.new),
+          historyContainsProvider.overrideWith((ref, id) => false),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(null, amoled: true),
+          home: Scaffold(
+            body: ListView(
+              children: [
+                PostCard(post: tallPost),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final imageFinder = find.byType(CachedNetworkImage);
+    expect(imageFinder, findsOneWidget);
+    final imageWidget = tester.widget<CachedNetworkImage>(imageFinder);
+    expect(imageWidget.fit, BoxFit.cover);
+    expect(imageWidget.alignment, Alignment.topCenter);
+    expect(find.text('View full'), findsOneWidget);
   });
 }
