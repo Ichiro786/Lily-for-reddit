@@ -59,11 +59,34 @@ class Post with _$Post {
 
   /// Parses a single listing child's `data` object.
   factory Post.fromData(Map<String, dynamic> d) {
-    final preview = _firstPreviewImage(d);
-    final isVideo = d['is_video'] == true;
-    final media = _m(d['media']);
+    final crosspostParents = _l(d['crosspost_parent_list']);
+    final parentData = crosspostParents != null && crosspostParents.isNotEmpty
+        ? _m(crosspostParents.first)
+        : null;
+
+    final preview = _firstPreviewImage(d) ??
+        (parentData != null ? _firstPreviewImage(parentData) : null);
+    final media = _m(d['media']) ??
+        (parentData != null ? _m(parentData['media']) : null);
     final redditVideo = _m(media?['reddit_video']);
-    final gallery = _parseGallery(d);
+    final isVideo = d['is_video'] == true ||
+        parentData?['is_video'] == true ||
+        redditVideo != null;
+    final gallery = _parseGallery(d).isNotEmpty
+        ? _parseGallery(d)
+        : (parentData != null ? _parseGallery(parentData) : const <GalleryImage>[]);
+
+    final videoWidth = (redditVideo?['width'] as num?)?.toInt();
+    final videoHeight = (redditVideo?['height'] as num?)?.toInt();
+    final resolvedWidth = (isVideo && videoWidth != null && videoWidth > 0)
+        ? videoWidth
+        : (preview?.width ?? videoWidth);
+    final resolvedHeight = (isVideo && videoHeight != null && videoHeight > 0)
+        ? videoHeight
+        : (preview?.height ?? videoHeight);
+
+    final rawUrl = d['url'] as String? ?? parentData?['url'] as String? ?? '';
+    final rawThumb = d['thumbnail'] as String? ?? parentData?['thumbnail'] as String?;
 
     return Post(
       id: d['id'] as String? ?? '',
@@ -80,13 +103,13 @@ class Post with _$Post {
         isUtc: true,
       ),
       permalink: d['permalink'] as String? ?? '',
-      url: d['url'] as String? ?? '',
-      domain: d['domain'] as String? ?? '',
-      type: _detectType(d, isVideo, gallery.isNotEmpty),
+      url: _unescapeUrl(rawUrl),
+      domain: d['domain'] as String? ?? parentData?['domain'] as String? ?? '',
+      type: _detectType(d, isVideo, gallery.isNotEmpty, parentData),
       isSelf: d['is_self'] == true,
       selftext: d['selftext'] as String? ?? '',
-      over18: d['over_18'] == true,
-      spoiler: d['spoiler'] == true,
+      over18: d['over_18'] == true || parentData?['over_18'] == true,
+      spoiler: d['spoiler'] == true || parentData?['spoiler'] == true,
       stickied: d['stickied'] == true,
       locked: d['locked'] == true,
       saved: d['saved'] == true,
@@ -97,11 +120,13 @@ class Post with _$Post {
       distinguished: d['distinguished'] as String?,
       crosspostFrom: _crosspostFrom(d),
       pollOptions: _pollOptions(d),
-      thumbnailUrl: _validThumb(d['thumbnail'] as String?),
+      thumbnailUrl: _validThumb(rawThumb),
       previewUrl: preview?.url,
-      previewMedUrl: _medPreviewUrl(d) ?? preview?.url,
-      previewWidth: preview?.width,
-      previewHeight: preview?.height,
+      previewMedUrl: _medPreviewUrl(d) ??
+          (parentData != null ? _medPreviewUrl(parentData) : null) ??
+          preview?.url,
+      previewWidth: resolvedWidth,
+      previewHeight: resolvedHeight,
       hlsUrl: redditVideo?['hls_url'] as String?,
       fallbackVideoUrl: redditVideo?['fallback_url'] as String?,
       gallery: gallery,
@@ -134,22 +159,31 @@ List<String> _pollOptions(Map<String, dynamic> d) {
   ]..removeWhere((e) => e.isEmpty);
 }
 
-PostType _detectType(Map<String, dynamic> d, bool isVideo, bool hasGallery) {
-  if (d['is_self'] == true) return PostType.self;
+PostType _detectType(
+  Map<String, dynamic> d,
+  bool isVideo,
+  bool hasGallery, [
+  Map<String, dynamic>? parent,
+]) {
+  if (d['is_self'] == true && parent == null) return PostType.self;
   if (hasGallery) return PostType.gallery;
   if (isVideo) return PostType.video;
-  final hint = d['post_hint'] as String?;
+  final hint = (d['post_hint'] ?? parent?['post_hint']) as String?;
   if (hint == 'image') return PostType.image;
   if (hint == 'rich:video' || hint == 'hosted:video') return PostType.video;
-  final url = (d['url'] as String? ?? '').toLowerCase();
+  final url = (d['url'] as String? ?? parent?['url'] as String? ?? '').toLowerCase();
   if (url.endsWith('.gif')) return PostType.gif;
   if (url.endsWith('.jpg') || url.endsWith('.jpeg') || url.endsWith('.png') ||
       url.endsWith('.webp')) {
     return PostType.image;
   }
   if (url.endsWith('.gifv') || url.endsWith('.mp4')) return PostType.video;
+  if (d['is_self'] == true) return PostType.self;
   return PostType.link;
 }
+
+String _unescapeUrl(String url) =>
+    url.contains('&amp;') ? url.replaceAll('&amp;', '&') : url;
 
 String? _validThumb(String? thumb) {
   if (thumb == null) return null;
@@ -157,7 +191,7 @@ String? _validThumb(String? thumb) {
       thumb == 'spoiler' || thumb == 'image' || thumb.isEmpty) {
     return null;
   }
-  return thumb;
+  return _unescapeUrl(thumb);
 }
 
 ({String url, int? width, int? height})? _firstPreviewImage(
@@ -168,7 +202,7 @@ String? _validThumb(String? thumb) {
   final src = source?['url'] as String?;
   if (src == null) return null;
   return (
-    url: src,
+    url: _unescapeUrl(src),
     width: (source?['width'] as num?)?.toInt(),
     height: (source?['height'] as num?)?.toInt(),
   );
@@ -185,9 +219,10 @@ String? _medPreviewUrl(Map<String, dynamic> d) {
     final m = _m(r);
     final w = (m?['width'] as num?)?.toInt() ?? 0;
     final u = m?['url'] as String?;
-    if (u != null && w >= 640) return u;
+    if (u != null && w >= 640) return _unescapeUrl(u);
   }
-  return _m(res.last)?['url'] as String?;
+  final lastUrl = _m(res.last)?['url'] as String?;
+  return lastUrl != null ? _unescapeUrl(lastUrl) : null;
 }
 
 List<GalleryImage> _parseGallery(Map<String, dynamic> d) {
@@ -203,7 +238,7 @@ List<GalleryImage> _parseGallery(Map<String, dynamic> d) {
     final url = (s?['u'] ?? s?['gif']) as String?;
     if (url == null) continue;
     result.add(GalleryImage(
-      url: url,
+      url: _unescapeUrl(url),
       width: (s?['x'] as num?)?.toInt(),
       height: (s?['y'] as num?)?.toInt(),
     ));
