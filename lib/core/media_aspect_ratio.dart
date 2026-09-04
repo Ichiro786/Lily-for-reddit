@@ -1,13 +1,22 @@
+/// Returns whether the provided dimensions represent valid, non-zero media dimensions.
+bool hasMediaDimensions({num? width, num? height}) {
+  return width != null && height != null && width > 0 && height > 0;
+}
+
 /// Returns the source media ratio when reliable dimensions are available.
 ///
-/// The fallback is intentionally landscape because Reddit posts without preview
-/// metadata are commonly links or videos. This helper does not clamp valid
-/// ratios, so wide and portrait media retain their intrinsic geometry.
-double intrinsicMediaAspectRatio({num? width, num? height}) {
-  if (width == null || height == null || width <= 0 || height <= 0) {
-    return 16 / 9;
+/// If width or height are missing or non-positive, returns [fallback] (defaults to
+/// 4 / 3, the standard photographic ratio). Callers may supply a specialized fallback
+/// (e.g. 16 / 9 for video posts).
+double intrinsicMediaAspectRatio({
+  num? width,
+  num? height,
+  double fallback = 4 / 3,
+}) {
+  if (!hasMediaDimensions(width: width, height: height)) {
+    return fallback;
   }
-  return width / height;
+  return (width! / height!).toDouble();
 }
 
 /// Returns the maximum practical feed-media height for the current viewport.
@@ -28,7 +37,9 @@ double mediaViewportMaxHeight({
 /// bounded rectangle. New variable-height feed surfaces should prefer
 /// [intrinsicMediaAspectRatio].
 double boundedMediaAspectRatio({num? width, num? height}) {
-  return intrinsicMediaAspectRatio(width: width, height: height)
-      .clamp(0.4, 1.91)
-      .toDouble();
+  return intrinsicMediaAspectRatio(
+    width: width,
+    height: height,
+    fallback: 16 / 9,
+  ).clamp(0.4, 1.91).toDouble();
 }

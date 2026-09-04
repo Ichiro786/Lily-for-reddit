@@ -9,6 +9,7 @@ import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/media_aspect_ratio.dart';
 import '../../core/providers.dart';
 import '../../core/share.dart';
 import '../../core/url_launcher_helper.dart';
@@ -831,84 +832,134 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     }
     final url =
         p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+    final renderAspect = intrinsicMediaAspectRatio(
+      width: p.previewWidth,
+      height: p.previewHeight,
+      fallback: p.type == PostType.video ? 16 / 9 : 4 / 3,
+    );
+    final extremePortrait = renderAspect < 0.4;
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final viewport = MediaQuery.sizeOf(context);
-    final maxHeight = viewport.height * 0.65;
+    final viewportHeight = MediaQuery.sizeOf(context).height;
+    final verticalPadding = MediaQuery.viewPaddingOf(context).vertical;
+    final maxHeight = mediaViewportMaxHeight(
+      viewportHeight: viewportHeight,
+      verticalPadding: verticalPadding,
+    );
     final cacheWidth =
-        (viewport.width * dpr).round().clamp(1, 1080).toInt();
-    final cacheHeight = (maxHeight * dpr).ceil().clamp(1, 1080).toInt();
+        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
+    final cacheHeight =
+        (cacheWidth / renderAspect).ceil().clamp(1, 1080).toInt();
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: NsfwBlur(
         blur: blur,
-        child: ClipRRect(
-          borderRadius: ShapeTokens.large,
-          child: GestureDetector(
-            onTap: _openMedia,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: 120,
-                maxHeight: maxHeight,
-              ),
-              child: Container(
-                width: double.infinity,
-                color: cs.surfaceContainerLowest,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (url != null)
-                      CachedNetworkImage(
-                        imageUrl: url,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final naturalHeight = constraints.maxWidth / renderAspect;
+            final capped = naturalHeight > maxHeight || extremePortrait;
+
+            final content = Stack(
+              fit: StackFit.expand,
+              alignment: Alignment.center,
+              children: [
+                if (url != null)
+                  CachedNetworkImage(
+                    imageUrl: url,
+                    memCacheWidth: cacheWidth,
+                    memCacheHeight: cacheHeight,
+                    fit: capped ? BoxFit.cover : BoxFit.cover,
+                    alignment: capped ? Alignment.topCenter : Alignment.center,
+                    placeholder: (_, __) =>
+                        Container(color: cs.surfaceContainerHighest),
+                    errorWidget: (_, __, ___) => Container(
+                      color: cs.surfaceContainerHighest,
+                      child: Icon(Icons.broken_image_outlined,
+                          color: cs.onSurfaceVariant),
+                    ),
+                  )
+                else
+                  Container(color: cs.surfaceContainerHighest),
+                if (p.type == PostType.video) ...[
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: cs.scrim.withValues(alpha: 0.54),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: cs.onSurface,
+                        size: 36,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: cs.scrim.withValues(alpha: 0.78),
+                        borderRadius: ShapeTokens.extraSmall,
+                      ),
+                      child: Text(
+                        'VIDEO',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(
+                              color: cs.onSurface,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            );
+
+            final mediaWidget = ClipRRect(
+              borderRadius: ShapeTokens.large,
+              child: GestureDetector(
+                onTap: _openMedia,
+                child: capped
+                    ? SizedBox(
                         width: double.infinity,
-                        memCacheWidth: cacheWidth,
-                        memCacheHeight: cacheHeight,
-                        fit: BoxFit.contain,
-                        alignment: Alignment.center,
+                        height: maxHeight,
+                        child: content,
                       )
-                    else
-                      Container(color: cs.surfaceContainerHighest),
-                    if (p.type == PostType.video) ...[
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: cs.scrim.withValues(alpha: 0.54),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.play_arrow_rounded,
-                          color: cs.onSurface,
-                          size: 36,
-                        ),
+                    : AspectRatio(
+                        aspectRatio: renderAspect,
+                        child: content,
                       ),
-                      Positioned(
-                        right: 12,
-                        bottom: 12,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: cs.scrim.withValues(alpha: 0.78),
-                            borderRadius: ShapeTokens.extraSmall,
-                          ),
-                          child: Text(
-                            'VIDEO',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelSmall
-                                ?.copyWith(
-                                  color: cs.onSurface,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.4,
-                                ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
               ),
-            ),
-          ),
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                mediaWidget,
+                if (capped)
+                  Semantics(
+                    button: true,
+                    label: 'View full image',
+                    child: TextButton.icon(
+                      onPressed: _openMedia,
+                      icon: const Icon(Icons.open_in_full_rounded, size: 16),
+                      label: const Text('View full'),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );

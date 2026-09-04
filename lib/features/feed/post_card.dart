@@ -376,12 +376,8 @@ class _PostCardState extends ConsumerState<PostCard> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-                      color: cs.surfaceContainer,
-              borderRadius: ShapeTokens.large,
-              border: Border.all(
-                color: cs.outlineVariant.withValues(alpha: 0.18),
-              ),
-
+        color: cs.surfaceContainer,
+        borderRadius: ShapeTokens.large,
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(
@@ -547,7 +543,8 @@ class _PostCardState extends ConsumerState<PostCard> {
                 imageUrl: url,
                 memCacheWidth: cacheSize,
                 memCacheHeight: cacheSize,
-                fit: BoxFit.contain,
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
                 placeholder: (_, __) =>
                     Container(color: cs.surfaceContainerHighest),
                 errorWidget: (_, __, ___) => Container(
@@ -727,6 +724,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     final renderAspect = intrinsicMediaAspectRatio(
       width: p.previewWidth,
       height: p.previewHeight,
+      fallback: p.type == PostType.video ? 16 / 9 : 4 / 3,
     );
     final extremePortrait = renderAspect < 0.4;
     final maxHeight = mediaViewportMaxHeight(
@@ -789,7 +787,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       );
     }
 
-    Widget mediaStack() => Stack(
+    Widget mediaStack({required bool capped}) => Stack(
           fit: StackFit.expand,
           children: [
             if (url != null)
@@ -797,8 +795,8 @@ class _PostCardState extends ConsumerState<PostCard> {
                 imageUrl: url,
                 memCacheWidth: cacheWidth,
                 memCacheHeight: cacheHeight,
-                fit: BoxFit.contain,
-                alignment: Alignment.center,
+                fit: capped ? BoxFit.cover : BoxFit.cover,
+                alignment: capped ? Alignment.topCenter : Alignment.center,
                 placeholder: (_, __) =>
                     Container(color: cs.surfaceContainerHighest),
                 errorWidget: (_, __, ___) => Container(
@@ -844,11 +842,11 @@ class _PostCardState extends ConsumerState<PostCard> {
                   ? SizedBox(
                       width: double.infinity,
                       height: maxHeight,
-                      child: mediaStack(),
+                      child: mediaStack(capped: true),
                     )
                   : AspectRatio(
                       aspectRatio: renderAspect,
-                      child: mediaStack(),
+                      child: mediaStack(capped: false),
                     ),
             ),
           );
@@ -892,8 +890,8 @@ class _PostCardState extends ConsumerState<PostCard> {
                         .toInt(),
                     width: 72,
                     height: 72,
-                    fit: BoxFit.contain,
-                    alignment: Alignment.topCenter,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.center,
                     errorWidget: (_, __, ___) =>
                         const SizedBox(width: 72, height: 72),
                   ),
