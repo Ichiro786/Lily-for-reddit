@@ -374,10 +374,14 @@ class _PostCardState extends ConsumerState<PostCard> {
     required VoidCallback onTap,
   }) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: cs.surfaceContainer,
         borderRadius: ShapeTokens.large,
+        border: Border.all(
+          color: cs.outlineVariant.withValues(alpha: 0.18),
+          width: 1,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(
@@ -385,6 +389,8 @@ class _PostCardState extends ConsumerState<PostCard> {
         child: InkWell(
           onTap: onTap,
           borderRadius: ShapeTokens.large,
+          splashColor: cs.onSurface.withValues(alpha: 0.08),
+          highlightColor: cs.onSurface.withValues(alpha: 0.04),
           child: child,
         ),
       ),
@@ -398,7 +404,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       cs,
       onTap: _openDetail,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -409,7 +415,8 @@ class _PostCardState extends ConsumerState<PostCard> {
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: cs.onSurface,
                     fontWeight: FontWeight.w700,
-                    height: 1.2,
+                    height: 1.25,
+                    letterSpacing: -0.2,
                   ),
             ),
             if (p.linkFlairText != null) ...[
@@ -446,7 +453,7 @@ class _PostCardState extends ConsumerState<PostCard> {
       cs,
       onTap: _openDetail,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -458,6 +465,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                     color: cs.onSurface,
                     fontWeight: FontWeight.w700,
                     height: 1.25,
+                    letterSpacing: -0.1,
                   ),
             ),
             if (p.linkFlairText != null) ...[
@@ -582,31 +590,29 @@ class _PostCardState extends ConsumerState<PostCard> {
     final subreddit = p.subredditPrefixed.isNotEmpty
         ? p.subredditPrefixed
         : 'r/${p.subreddit}';
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      alignment: Alignment.centerLeft,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: () => context.push('/r/${p.subreddit}'),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: cs.secondaryContainer,
-              child: Text(
-                p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: cs.onSecondaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () => context.push('/r/${p.subreddit}'),
+          child: CircleAvatar(
+            radius: 16,
+            backgroundColor: cs.secondaryContainer,
+            child: Text(
+              p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: cs.onSecondaryContainer,
+                    fontWeight: FontWeight.w700,
+                  ),
             ),
           ),
-          const SizedBox(width: 10),
-          GestureDetector(
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: GestureDetector(
             onTap: () => context.push('/r/${p.subreddit}'),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   subreddit,
@@ -620,13 +626,15 @@ class _PostCardState extends ConsumerState<PostCard> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'u/${p.author}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                          ),
+                    Flexible(
+                      child: Text(
+                        'u/${p.author}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                      ),
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -640,39 +648,39 @@ class _PostCardState extends ConsumerState<PostCard> {
               ],
             ),
           ),
-          if (p.stickied)
-            Padding(
-              padding: const EdgeInsets.only(left: 6),
-              child: Icon(Icons.push_pin_rounded, size: 16, color: cs.primary),
-            ),
-          if (p.over18)
-            Container(
-              margin: const EdgeInsets.only(left: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: cs.errorContainer,
-                borderRadius: ShapeTokens.extraSmall,
-              ),
-              child: Text(
-                'NSFW',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: cs.onErrorContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ),
-          const SizedBox(width: 2),
-          IconButton(
-            onPressed: widget.post.feedReason != null
-                ? _showTuneSheet
-                : _showPostMenu,
-            tooltip: 'More actions',
-            visualDensity: VisualDensity.compact,
-            iconSize: 20,
-            icon: Icon(Icons.more_vert_rounded, color: cs.onSurfaceVariant),
+        ),
+        if (p.stickied)
+          Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: Icon(Icons.push_pin_rounded, size: 16, color: cs.primary),
           ),
-        ],
-      ),
+        if (p.over18)
+          Container(
+            margin: const EdgeInsets.only(left: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: cs.errorContainer,
+              borderRadius: ShapeTokens.extraSmall,
+            ),
+            child: Text(
+              'NSFW',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: cs.onErrorContainer,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+        const SizedBox(width: 2),
+        IconButton(
+          onPressed: widget.post.feedReason != null
+              ? _showTuneSheet
+              : _showPostMenu,
+          tooltip: 'More actions',
+          visualDensity: VisualDensity.compact,
+          iconSize: 20,
+          icon: Icon(Icons.more_vert_rounded, color: cs.onSurfaceVariant),
+        ),
+      ],
     );
   }
 
@@ -798,15 +806,15 @@ class _PostCardState extends ConsumerState<PostCard> {
                 fit: capped ? BoxFit.cover : BoxFit.cover,
                 alignment: capped ? Alignment.topCenter : Alignment.center,
                 placeholder: (_, __) =>
-                    Container(color: cs.surfaceContainerHighest),
+                    Container(color: cs.surfaceContainerLowest),
                 errorWidget: (_, __, ___) => Container(
-                  color: cs.surfaceContainerHighest,
+                  color: cs.surfaceContainerLowest,
                   child: Icon(Icons.broken_image_outlined,
                       color: cs.onSurfaceVariant),
                 ),
               )
             else
-              Container(color: cs.surfaceContainerHighest),
+              Container(color: cs.surfaceContainerLowest),
             if (p.type == PostType.video)
               const Center(child: _PlayBadge()),
             if (p.type == PostType.gallery)

@@ -99,8 +99,12 @@ class M3EFloatingNavBar extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final isSelected = currentIndex == index;
 
-    final Color iconColor = isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant;
-    final Color labelColor = isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant;
+    final Color iconColor = isSelected
+        ? colorScheme.onSecondaryContainer
+        : colorScheme.onSurfaceVariant;
+    final Color labelColor = isSelected
+        ? colorScheme.primary
+        : colorScheme.onSurfaceVariant;
 
     return Expanded(
       child: Material(
@@ -111,7 +115,7 @@ class M3EFloatingNavBar extends StatelessWidget {
             onTap(index);
           },
           borderRadius: BorderRadius.circular(isMinimized ? 999 : 20),
-          splashColor: colorScheme.primary.withValues(alpha: 0.12),
+          splashColor: colorScheme.secondaryContainer.withValues(alpha: 0.35),
           highlightColor: Colors.transparent,
           child: AnimatedPadding(
             duration: const Duration(milliseconds: 220),
@@ -127,11 +131,11 @@ class M3EFloatingNavBar extends StatelessWidget {
                   curve: Curves.fastOutSlowIn,
                   padding: EdgeInsets.symmetric(
                     horizontal: isSelected ? 16 : 0,
-                    vertical: isSelected ? 3 : 0,
+                    vertical: isSelected ? 4 : 0,
                   ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? colorScheme.primary.withValues(alpha: 0.18)
+                        ? colorScheme.secondaryContainer
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(16),
                   ),
