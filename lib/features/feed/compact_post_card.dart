@@ -29,10 +29,14 @@ class CompactPostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
         borderRadius: ShapeTokens.large,
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.18),
+          width: 1,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(
@@ -40,6 +44,8 @@ class CompactPostCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: ShapeTokens.large,
+          splashColor: colorScheme.onSurface.withValues(alpha: 0.08),
+          highlightColor: colorScheme.onSurface.withValues(alpha: 0.04),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 12, 10),
             child: Row(

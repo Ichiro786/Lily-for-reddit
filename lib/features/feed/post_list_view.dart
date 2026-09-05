@@ -104,7 +104,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
       onRefresh: notifier.refresh,
       child: async.when(
         loading: () => ListView(
-          padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+          padding: EdgeInsets.fromLTRB(
+              10, 0, 10, 88.0 + MediaQuery.paddingOf(context).bottom),
           children: [
             if (widget.header != null) widget.header!,
             const SizedBox(height: 8),
@@ -132,7 +133,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           var posts = state.posts;
           // Auto-hide already-read items in the For You feed (live: rebuilds
           // when history changes).
-          if (autoHideReadForYou) {
+          if (forYouFeed && widget.feedKey.isEmpty && autoHideReadForYou) {
             ref.watch(historyControllerProvider);
             final history = ref.read(historyControllerProvider.notifier);
             posts = posts
@@ -142,7 +143,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           }
           if (posts.isEmpty) {
             return ListView(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+              padding: EdgeInsets.fromLTRB(
+                  10, 0, 10, 88.0 + MediaQuery.paddingOf(context).bottom),
               children: [
                 if (widget.header != null) widget.header!,
                 if (widget.showSortBar)
@@ -161,11 +163,12 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           }
           final itemCount =
               (widget.showSortBar ? 1 : 0) + posts.length + 1;
-          return ListView.separated(
+          final bottomPadding =
+              88.0 + MediaQuery.paddingOf(context).bottom;
+          return ListView.builder(
             controller: _scroll,
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+            padding: EdgeInsets.fromLTRB(10, 0, 10, bottomPadding),
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
-            separatorBuilder: (_, __) => const SizedBox.shrink(),
             addAutomaticKeepAlives: false,
             addRepaintBoundaries: false,
             itemBuilder: (context, rawIndex) {
@@ -407,11 +410,18 @@ class _SortBar extends StatelessWidget {
             if (sort == PostSort.top && !forYou) ...[
               const SizedBox(width: 8),
               ActionChip(
-                avatar: const Icon(Icons.schedule_rounded, size: 16),
+                avatar: Icon(Icons.schedule_rounded, size: 16, color: cs.primary),
                 label: Text(time.label),
-                onPressed: () => _showTimeSheet(context),
-                backgroundColor: cs.surfaceContainerLow,
-                side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.35)),
+                labelStyle: TextStyle(
+                  color: cs.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  _showTimeSheet(context);
+                },
+                backgroundColor: cs.surfaceContainerHigh.withValues(alpha: 0.65),
+                side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.25)),
                 shape: const StadiumBorder(),
               ),
             ],
@@ -432,20 +442,28 @@ class _SortBar extends StatelessWidget {
     return FilterChip(
       selected: selected,
       showCheckmark: selected,
-      onSelected: (_) => onPressed(),
-      avatar: Icon(icon, size: 16),
+      onSelected: (_) {
+        HapticFeedback.selectionClick();
+        onPressed();
+      },
+      avatar: Icon(
+        icon,
+        size: 16,
+        color: selected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+      ),
       label: Text(label),
       labelStyle: TextStyle(
         fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-        color: selected ? cs.onPrimary : cs.onSurface,
+        color: selected ? cs.onSecondaryContainer : cs.onSurface,
       ),
-      selectedColor: cs.primary,
-      backgroundColor: cs.surfaceContainerLow,
-      checkmarkColor: cs.onPrimary,
+      selectedColor: cs.secondaryContainer,
+      backgroundColor: cs.surfaceContainerHigh.withValues(alpha: 0.65),
+      checkmarkColor: cs.onSecondaryContainer,
       side: BorderSide(
         color: selected
-            ? cs.primary
-            : cs.outlineVariant.withValues(alpha: 0.4),
+            ? cs.secondaryContainer.withValues(alpha: 0.5)
+            : cs.outlineVariant.withValues(alpha: 0.25),
+        width: 1,
       ),
       shape: const StadiumBorder(),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
@@ -453,22 +471,53 @@ class _SortBar extends StatelessWidget {
   }
 
   void _showTimeSheet(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
+      backgroundColor: cs.surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Row(
+                children: [
+                  Icon(Icons.schedule_rounded, size: 18, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Top posts from',
+                    style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
+                  ),
+                ],
+              ),
+            ),
             for (final t in TopTime.values)
               ListTile(
-                title: Text(t.label),
-                trailing: t == time ? const Icon(Icons.check_rounded) : null,
+                title: Text(
+                  t.label,
+                  style: TextStyle(
+                    fontWeight: t == time ? FontWeight.w700 : FontWeight.w500,
+                    color: t == time ? cs.primary : cs.onSurface,
+                  ),
+                ),
+                trailing: t == time
+                    ? Icon(Icons.check_rounded, color: cs.primary)
+                    : null,
                 onTap: () {
+                  HapticFeedback.selectionClick();
                   Navigator.pop(ctx);
                   onPick(PostSort.top, time: t);
                 },
               ),
+            const SizedBox(height: 8),
           ],
         ),
       ),

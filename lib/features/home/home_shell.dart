@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/rate_limit.dart';
+import '../../core/theme/shape_tokens.dart';
 import '../../core/widgets/glass_surface.dart';
 import '../auth/auth_controller.dart';
 import '../explore/explore_screen.dart';
@@ -174,10 +175,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         ),
       ),
       floatingActionButton: _index == 0
-          ? FloatingActionButton(
-              tooltip: 'Create post',
-              onPressed: () => context.push('/submit'),
-              child: const Icon(Icons.add_rounded),
+          ? ValueListenableBuilder<bool>(
+              valueListenable: _chrome,
+              builder: (context, visible, child) => AnimatedScale(
+                scale: visible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.fastOutSlowIn,
+                child: child!,
+              ),
+              child: FloatingActionButton(
+                tooltip: 'Create post',
+                onPressed: () => context.push('/submit'),
+                child: const Icon(Icons.add_rounded),
+              ),
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -312,73 +322,86 @@ class _FrontpageTab extends ConsumerWidget {
         // scroll. Compact mode hides it; Expandable shows it on demand.
         if (showActionRow)
           AnimatedSize(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
-          alignment: Alignment.topCenter,
-          child: chromeVisible
-              ? Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: ref.watch(settingsControllerProvider).showApiUsage
-                    ? _ApiUsagePill()
-                    : GlassSurface(
-                        borderRadius: BorderRadius.circular(28),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(28),
-                          onTap: () => context.push('/search'),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 14),
-                            child: Row(
-                              children: [
-                                Icon(Icons.search_rounded,
-                                    color: cs.onSurfaceVariant),
-                                const SizedBox(width: 12),
-                                Text('Search Reddit',
-                                    style:
-                                        TextStyle(color: cs.onSurfaceVariant)),
-                              ],
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.fastOutSlowIn,
+            alignment: Alignment.topCenter,
+            child: chromeVisible
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: Row(
+                      children: [
+                        if (ref.watch(settingsControllerProvider).showApiUsage) ...[
+                          const _ApiUsagePill(),
+                          const SizedBox(width: 8),
+                        ],
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: cs.surfaceContainerHigh,
+                              borderRadius: ShapeTokens.full,
+                              border: Border.all(
+                                color: cs.outlineVariant.withValues(alpha: 0.20),
+                                width: 1,
+                              ),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: ShapeTokens.full,
+                                onTap: () => context.push('/search'),
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 16),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.search_rounded,
+                                          color: cs.onSurfaceVariant),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        'Search Reddit',
+                                        style: TextStyle(
+                                          color: cs.onSurfaceVariant,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-              ),
-              const SizedBox(width: 4),
-              IconButton.filled(
-                tooltip: 'New post',
-                icon: const Icon(Icons.edit_square, size: 22),
-                style: IconButton.styleFrom(
-                  backgroundColor: cs.primary,
-                  foregroundColor: cs.onPrimary,
-                ),
-                onPressed: () => context.push('/submit'),
-              ),
-              const _DisplayMenu(),
-              const SizedBox(width: 4),
-              Semantics(
-                button: true,
-                label: 'Your profile',
-                child: GestureDetector(
-                  onTap: () => context.push('/u/$username'),
-                  child: CircleAvatar(
-                    radius: 22,
-                    backgroundColor: cs.primaryContainer,
-                    child: Text(
-                      username.isNotEmpty ? username[0].toUpperCase() : '?',
-                      style: TextStyle(
-                          color: cs.onPrimaryContainer,
-                          fontWeight: FontWeight.bold),
+                        const SizedBox(width: 4),
+                        const _DisplayMenu(),
+                        const SizedBox(width: 4),
+                        Semantics(
+                          button: true,
+                          label: 'Your profile',
+                          child: GestureDetector(
+                            onTap: () => context.push('/u/$username'),
+                            child: CircleAvatar(
+                              radius: 20,
+                              backgroundColor: cs.primaryContainer,
+                              child: Text(
+                                username.isNotEmpty
+                                    ? username[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  color: cs.onPrimaryContainer,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-              ),
-            ],
+                  )
+                : const SizedBox(width: double.infinity, height: 0),
           ),
-                )
-              : const SizedBox(width: double.infinity, height: 0),
-        ),
         Expanded(
           child: PostListView(
             feedKey: '',
@@ -536,35 +559,46 @@ Future<void> _showFloatingToolbar(
   );
 }
 
-/// Shows live Reddit API rate-limit usage in place of the search bar
+/// Shows live Reddit API rate-limit usage alongside the search bar
 /// (power-user setting). Reddit allows ~100 requests/minute per OAuth client.
 class _ApiUsagePill extends ConsumerWidget {
+  const _ApiUsagePill();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final rl = ref.watch(rateLimitProvider);
     final String label;
     if (rl == null) {
-      label = 'API usage · no calls yet';
+      label = 'API: 0/100';
     } else {
-      label = 'API ${rl.used}/${rl.total} · resets ${rl.resetSeconds}s';
+      label = 'API: ${rl.used}/${rl.total}';
     }
-    return GlassSurface(
-      borderRadius: BorderRadius.circular(28),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        child: Row(
-          children: [
-            Icon(Icons.speed_rounded, color: cs.onSurfaceVariant),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: cs.onSurfaceVariant)),
-            ),
-          ],
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHigh,
+        borderRadius: ShapeTokens.full,
+        border: Border.all(
+          color: cs.outlineVariant.withValues(alpha: 0.20),
+          width: 1,
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.speed_rounded, size: 16, color: cs.primary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: cs.onSurfaceVariant,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
