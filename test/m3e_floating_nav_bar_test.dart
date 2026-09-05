@@ -75,4 +75,53 @@ void main() {
     expect(find.text('7'), findsNothing);
     expect(find.byType(Positioned), findsWidgets);
   });
+
+  testWidgets(
+      'minimizing and expanding dock causes no layout overflows across all animation frames',
+      (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        M3EFloatingNavBar(
+          currentIndex: 0,
+          isMinimized: false,
+          onTap: (_) {},
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+
+    // Transition to minimized
+    await tester.pumpWidget(
+      _harness(
+        M3EFloatingNavBar(
+          currentIndex: 0,
+          isMinimized: true,
+          onTap: (_) {},
+        ),
+      ),
+    );
+
+    for (final ms in [0, 40, 80, 120, 160, 220]) {
+      await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
+      expect(tester.takeException(), isNull,
+          reason: 'Overflow occurred while minimizing at ${ms}ms');
+    }
+
+    // Transition back to expanded
+    await tester.pumpWidget(
+      _harness(
+        M3EFloatingNavBar(
+          currentIndex: 0,
+          isMinimized: false,
+          onTap: (_) {},
+        ),
+      ),
+    );
+
+    for (final ms in [0, 40, 80, 120, 160, 220]) {
+      await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
+      expect(tester.takeException(), isNull,
+          reason: 'Overflow occurred while expanding at ${ms}ms');
+    }
+  });
 }

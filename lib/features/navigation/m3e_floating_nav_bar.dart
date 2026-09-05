@@ -121,70 +121,81 @@ class M3EFloatingNavBar extends StatelessWidget {
             duration: const Duration(milliseconds: 220),
             curve: Curves.fastOutSlowIn,
             padding: EdgeInsets.symmetric(vertical: isMinimized ? 6 : 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Active indicator capsule around icon
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.fastOutSlowIn,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSelected ? 16 : 0,
-                    vertical: isSelected ? 4 : 0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? colorScheme.secondaryContainer
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Icon(
-                        isSelected ? activeIcon : icon,
-                        size: isMinimized ? 22 : 23,
-                        color: iconColor,
+            child: ClipRect(
+              child: OverflowBox(
+                minHeight: 0,
+                maxHeight: 60,
+                alignment: Alignment.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Active indicator capsule around icon
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.fastOutSlowIn,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isSelected ? 16 : 0,
+                        vertical: isSelected ? (isMinimized ? 2 : 4) : 0,
                       ),
-                      if (badgeCount > 0)
-                        Positioned(
-                          right: -4,
-                          top: -2,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary,
-                              shape: BoxShape.circle,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.secondaryContainer
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(
+                            isSelected ? activeIcon : icon,
+                            size: isMinimized ? 22 : 23,
+                            color: iconColor,
+                          ),
+                          if (badgeCount > 0)
+                            Positioned(
+                              right: -4,
+                              top: -2,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // Text label: Smoothly collapses to 0 height in minimized state
+                    ClipRect(
+                      child: AnimatedAlign(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.fastOutSlowIn,
+                        alignment: Alignment.topCenter,
+                        heightFactor: isMinimized ? 0.0 : 1.0,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.fastOutSlowIn,
+                          opacity: isMinimized ? 0.0 : 1.0,
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontSize: 10.5,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              color: labelColor,
+                              letterSpacing: 0.1,
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                // Text label: Smoothly collapses to 0 height in minimized state
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.fastOutSlowIn,
-                  height: isMinimized ? 0 : 16,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 150),
-                    opacity: isMinimized ? 0.0 : 1.0,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontSize: 10.5,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: labelColor,
-                        letterSpacing: 0.1,
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
