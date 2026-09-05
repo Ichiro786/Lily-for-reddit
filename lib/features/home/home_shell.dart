@@ -175,10 +175,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         ),
       ),
       floatingActionButton: _index == 0
-          ? FloatingActionButton(
-              tooltip: 'Create post',
-              onPressed: () => context.push('/submit'),
-              child: const Icon(Icons.add_rounded),
+          ? ValueListenableBuilder<bool>(
+              valueListenable: _chrome,
+              builder: (context, visible, child) => AnimatedScale(
+                scale: visible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.fastOutSlowIn,
+                child: child!,
+              ),
+              child: FloatingActionButton(
+                tooltip: 'Create post',
+                onPressed: () => context.push('/submit'),
+                child: const Icon(Icons.add_rounded),
+              ),
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -314,7 +323,7 @@ class _FrontpageTab extends ConsumerWidget {
         if (showActionRow)
           AnimatedSize(
             duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
+            curve: Curves.fastOutSlowIn,
             alignment: Alignment.topCenter,
             child: chromeVisible
                 ? Padding(

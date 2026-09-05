@@ -104,7 +104,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
       onRefresh: notifier.refresh,
       child: async.when(
         loading: () => ListView(
-          padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+          padding: EdgeInsets.fromLTRB(
+              10, 0, 10, 88.0 + MediaQuery.paddingOf(context).bottom),
           children: [
             if (widget.header != null) widget.header!,
             const SizedBox(height: 8),
@@ -132,7 +133,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           var posts = state.posts;
           // Auto-hide already-read items in the For You feed (live: rebuilds
           // when history changes).
-          if (autoHideReadForYou) {
+          if (forYouFeed && widget.feedKey.isEmpty && autoHideReadForYou) {
             ref.watch(historyControllerProvider);
             final history = ref.read(historyControllerProvider.notifier);
             posts = posts
@@ -142,7 +143,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           }
           if (posts.isEmpty) {
             return ListView(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 130),
+              padding: EdgeInsets.fromLTRB(
+                  10, 0, 10, 88.0 + MediaQuery.paddingOf(context).bottom),
               children: [
                 if (widget.header != null) widget.header!,
                 if (widget.showSortBar)
