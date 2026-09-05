@@ -71,7 +71,7 @@ class M3EPostActionBar extends StatelessWidget {
         HapticFeedback.selectionClick();
         onShareTap?.call();
       },
-      child: const Icon(Icons.shortcut_rounded, size: 19),
+      child: const Icon(Icons.shortcut_rounded, size: 17),
     );
 
     final saveButton = _CompactAction(
@@ -86,7 +86,7 @@ class M3EPostActionBar extends StatelessWidget {
       },
       child: Icon(
         isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-        size: 19,
+        size: 17,
       ),
     );
 
@@ -98,12 +98,12 @@ class M3EPostActionBar extends StatelessWidget {
               HapticFeedback.selectionClick();
               onMoreTap!();
             },
-            child: const Icon(Icons.more_horiz_rounded, size: 19),
+            child: const Icon(Icons.more_horiz_rounded, size: 17),
           )
         : null;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 280;
@@ -191,7 +191,7 @@ class _VoteGroup extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
-      height: 40,
+      height: 36,
       padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: BoxDecoration(
         color: bgColor,
@@ -215,6 +215,7 @@ class _VoteGroup extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: scoreColor,
                   ),
@@ -250,9 +251,9 @@ class _VoteIcon extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      icon: Icon(icon, size: 18, color: color),
+      icon: Icon(icon, size: 17, color: color),
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 36),
       visualDensity: VisualDensity.compact,
     );
   }
@@ -281,8 +282,8 @@ class _CommentAction extends StatelessWidget {
           onTap: onTap,
           customBorder: ShapeTokens.fullShape,
           child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: ShapeDecoration(
               shape: RoundedRectangleBorder(
                 borderRadius: ShapeTokens.full,
@@ -297,7 +298,7 @@ class _CommentAction extends StatelessWidget {
               children: [
                 Icon(
                   Icons.chat_bubble_outline_rounded,
-                  size: 18,
+                  size: 17,
                   color: cs.onSurfaceVariant,
                 ),
                 const SizedBox(width: 5),
@@ -306,6 +307,7 @@ class _CommentAction extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelSmall?.copyWith(
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: cs.onSurfaceVariant,
                   ),
@@ -359,7 +361,7 @@ class _CompactAction extends StatelessWidget {
           onTap: onTap,
           customBorder: shape,
           child: Container(
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             decoration: ShapeDecoration(
               shape: shape is CircleBorder
                   ? CircleBorder(side: BorderSide(color: borderColor, width: 1))
@@ -369,12 +371,12 @@ class _CompactAction extends StatelessWidget {
                     ),
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 7),
               child: Center(
                 child: IconTheme(
                   data: IconThemeData(
                     color: foregroundColor ?? cs.onSurfaceVariant,
-                    size: 19,
+                    size: 17,
                   ),
                   child: child,
                 ),

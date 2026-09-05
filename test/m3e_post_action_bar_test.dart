@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
 import 'package:luli_for_reddit/features/feed/post_action_bar.dart';
@@ -113,6 +113,31 @@ void main() {
         );
         expect(tester.takeException(), isNull, reason: 'Failed at width $width');
       }
+    });
+
+    testWidgets('controls use 36dp height and 17dp icons for compact density',
+        (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          const SizedBox(
+            width: 400,
+            child: M3EPostActionBar(
+              score: 50,
+              commentCount: 12,
+              voteState: 0,
+            ),
+          ),
+        ),
+      );
+
+      final voteGroupFinder = find.byType(AnimatedContainer).first;
+      expect(tester.getSize(voteGroupFinder).height, 36);
+
+      final commentContainerFinder = find.descendant(
+        of: find.bySemanticsLabel('12 comments'),
+        matching: find.byType(Container),
+      ).first;
+      expect(tester.getSize(commentContainerFinder).height, 36);
     });
   });
 }

@@ -404,26 +404,28 @@ class _PostCardState extends ConsumerState<PostCard> {
       cs,
       onTap: _openDetail,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _header(cs),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               p.title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: cs.onSurface,
-                    fontWeight: FontWeight.w700,
-                    height: 1.25,
-                    letterSpacing: -0.2,
+                    fontWeight: FontWeight.w600,
+                    height: 1.28,
+                    letterSpacing: -0.15,
                   ),
             ),
             if (p.linkFlairText != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               _flair(cs, p.linkFlairText!),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _media(cs),
             if (p.isSelf && p.selftext.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -453,26 +455,28 @@ class _PostCardState extends ConsumerState<PostCard> {
       cs,
       onTap: _openDetail,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _header(cs),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               p.title,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: cs.onSurface,
-                    fontWeight: FontWeight.w700,
-                    height: 1.25,
-                    letterSpacing: -0.1,
+                    fontWeight: FontWeight.w600,
+                    height: 1.28,
+                    letterSpacing: -0.15,
                   ),
             ),
             if (p.linkFlairText != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               _flair(cs, p.linkFlairText!),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _media(cs),
             if (p.isSelf && p.selftext.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -595,18 +599,19 @@ class _PostCardState extends ConsumerState<PostCard> {
         GestureDetector(
           onTap: () => context.push('/r/${p.subreddit}'),
           child: CircleAvatar(
-            radius: 16,
+            radius: 14,
             backgroundColor: cs.secondaryContainer,
             child: Text(
               p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: 13,
                     color: cs.onSecondaryContainer,
                     fontWeight: FontWeight.w700,
                   ),
             ),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Expanded(
           child: GestureDetector(
             onTap: () => context.push('/r/${p.subreddit}'),
@@ -619,6 +624,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontSize: 13.5,
                         color: cs.onSurface,
                         fontWeight: FontWeight.w600,
                       ),
@@ -632,6 +638,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontSize: 11.5,
                               color: cs.onSurfaceVariant,
                             ),
                       ),
@@ -640,6 +647,7 @@ class _PostCardState extends ConsumerState<PostCard> {
                     Text(
                       '·  ${timeAgo(p.created)}',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontSize: 11.5,
                             color: cs.onSurfaceVariant,
                           ),
                     ),
@@ -657,7 +665,7 @@ class _PostCardState extends ConsumerState<PostCard> {
         if (p.over18)
           Container(
             margin: const EdgeInsets.only(left: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
             decoration: BoxDecoration(
               color: cs.errorContainer,
               borderRadius: ShapeTokens.extraSmall,
@@ -685,13 +693,13 @@ class _PostCardState extends ConsumerState<PostCard> {
   }
 
   Widget _flair(ColorScheme cs, String text) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
             color: cs.primaryContainer.withValues(alpha: 0.72),
             borderRadius: ShapeTokens.full),
         child: Text(text,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: FontWeight.w700,
               color: cs.onPrimaryContainer,
             )),
@@ -742,8 +750,6 @@ class _PostCardState extends ConsumerState<PostCard> {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth =
         (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
-    final cacheHeight =
-        (cacheWidth / renderAspect).ceil().clamp(1, 1080).toInt();
     final autoplay = ref.watch(
       settingsControllerProvider.select((s) => s.autoplayMedia),
     );
@@ -778,7 +784,7 @@ class _PostCardState extends ConsumerState<PostCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
-                  borderRadius: ShapeTokens.large,
+                  borderRadius: ShapeTokens.small,
                   child: InlineVideo(
                     key: ValueKey('iv_${p.id}'),
                     url: videoUrl,
@@ -802,7 +808,6 @@ class _PostCardState extends ConsumerState<PostCard> {
               CachedNetworkImage(
                 imageUrl: url,
                 memCacheWidth: cacheWidth,
-                memCacheHeight: cacheHeight,
                 fit: capped ? BoxFit.cover : BoxFit.cover,
                 alignment: capped ? Alignment.topCenter : Alignment.center,
                 placeholder: (_, __) =>
@@ -843,7 +848,7 @@ class _PostCardState extends ConsumerState<PostCard> {
           final naturalHeight = constraints.maxWidth / renderAspect;
           final capped = naturalHeight > maxHeight || extremePortrait;
           final media = ClipRRect(
-            borderRadius: ShapeTokens.large,
+            borderRadius: ShapeTokens.small,
             child: GestureDetector(
               onTap: _openMedia,
               child: capped
@@ -876,16 +881,16 @@ class _PostCardState extends ConsumerState<PostCard> {
       padding: const EdgeInsets.only(bottom: 4),
       child: InkWell(
         onTap: _openMedia,
-        borderRadius: ShapeTokens.large,
+        borderRadius: ShapeTokens.small,
         child: Container(
           decoration: BoxDecoration(
               color: cs.surfaceContainerHighest,
-              borderRadius: ShapeTokens.large),
+              borderRadius: ShapeTokens.small),
           child: Row(
             children: [
               if (p.thumbnailUrl != null)
                 ClipRRect(
-                  borderRadius: ShapeTokens.large,
+                  borderRadius: ShapeTokens.small,
                   child: CachedNetworkImage(
                     imageUrl: p.thumbnailUrl!,
                     memCacheWidth: (72 * MediaQuery.devicePixelRatioOf(context))
