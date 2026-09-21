@@ -175,6 +175,9 @@ void main() {
     // Clear
     ctrl.clear();
     expect(container.read(visitedCommunityStoreProvider), isEmpty);
+
+    // Drain any pending debounce timers
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('Inbox category tabs switch and unread dot renders',
