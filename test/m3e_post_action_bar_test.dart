@@ -134,7 +134,7 @@ void main() {
       expect(tester.getSize(voteGroupFinder).height, 36);
 
       final commentContainerFinder = find.descendant(
-        of: find.bySemanticsLabel('12 comments'),
+        of: find.bySemanticsLabel(RegExp(r'12 comments')),
         matching: find.byType(Container),
       ).first;
       expect(tester.getSize(commentContainerFinder).height, 36);

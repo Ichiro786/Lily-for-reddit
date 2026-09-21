@@ -106,7 +106,7 @@ class M3EPostActionBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 280;
+          final isNarrow = constraints.maxWidth < 360;
           if (isNarrow) {
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -274,6 +274,7 @@ class _CommentAction extends StatelessWidget {
     final cs = theme.colorScheme;
     return Semantics(
       button: true,
+      excludeSemantics: true,
       label: '$commentCount comments',
       child: Material(
         color: cs.surfaceContainerHigh.withValues(alpha: 0.70),

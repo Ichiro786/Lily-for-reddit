@@ -348,7 +348,7 @@ void main() {
     final card = tester.widget<Container>(find.byWidgetPredicate((widget) {
       if (widget is! Container || widget.margin == null) return false;
       if (widget.margin !=
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 8)) {
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 6)) {
         return false;
       }
       final decoration = widget.decoration;
