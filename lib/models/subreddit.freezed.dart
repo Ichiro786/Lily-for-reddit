@@ -22,6 +22,7 @@ mixin _$Subreddit {
   String get title => throw _privateConstructorUsedError;
   String get description => throw _privateConstructorUsedError;
   int get subscribers => throw _privateConstructorUsedError;
+  int? get accountsActive => throw _privateConstructorUsedError;
   String? get iconUrl => throw _privateConstructorUsedError;
   String? get bannerUrl => throw _privateConstructorUsedError;
   bool get over18 => throw _privateConstructorUsedError;
@@ -46,6 +47,7 @@ abstract class $SubredditCopyWith<$Res> {
     String title,
     String description,
     int subscribers,
+    int? accountsActive,
     String? iconUrl,
     String? bannerUrl,
     bool over18,
@@ -74,6 +76,7 @@ class _$SubredditCopyWithImpl<$Res, $Val extends Subreddit>
     Object? title = null,
     Object? description = null,
     Object? subscribers = null,
+    Object? accountsActive = freezed,
     Object? iconUrl = freezed,
     Object? bannerUrl = freezed,
     Object? over18 = null,
@@ -102,6 +105,10 @@ class _$SubredditCopyWithImpl<$Res, $Val extends Subreddit>
                 ? _value.subscribers
                 : subscribers // ignore: cast_nullable_to_non_nullable
                       as int,
+            accountsActive: freezed == accountsActive
+                ? _value.accountsActive
+                : accountsActive // ignore: cast_nullable_to_non_nullable
+                      as int?,
             iconUrl: freezed == iconUrl
                 ? _value.iconUrl
                 : iconUrl // ignore: cast_nullable_to_non_nullable
@@ -143,6 +150,7 @@ abstract class _$$SubredditImplCopyWith<$Res>
     String title,
     String description,
     int subscribers,
+    int? accountsActive,
     String? iconUrl,
     String? bannerUrl,
     bool over18,
@@ -170,6 +178,7 @@ class __$$SubredditImplCopyWithImpl<$Res>
     Object? title = null,
     Object? description = null,
     Object? subscribers = null,
+    Object? accountsActive = freezed,
     Object? iconUrl = freezed,
     Object? bannerUrl = freezed,
     Object? over18 = null,
@@ -198,6 +207,10 @@ class __$$SubredditImplCopyWithImpl<$Res>
             ? _value.subscribers
             : subscribers // ignore: cast_nullable_to_non_nullable
                   as int,
+        accountsActive: freezed == accountsActive
+            ? _value.accountsActive
+            : accountsActive // ignore: cast_nullable_to_non_nullable
+                  as int?,
         iconUrl: freezed == iconUrl
             ? _value.iconUrl
             : iconUrl // ignore: cast_nullable_to_non_nullable
@@ -232,6 +245,7 @@ class _$SubredditImpl extends _Subreddit {
     required this.title,
     required this.description,
     required this.subscribers,
+    this.accountsActive,
     this.iconUrl,
     this.bannerUrl,
     this.over18 = false,
@@ -252,6 +266,8 @@ class _$SubredditImpl extends _Subreddit {
   @override
   final int subscribers;
   @override
+  final int? accountsActive;
+  @override
   final String? iconUrl;
   @override
   final String? bannerUrl;
@@ -266,7 +282,7 @@ class _$SubredditImpl extends _Subreddit {
 
   @override
   String toString() {
-    return 'Subreddit(name: $name, namePrefixed: $namePrefixed, title: $title, description: $description, subscribers: $subscribers, iconUrl: $iconUrl, bannerUrl: $bannerUrl, over18: $over18, userHasFavorited: $userHasFavorited, userIsSubscriber: $userIsSubscriber)';
+    return 'Subreddit(name: $name, namePrefixed: $namePrefixed, title: $title, description: $description, subscribers: $subscribers, accountsActive: $accountsActive, iconUrl: $iconUrl, bannerUrl: $bannerUrl, over18: $over18, userHasFavorited: $userHasFavorited, userIsSubscriber: $userIsSubscriber)';
   }
 
   @override
@@ -282,6 +298,8 @@ class _$SubredditImpl extends _Subreddit {
                 other.description == description) &&
             (identical(other.subscribers, subscribers) ||
                 other.subscribers == subscribers) &&
+            (identical(other.accountsActive, accountsActive) ||
+                other.accountsActive == accountsActive) &&
             (identical(other.iconUrl, iconUrl) || other.iconUrl == iconUrl) &&
             (identical(other.bannerUrl, bannerUrl) ||
                 other.bannerUrl == bannerUrl) &&
@@ -300,6 +318,7 @@ class _$SubredditImpl extends _Subreddit {
     title,
     description,
     subscribers,
+    accountsActive,
     iconUrl,
     bannerUrl,
     over18,
@@ -323,6 +342,7 @@ abstract class _Subreddit extends Subreddit {
     required final String title,
     required final String description,
     required final int subscribers,
+    final int? accountsActive,
     final String? iconUrl,
     final String? bannerUrl,
     final bool over18,
@@ -341,6 +361,8 @@ abstract class _Subreddit extends Subreddit {
   String get description;
   @override
   int get subscribers;
+  @override
+  int? get accountsActive;
   @override
   String? get iconUrl;
   @override

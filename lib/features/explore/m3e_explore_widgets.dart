@@ -58,11 +58,34 @@ class M3EPopularCommunityCard extends StatelessWidget {
                     color: colorScheme.onSurfaceVariant,
                   ),
             ),
+            if (subreddit.accountsActive != null &&
+                subreddit.accountsActive! > 0) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.circle,
+                    size: 6,
+                    color: Color(0xFF34C759),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${compactNumber(subreddit.accountsActive!)} online',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: const Color(0xFF34C759),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+            ],
             const Spacer(),
             Align(
               alignment: Alignment.centerRight,
               child: Material(
-                color: colorScheme.primaryContainer,
+                color: joined
+                    ? colorScheme.surfaceContainerHighest
+                    : colorScheme.primaryContainer,
                 shape: const RoundedRectangleBorder(
                   borderRadius: ShapeTokens.full,
                 ),
@@ -71,13 +94,15 @@ class M3EPopularCommunityCard extends StatelessWidget {
                   onTap: onJoin,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
+                      horizontal: 14,
                       vertical: 8,
                     ),
                     child: Text(
                       joined ? 'Joined' : 'Join',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: colorScheme.onPrimaryContainer,
+                            color: joined
+                                ? colorScheme.onSurfaceVariant
+                                : colorScheme.onPrimaryContainer,
                             fontWeight: FontWeight.w800,
                           ),
                     ),
@@ -109,6 +134,8 @@ class M3ERecentCommunityTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final hasActive =
+        subreddit.accountsActive != null && subreddit.accountsActive! > 0;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Material(
@@ -118,61 +145,73 @@ class M3ERecentCommunityTile extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: ListTile(
-        onTap: onTap,
-        shape: const RoundedRectangleBorder(
-          borderRadius: ShapeTokens.small,
-        ),
-        leading: _CommunityAvatar(subreddit: subreddit, size: 40),
-        title: Text(
-          subreddit.namePrefixed,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
+          onTap: onTap,
+          shape: const RoundedRectangleBorder(
+            borderRadius: ShapeTokens.small,
+          ),
+          leading: _CommunityAvatar(subreddit: subreddit, size: 40),
+          title: Text(
+            subreddit.namePrefixed,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          subtitle: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  '${compactNumber(subreddit.subscribers)} members',
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-        ),
-        subtitle: Row(
-          children: [
-            Flexible(
-              child: Text(
-                '${compactNumber(subreddit.subscribers)} members',
-                overflow: TextOverflow.ellipsis,
+              const SizedBox(width: 8),
+              Icon(
+                Icons.circle,
+                size: 7,
+                color: hasActive
+                    ? const Color(0xFF34C759)
+                    : colorScheme.outlineVariant,
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(Icons.circle, size: 7, color: colorScheme.tertiary),
-            const SizedBox(width: 4),
-            Text(
-              'Live unavailable',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              onPressed: onFavorite,
-              tooltip: subreddit.userHasFavorited
-                  ? 'Remove favorite'
-                  : 'Add favorite',
-              icon: Icon(
-                subreddit.userHasFavorited
-                    ? Icons.star_rounded
-                    : Icons.star_border_rounded,
-                color: subreddit.userHasFavorited
-                    ? colorScheme.primary
-                    : colorScheme.onSurfaceVariant,
+              const SizedBox(width: 4),
+              Text(
+                hasActive
+                    ? '${compactNumber(subreddit.accountsActive!)} online'
+                    : 'Live unavailable',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: hasActive
+                          ? const Color(0xFF34C759)
+                          : colorScheme.onSurfaceVariant,
+                      fontWeight:
+                          hasActive ? FontWeight.w600 : FontWeight.normal,
+                    ),
               ),
-            ),
-            IconButton(
-              onPressed: onMore,
-              tooltip: 'More community actions',
-              icon: const Icon(Icons.more_horiz_rounded),
-            ),
-          ],
-        ),
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                onPressed: onFavorite,
+                tooltip: subreddit.userHasFavorited
+                    ? 'Remove favorite'
+                    : 'Add favorite',
+                icon: Icon(
+                  subreddit.userHasFavorited
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
+                  color: subreddit.userHasFavorited
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+                ),
               ),
+              IconButton(
+                onPressed: onMore,
+                tooltip: 'More community actions',
+                icon: const Icon(Icons.more_horiz_rounded),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

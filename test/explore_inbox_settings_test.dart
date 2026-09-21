@@ -7,6 +7,7 @@ import 'package:luli_for_reddit/core/theme/app_theme.dart';
 import 'package:luli_for_reddit/features/explore/explore_screen.dart';
 import 'package:luli_for_reddit/features/auth/auth_controller.dart';
 import 'package:luli_for_reddit/features/history/history_store.dart';
+import 'package:luli_for_reddit/features/history/visited_subreddits_store.dart';
 import 'package:luli_for_reddit/features/inbox/m3e_inbox_widgets.dart';
 import 'package:luli_for_reddit/features/settings/settings_controller.dart';
 import 'package:luli_for_reddit/features/settings/settings_screen.dart';
@@ -16,6 +17,14 @@ import 'package:luli_for_reddit/models/subreddit.dart';
 class _FakeHistoryController extends HistoryController {
   @override
   List<HistoryEntry> build() => const <HistoryEntry>[];
+}
+
+class _FakeVisitedCommunityController extends VisitedCommunityController {
+  _FakeVisitedCommunityController(this._initial);
+  final List<Subreddit> _initial;
+
+  @override
+  List<Subreddit> build() => _initial;
 }
 
 class _FakeAuthenticatedAuthController extends AuthController {
@@ -28,13 +37,18 @@ Widget _app(Widget child) => MaterialApp(
       home: Scaffold(body: child),
     );
 
-Subreddit _subreddit({String name = 'flutter', bool favorite = false}) {
+Subreddit _subreddit({
+  String name = 'flutter',
+  bool favorite = false,
+  int? accountsActive,
+}) {
   return Subreddit(
     name: name,
     namePrefixed: 'r/$name',
     title: name,
     description: 'A community',
     subscribers: 120000,
+    accountsActive: accountsActive,
     userHasFavorited: favorite,
     userIsSubscriber: true,
   );
@@ -65,6 +79,102 @@ void main() {
     await tester.tap(find.widgetWithText(FilterChip, 'Joined'));
     await tester.pumpAndSettle();
     expect(find.text('Joined'), findsWidgets);
+  });
+
+  testWidgets('Explore screen matches M3E blueprint with headline, chip row, and live stats',
+      (tester) async {
+    final visited = [
+      _subreddit(name: 'dart', accountsActive: 1240),
+    ];
+    final communities = [_subreddit(name: 'flutter'), _subreddit(name: 'dart')];
+    final popular = [_subreddit(name: 'technology', accountsActive: 4500)];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          subscribedSubredditsProvider.overrideWith((ref) async => communities),
+          popularSubredditsProvider.overrideWith((ref) async => popular),
+          visitedCommunityStoreProvider.overrideWith(
+            () => _FakeVisitedCommunityController(visited),
+          ),
+          historyControllerProvider.overrideWith(_FakeHistoryController.new),
+        ],
+        child: _app(const ExploreScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. "Explore" headline sliver
+    expect(find.text('Explore'), findsOneWidget);
+
+    // 2. Search dock hint
+    expect(find.text('Search communities & posts'), findsOneWidget);
+
+    // 3. Filter chips
+    expect(find.text('Filter'), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('Communities'), findsOneWidget);
+    expect(find.text('Posts'), findsOneWidget);
+    expect(find.text('Joined'), findsWidgets);
+
+    // 4. Section hierarchy: "Recently visited" precedes "Popular near you"
+    final recentPos = tester.getTopLeft(find.text('Recently visited')).dy;
+    final popularPos = tester.getTopLeft(find.text('Popular near you')).dy;
+    expect(recentPos, lessThan(popularPos));
+
+    // 5. "See all >" action button
+    expect(find.text('See all >'), findsOneWidget);
+
+    // 6. Live online count indicator
+    expect(find.textContaining('online'), findsWidgets);
+  });
+
+  testWidgets('VisitedCommunityController persists and deduplicates community visits',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPrefsProvider.overrideWithValue(prefs),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final ctrl = container.read(visitedCommunityStoreProvider.notifier);
+    expect(container.read(visitedCommunityStoreProvider), isEmpty);
+
+    final sub1 = _subreddit(name: 'flutter');
+    final sub2 = _subreddit(name: 'dart', accountsActive: 350);
+
+    ctrl.recordVisit(sub1);
+    expect(container.read(visitedCommunityStoreProvider).length, 1);
+    expect(container.read(visitedCommunityStoreProvider).first.name, 'flutter');
+
+    ctrl.recordVisit(sub2);
+    expect(container.read(visitedCommunityStoreProvider).length, 2);
+    expect(container.read(visitedCommunityStoreProvider).first.name, 'dart');
+
+    // Re-visiting sub1 moves it back to top
+    ctrl.recordVisit(sub1);
+    expect(container.read(visitedCommunityStoreProvider).length, 2);
+    expect(container.read(visitedCommunityStoreProvider).first.name, 'flutter');
+
+    // Favorite toggle updates in state
+    ctrl.setFavorite('flutter', true);
+    expect(container.read(visitedCommunityStoreProvider).first.userHasFavorited, isTrue);
+
+    // Subscribed toggle updates in state
+    ctrl.setSubscribed('flutter', false);
+    expect(container.read(visitedCommunityStoreProvider).first.userIsSubscriber, isFalse);
+
+    // Remove
+    ctrl.remove('flutter');
+    expect(container.read(visitedCommunityStoreProvider).length, 1);
+    expect(container.read(visitedCommunityStoreProvider).first.name, 'dart');
+
+    // Clear
+    ctrl.clear();
+    expect(container.read(visitedCommunityStoreProvider), isEmpty);
   });
 
   testWidgets('Inbox category tabs switch and unread dot renders',

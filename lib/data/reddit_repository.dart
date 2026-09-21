@@ -556,6 +556,68 @@ class RedditRepository {
     ];
   }
 
+  static const List<Subreddit> _guestPopularSubreddits = [
+    Subreddit(
+      name: 'technology',
+      namePrefixed: 'r/technology',
+      title: 'Technology',
+      description: 'Dedicated to the news and discussions about the creation and use of technology.',
+      subscribers: 16200000,
+      accountsActive: 4200,
+    ),
+    Subreddit(
+      name: 'science',
+      namePrefixed: 'r/science',
+      title: 'Science',
+      description: 'This community is a place to share and discuss new scientific research.',
+      subscribers: 34100000,
+      accountsActive: 5800,
+    ),
+    Subreddit(
+      name: 'programming',
+      namePrefixed: 'r/programming',
+      title: 'Programming',
+      description: 'Computer Programming',
+      subscribers: 5900000,
+      accountsActive: 2300,
+    ),
+    Subreddit(
+      name: 'flutterdev',
+      namePrefixed: 'r/flutterdev',
+      title: 'Flutter Development',
+      description: 'A community dedicated to Flutter framework and Dart language.',
+      subscribers: 154000,
+      accountsActive: 920,
+    ),
+    Subreddit(
+      name: 'worldnews',
+      namePrefixed: 'r/worldnews',
+      title: 'World News',
+      description: 'Major news from around the world.',
+      subscribers: 40500000,
+      accountsActive: 15000,
+    ),
+  ];
+
+  Future<List<Subreddit>> getPopularSubreddits({int limit = 15}) async {
+    try {
+      final res = await _client.get<Map<String, dynamic>>(
+        '/subreddits/popular',
+        query: {'limit': limit},
+      );
+      final children =
+          ((res.data?['data'] as Map?)?['children'] as List?) ?? const [];
+      final list = [
+        for (final c in children)
+          Subreddit.fromData((c as Map)['data'] as Map<String, dynamic>)
+      ];
+      if (list.isNotEmpty) return list;
+    } catch (_) {
+      // Guest or network offline fallback
+    }
+    return _guestPopularSubreddits;
+  }
+
   /// Drops the in-memory subscription cache (e.g. on account switch).
   void clearSubsCache() {
     _subsCache = null;

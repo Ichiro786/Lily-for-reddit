@@ -7,6 +7,7 @@ import '../../core/share.dart';
 import '../../models/subreddit.dart';
 import '../feed/feed_controller.dart';
 import '../feed/post_list_view.dart';
+import '../history/visited_subreddits_store.dart';
 import '../settings/settings_controller.dart';
 import 'subreddit_header.dart';
 
@@ -29,6 +30,13 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<Subreddit>>(subredditAboutProvider(widget.name), (_, next) {
+      final sub = next.valueOrNull;
+      if (sub != null) {
+        ref.read(visitedCommunityStoreProvider.notifier).recordVisit(sub);
+      }
+    });
+
     final about = ref.watch(subredditAboutProvider(widget.name));
     final feed = ref.watch(feedControllerProvider(widget.name));
     final defaultSort =
