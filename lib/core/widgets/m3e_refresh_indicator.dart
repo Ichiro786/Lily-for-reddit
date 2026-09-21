@@ -264,9 +264,10 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
         }
 
         animation.addListener(listener);
-        await _springController.forward(from: 0).whenCompleteOrCancel(() {
-          animation.removeListener(listener);
-        });
+        try {
+          await _springController.forward(from: 0);
+        } catch (_) {}
+        animation.removeListener(listener);
         if (mounted) {
           setState(() {
             _refreshing = false;
