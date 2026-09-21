@@ -13,6 +13,7 @@ import 'package:luli_for_reddit/core/theme/shape_tokens.dart';
 import 'package:luli_for_reddit/data/reddit_repository.dart';
 import 'package:luli_for_reddit/features/auth/auth_repository.dart';
 import 'package:luli_for_reddit/features/post/post_detail_screen.dart';
+import 'package:luli_for_reddit/features/settings/settings_controller.dart';
 import 'package:luli_for_reddit/models/comment.dart';
 import 'package:luli_for_reddit/models/post.dart';
 
