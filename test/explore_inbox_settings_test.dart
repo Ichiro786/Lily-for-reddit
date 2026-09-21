@@ -18,6 +18,11 @@ class _FakeHistoryController extends HistoryController {
   List<HistoryEntry> build() => const <HistoryEntry>[];
 }
 
+class _FakeAuthenticatedAuthController extends AuthController {
+  @override
+  Future<AuthSession?> build() async => const AuthSession(username: 'testuser');
+}
+
 Widget _app(Widget child) => MaterialApp(
       theme: AppTheme.dark(null),
       home: Scaffold(body: child),
@@ -118,7 +123,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.widget<SwitchListTile>(amoled).value, isTrue);
 
-    final swatch = find.byKey(const ValueKey<String>('theme-swatch-4289170426'));
+    // Verify all 8 curated M3E swatches render
+    for (final c in AppTheme.accentSwatches) {
+      expect(
+        find.byKey(ValueKey<String>('theme-swatch-${c.toARGB32()}')),
+        findsOneWidget,
+      );
+    }
+
+    final swatch = find.byKey(const ValueKey<String>('theme-swatch-4289763866'));
     expect(swatch, findsOneWidget);
     await tester.tap(swatch);
     await tester.pumpAndSettle();
@@ -126,7 +139,98 @@ void main() {
       ProviderScope.containerOf(
         tester.element(find.byType(SettingsList)),
       ).read(settingsControllerProvider).seedColor,
-      4289170426,
+      4289763866,
     );
+  });
+
+  testWidgets('dynamic color switch dims accent swatches and displays helper note',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPrefsProvider.overrideWithValue(prefs),
+          authModeProvider.overrideWith((ref) async => 'oauth'),
+        ],
+        child: _app(const SettingsList()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Wallpaper colors override custom accents when Dynamic color is enabled'),
+      findsNothing,
+    );
+
+    final dynamicSwitch = find.widgetWithText(SwitchListTile, 'Dynamic color');
+    expect(dynamicSwitch, findsOneWidget);
+    await tester.tap(dynamicSwitch);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Wallpaper colors override custom accents when Dynamic color is enabled'),
+      findsOneWidget,
+    );
+    expect(
+      ProviderScope.containerOf(
+        tester.element(find.byType(SettingsList)),
+      ).read(settingsControllerProvider).useDynamicColor,
+      isTrue,
+    );
+  });
+
+  testWidgets('SettingsList renders profile header when authenticated and guest card when guest',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. Guest state (standalone SettingsList)
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPrefsProvider.overrideWithValue(prefs),
+          authModeProvider.overrideWith((ref) async => 'oauth'),
+        ],
+        child: _app(const SettingsList(embedded: false)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Guest'), findsOneWidget);
+    expect(find.text('Sign in to customize and sync'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+
+    // 2. Authenticated state (standalone SettingsList)
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPrefsProvider.overrideWithValue(prefs),
+          authModeProvider.overrideWith((ref) async => 'oauth'),
+          authControllerProvider
+              .overrideWith(() => _FakeAuthenticatedAuthController()),
+        ],
+        child: _app(const SettingsList(embedded: false)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('u/testuser'), findsOneWidget);
+    expect(find.text('Guest'), findsNothing);
+
+    // 3. Embedded state (inside AccountTab) should not render profile or guest card in SettingsList
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPrefsProvider.overrideWithValue(prefs),
+          authModeProvider.overrideWith((ref) async => 'oauth'),
+        ],
+        child: _app(const SettingsList(embedded: true)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Guest'), findsNothing);
+    expect(find.text('u/testuser'), findsNothing);
   });
 }

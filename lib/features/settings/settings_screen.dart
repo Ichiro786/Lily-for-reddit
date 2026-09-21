@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/rate_limit.dart';
 import '../../core/providers.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/theme/shape_tokens.dart';
 import '../../data/reddit_repository.dart';
 import '../auth/auth_controller.dart';
@@ -13,21 +14,11 @@ import '../inbox/inbox_controller.dart';
 import '../multireddit/multireddit_providers.dart';
 import '../notifications/inbox_poller.dart';
 import '../notifications/notification_service.dart';
+import '../profile/profile_header.dart';
 import '../updates/update_checker.dart';
 import 'backup_service.dart';
 import 'settings_controller.dart';
 import 'settings_panels.dart';
-
-List<Color> _accentSwatches(ColorScheme colorScheme) => [
-      colorScheme.primary,
-      colorScheme.error,
-      colorScheme.tertiary,
-      colorScheme.secondary,
-      colorScheme.primaryContainer,
-      colorScheme.secondaryContainer,
-      colorScheme.tertiaryContainer,
-      colorScheme.inversePrimary,
-    ];
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -99,8 +90,9 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             value: s.useDynamicColor,
             onChanged: ctrl.setUseDynamicColor,
           ),
-          Opacity(
-            opacity: s.useDynamicColor ? 0.4 : 1,
+          AnimatedOpacity(
+            opacity: s.useDynamicColor ? 0.38 : 1,
+            duration: const Duration(milliseconds: 200),
             child: IgnorePointer(
               ignoring: s.useDynamicColor,
               child: Padding(
@@ -115,7 +107,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                       spacing: 12,
                       runSpacing: 12,
                       children: [
-                        for (final c in _accentSwatches(cs))
+                        for (final c in AppTheme.accentSwatches)
                           Semantics(
                             button: true,
                             label: 'Theme color ${c.toARGB32()}',
@@ -123,25 +115,28 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                               key: ValueKey<String>('theme-swatch-${c.toARGB32()}'),
                               onTap: () => ctrl.setSeedColor(c.toARGB32()),
                               child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: c,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: s.seedColor == c.toARGB32()
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : cs.surface.withValues(alpha: 0),
-                                  width: 3,
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: c,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: s.seedColor == c.toARGB32()
+                                        ? cs.onSurface
+                                        : Colors.transparent,
+                                    width: 3,
+                                  ),
                                 ),
-                              ),
                                 child: AnimatedSwitcher(
                                   duration: const Duration(milliseconds: 180),
                                   child: s.seedColor == c.toARGB32()
                                       ? Icon(
                                           Icons.check_rounded,
                                           key: const ValueKey<String>('selected'),
-                                          color: cs.onPrimary,
+                                          color: ThemeData.estimateBrightnessForColor(c) ==
+                                                  Brightness.dark
+                                              ? Colors.white
+                                              : Colors.black,
                                         )
                                       : const SizedBox.shrink(
                                           key: ValueKey<String>('unselected'),
@@ -152,6 +147,15 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                           ),
                       ],
                     ),
+                    if (s.useDynamicColor) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Wallpaper colors override custom accents when Dynamic color is enabled',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -415,10 +419,12 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     final shown = q.isEmpty
         ? _groupedSettings(all)
         : all.where((w) => _matches(w, q)).toList();
+    final topProfileCard = _buildTopProfileCard(context, ref);
     return ListView(
       shrinkWrap: widget.embedded,
       physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
       children: [
+        if (topProfileCard != null && q.isEmpty) topProfileCard,
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: TextField(
@@ -443,6 +449,76 @@ class _SettingsListState extends ConsumerState<SettingsList> {
             child: Center(child: Text('No settings found')),
           ),
       ],
+    );
+  }
+
+  Widget? _buildTopProfileCard(BuildContext context, WidgetRef ref) {
+    if (widget.embedded) return null;
+    final username =
+        ref.watch(authControllerProvider).valueOrNull?.username ?? '';
+    if (username.isNotEmpty) {
+      return M3EProfileHeader(
+        username: username,
+        onSwitchAccount: () => showAccountBottomSheet(context, ref, username),
+        onViewProfile: () => context.push('/u/$username'),
+      );
+    }
+    return _buildGuestCard(context);
+  }
+
+  Widget _buildGuestCard(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: ShapeTokens.medium,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.person_outline_rounded,
+              size: 28,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Guest',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Sign in to customize and sync',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.tonal(
+            onPressed: () => context.push('/login'),
+            child: const Text('Sign in'),
+          ),
+        ],
+      ),
     );
   }
 

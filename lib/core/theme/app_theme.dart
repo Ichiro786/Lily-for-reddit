@@ -34,6 +34,18 @@ class AppTheme {
   /// Backwards-compatible default accent used by settings and dynamic schemes.
   static const Color seed = Color(0xFF6750A4);
 
+  /// Curated 8-color M3 Expressive seed palette matching design blueprints.
+  static const List<Color> accentSwatches = [
+    Color(0xFF6750A4), // Lilac / Purple
+    Color(0xFFBA1A1A), // Coral / Crimson
+    Color(0xFF8E4E00), // Rust / Orange
+    Color(0xFF705D00), // Ochre / Yellow
+    Color(0xFF2E6A44), // Olive / Green
+    Color(0xFF006874), // Teal
+    Color(0xFF0061A4), // Blue
+    Color(0xFF7A4B92), // Deep Violet
+  ];
+
   /// Backwards-compatible names for the centralized M3E schemes.
   static const ColorScheme bloomLight = M3EColorSchemes.light;
   static const ColorScheme bloomDark = M3EColorSchemes.dark;
