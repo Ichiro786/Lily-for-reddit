@@ -673,22 +673,11 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
   Widget build(BuildContext context) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainer,
-        borderRadius: ShapeTokens.large,
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: 0.18),
-          width: 1,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -899,7 +888,6 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             }),
           ],
         ),
-      ),
     );
   }
 

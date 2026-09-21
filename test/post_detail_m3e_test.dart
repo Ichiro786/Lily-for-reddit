@@ -125,7 +125,7 @@ void main() {
   });
 
   testWidgets(
-      'post header renders inside M3E card container with surfaceContainer and ShapeTokens.large',
+      'post header renders flat canvas with M3E tokens and no outer card shell',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     final post = _createPost();
@@ -135,7 +135,8 @@ void main() {
     );
     await _pumpDetail(tester);
 
-    final cardFinder = find.byWidgetPredicate((widget) {
+    // Verify there is no outer card shell with surfaceContainer and 12dp margin
+    final cardShellFinder = find.byWidgetPredicate((widget) {
       if (widget is! Container) return false;
       final dec = widget.decoration;
       if (dec is! BoxDecoration) return false;
@@ -143,13 +144,18 @@ void main() {
           widget.margin ==
               const EdgeInsets.symmetric(horizontal: 12, vertical: 6);
     });
-    expect(cardFinder, findsOneWidget);
+    expect(cardShellFinder, findsNothing);
 
-    final container = tester.widget<Container>(cardFinder);
-    final dec = container.decoration as BoxDecoration;
-    final context = tester.element(cardFinder);
-    expect(dec.color, Theme.of(context).colorScheme.surfaceContainer);
-    expect(dec.border, isNotNull);
+    // Verify header renders on flat canvas with 16dp horizontal padding
+    final headerPaddingFinder = find.byWidgetPredicate((widget) {
+      return widget is Padding &&
+          widget.padding == const EdgeInsets.fromLTRB(16, 12, 16, 8);
+    });
+    expect(headerPaddingFinder, findsOneWidget);
+
+    expect(find.text(post.title), findsOneWidget);
+    expect(find.textContaining('u/${post.author}'), findsOneWidget);
+    expect(find.byType(M3EPostActionBar), findsOneWidget);
   });
 
   testWidgets('post header renders push pin icon when stickied',
