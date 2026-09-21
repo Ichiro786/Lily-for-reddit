@@ -289,4 +289,44 @@ void main() {
     expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
     expect(find.text('7'), findsOneWidget);
   });
+
+  testWidgets('vote controls render inside an M3E segmented capsule container',
+      (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        M3ECommentCard(
+          author: 'alice',
+          timeAgo: '1h',
+          body: 'Comment body',
+          score: 15,
+        ),
+      ),
+    );
+
+    // Verify presence of M3E capsule containing upvote, score, and downvote.
+    final capsuleFinder = find.byWidgetPredicate((widget) {
+      if (widget is Container && widget.decoration is BoxDecoration) {
+        final box = widget.decoration as BoxDecoration;
+        return box.borderRadius == BorderRadius.circular(18);
+      }
+      return false;
+    });
+
+    expect(capsuleFinder, findsOneWidget);
+    expect(
+      find.descendant(
+          of: capsuleFinder, matching: find.byIcon(Icons.arrow_upward_rounded)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: capsuleFinder, matching: find.text('15')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+          of: capsuleFinder,
+          matching: find.byIcon(Icons.arrow_downward_rounded)),
+      findsOneWidget,
+    );
+  });
 }

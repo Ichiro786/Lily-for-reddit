@@ -236,45 +236,75 @@ class M3ECommentCard extends StatelessWidget {
                     // Blueprint-aligned action controls.
                     Row(
                       children: [
-                        // 1. Upvote — reports the tapped direction; the parent
-                        // owns the toggle decision and score arithmetic.
-                        InkWell(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            onVote?.call(1);
-                          },
-                          child: Icon(
-                            Icons.arrow_upward_rounded,
-                            size: 18,
-                            color: voteState == 1
-                                ? upvoteColor
-                                : colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: Text(
-                            '$score',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: voteState == 1
-                                  ? upvoteColor
-                                  : colorScheme.onSurfaceVariant,
+                        // M3E segmented tonal capsule for vote controls.
+                        Container(
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: colorScheme.outlineVariant
+                                  .withValues(alpha: 0.14),
                             ),
                           ),
-                        ),
-                        // 2. Downvote.
-                        InkWell(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            onVote?.call(-1);
-                          },
-                          child: Icon(
-                            Icons.arrow_downward_rounded,
-                            size: 18,
-                            color: voteState == -1
-                                ? colorScheme.error
-                                : colorScheme.onSurfaceVariant,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // 1. Upvote — reports the tapped direction; the parent
+                              // owns the toggle decision and score arithmetic.
+                              InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  onVote?.call(1);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2),
+                                  child: Icon(
+                                    Icons.arrow_upward_rounded,
+                                    size: 16,
+                                    color: voteState == 1
+                                        ? upvoteColor
+                                        : colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                child: Text(
+                                  '$score',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: voteState == 1
+                                        ? upvoteColor
+                                        : (voteState == -1
+                                            ? colorScheme.error
+                                            : colorScheme.onSurfaceVariant),
+                                  ),
+                                ),
+                              ),
+                              // 2. Downvote.
+                              InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  onVote?.call(-1);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2),
+                                  child: Icon(
+                                    Icons.arrow_downward_rounded,
+                                    size: 16,
+                                    color: voteState == -1
+                                        ? colorScheme.error
+                                        : colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: 14),

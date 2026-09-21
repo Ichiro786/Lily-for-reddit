@@ -17,10 +17,8 @@ M3ECommentCard _card({
   bool withRichBody = true,
   bool collapsed = false,
 }) {
-  // Mirrors the explicit sheet construction used by the post-detail screen.
-  final styleSheet = MarkdownStyleSheet(
-    p: const TextStyle(fontSize: 14, height: 1.4),
-  );
+  // Uses the canonical M3E stylesheet used by post detail and comments.
+  final styleSheet = buildM3EMarkdownStyleSheet(AppTheme.dark(null));
   return M3ECommentCard(
     author: 'alice',
     timeAgo: '1h',
@@ -136,5 +134,28 @@ void main() {
 
     expect(find.text('Plain fallback body'), findsOneWidget);
     expect(find.byType(MarkdownBody), findsNothing);
+  });
+
+  testWidgets('buildM3EMarkdownStyleSheet provides styled blockquote and code tokens',
+      (tester) async {
+    final theme = AppTheme.dark(null);
+    final sheet = buildM3EMarkdownStyleSheet(theme);
+
+    expect(sheet.blockquoteDecoration, isNotNull);
+    final deco = sheet.blockquoteDecoration as BoxDecoration;
+    expect(deco.border, isNotNull);
+    expect(deco.borderRadius, BorderRadius.circular(8));
+    expect(sheet.blockquote?.fontStyle, FontStyle.italic);
+    expect(sheet.code?.fontFamily, 'monospace');
+  });
+
+  testWidgets('renders blockquotes through the M3E markdown pipeline',
+      (tester) async {
+    await tester.pumpWidget(_harness(_card(rawBody: '> Quoted comment text')));
+
+    expect(
+        find.textContaining('Quoted comment text', findRichText: true),
+        findsOneWidget);
+    expect(find.textContaining('>', findRichText: true), findsNothing);
   });
 }

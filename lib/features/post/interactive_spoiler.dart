@@ -19,6 +19,47 @@ class SpoilerInlineSyntax extends md.InlineSyntax {
   }
 }
 
+/// Builds a canonical Material 3 Expressive [MarkdownStyleSheet] shared across
+/// post selftext and comments.
+MarkdownStyleSheet buildM3EMarkdownStyleSheet(ThemeData theme) {
+  final cs = theme.colorScheme;
+  return MarkdownStyleSheet.fromTheme(theme).copyWith(
+    p: theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 15,
+      height: 1.45,
+      color: cs.onSurface,
+    ),
+    blockquote: theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 14.5,
+      height: 1.4,
+      fontStyle: FontStyle.italic,
+      color: cs.onSurface.withValues(alpha: 0.9),
+    ),
+    blockquotePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    blockquoteDecoration: BoxDecoration(
+      color: cs.surfaceContainerHigh.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(8),
+      border: Border(
+        left: BorderSide(color: cs.primary, width: 3.5),
+      ),
+    ),
+    codeblockDecoration: BoxDecoration(
+      color: cs.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    codeblockPadding: const EdgeInsets.all(10),
+    code: TextStyle(
+      backgroundColor: Colors.transparent,
+      fontFamily: 'monospace',
+      color: cs.onSurfaceVariant,
+    ),
+    a: TextStyle(
+      color: cs.primary,
+      decoration: TextDecoration.underline,
+    ),
+  );
+}
+
 /// The single intentional rendering path for comment Markdown.
 ///
 /// Composes the existing spoiler pipeline ([normalizeRedditSpoilers] +

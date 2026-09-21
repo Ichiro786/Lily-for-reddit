@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format.dart';
 import '../../core/media_aspect_ratio.dart';
 import '../../core/providers.dart';
+import '../../core/root_messenger.dart';
 import '../../core/share.dart';
 import '../../core/url_launcher_helper.dart';
 import '../../core/theme/shape_tokens.dart';
@@ -72,12 +74,62 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     if (_commentMarkdownStyle == null ||
         !identical(_commentMarkdownTheme, theme)) {
       _commentMarkdownTheme = theme;
-      _commentMarkdownStyle = MarkdownStyleSheet(
-        p: theme.textTheme.bodyMedium
-            ?.copyWith(fontSize: 15, height: 1.45),
-      );
+      _commentMarkdownStyle = buildM3EMarkdownStyleSheet(theme);
     }
     return _commentMarkdownStyle!;
+  }
+
+  void _showCommentOverflowMenu(
+    BuildContext context,
+    Comment comment,
+    Post post,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      shape: ShapeTokens.extraLargeShape,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: const Text('Copy text'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Clipboard.setData(ClipboardData(text: comment.body));
+                showRootSnackBar(
+                  const SnackBar(content: Text('Comment copied to clipboard')),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_rounded),
+              title: const Text('Share comment'),
+              onTap: () {
+                Navigator.pop(ctx);
+                final permalink = comment.permalink.isNotEmpty
+                    ? (comment.permalink.startsWith('http')
+                        ? comment.permalink
+                        : 'https://reddit.com${comment.permalink}')
+                    : 'https://reddit.com${post.permalink}${comment.id}/';
+                shareUrl(context, permalink,
+                    subject: 'Comment by u/${comment.author}');
+              },
+            ),
+            if (comment.author.isNotEmpty && comment.author != '[deleted]')
+              ListTile(
+                leading: const Icon(Icons.person_rounded),
+                title: Text('View u/${comment.author}\'s profile'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/u/${comment.author}');
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -376,6 +428,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   onRefresh: notifier.refresh,
                   child: CustomScrollView(
                     controller: _scrollController,
+                    cacheExtent: 1000,
                     slivers: [
                       if (_searchOpen)
                         SliverToBoxAdapter(
@@ -457,6 +510,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                     thread.loadingMore.contains(c.fullname),
                                 onToggle: () => notifier.toggleCollapse(c.id),
                                 onLoadMore: () => notifier.loadMore(c),
+                                onOverflow: () => _showCommentOverflowMenu(
+                                  context,
+                                  c,
+                                  thread.post,
+                                ),
                                 onOpenThread: () {
                                   final focusId = c.moreChildren.isNotEmpty
                                       ? c.moreChildren.first
@@ -815,37 +873,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                   'spoiler': RedditSpoilerBuilder(),
                 },
                 inlineSyntaxes: [SpoilerInlineSyntax()],
-                styleSheet:
-                    MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-                  p: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 15,
-                        height: 1.45,
-                        color: cs.onSurface,
-                      ),
-                  blockquoteDecoration: BoxDecoration(
-                    color: cs.surfaceContainerHigh.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(8),
-                    border:
-                        Border(left: BorderSide(color: cs.primary, width: 3)),
-                  ),
-                  blockquotePadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  codeblockDecoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  codeblockPadding: const EdgeInsets.all(10),
-                  code: TextStyle(
-                    backgroundColor: Colors.transparent,
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  a: TextStyle(
-                    color: cs.primary,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
+                styleSheet: buildM3EMarkdownStyleSheet(Theme.of(context)),
                 // Selection disabled: selectable mode ignores element builders,
                 // which would break interactive spoilers here too.
                 onTapLink: (_, href, __) {
@@ -1150,6 +1178,7 @@ class _CommentTile extends ConsumerStatefulWidget {
     required this.onLoadMore,
     required this.onOpenThread,
     required this.onReply,
+    this.onOverflow,
   });
 
   final Comment comment;
@@ -1164,6 +1193,7 @@ class _CommentTile extends ConsumerStatefulWidget {
   final VoidCallback onLoadMore;
   final VoidCallback onOpenThread;
   final VoidCallback onReply;
+  final VoidCallback? onOverflow;
 
   @override
   ConsumerState<_CommentTile> createState() => _CommentTileState();
@@ -1275,7 +1305,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           onReply: widget.onReply,
           onSave: _toggleSave,
           onAward: () {},
-          onOverflow: () {},
+          onOverflow: widget.onOverflow,
           onLoadMoreReplies: comment.replies.isNotEmpty
               ? widget.onOpenThread
               : null,
