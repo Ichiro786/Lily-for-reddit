@@ -247,34 +247,11 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
       await widget.onRefresh();
     } finally {
       if (mounted) {
-        _springController.stop();
-        final startExtent = _pullExtent;
-        final animation = Tween<double>(begin: startExtent, end: 0).animate(
-          CurvedAnimation(
-            parent: _springController,
-            curve: Curves.easeOutCubic,
-          ),
-        );
-        void listener() {
-          if (mounted) {
-            setState(() {
-              _pullExtent = animation.value;
-            });
-          }
-        }
-
-        animation.addListener(listener);
-        try {
-          await _springController.forward(from: 0);
-        } catch (_) {}
-        animation.removeListener(listener);
-        if (mounted) {
-          setState(() {
-            _refreshing = false;
-            _pullExtent = 0;
-            _thresholdReached = false;
-          });
-        }
+        setState(() {
+          _refreshing = false;
+          _pullExtent = 0;
+          _thresholdReached = false;
+        });
       }
     }
   }
