@@ -323,36 +323,51 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 final sortHeader = Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: PopupMenuButton<String>(
-                    onSelected: notifier.changeSort,
-                    itemBuilder: (_) => [
-                      for (final s in commentSorts)
-                        CheckedPopupMenuItem(
-                          value: s,
-                          checked: notifier.sort == s,
-                          child: Text(commentSortLabels[s] ?? s),
-                        ),
-                    ],
-                    tooltip: 'Sort comments',
-                    child: Row(
-                      children: [
-                        Icon(Icons.sort_rounded,
-                            size: 18, color: colorScheme.primary),
-                        const SizedBox(width: 6),
-                        Text(
-                          // Reflect the controller's active sort; the label
-                          // mapping is the single canonical source.
-                          (commentSortLabels[notifier.sort] ?? notifier.sort)
-                              .toUpperCase(),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                            color: colorScheme.primary,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: PopupMenuButton<String>(
+                        onSelected: notifier.changeSort,
+                        itemBuilder: (_) => [
+                          for (final s in commentSorts)
+                            CheckedPopupMenuItem(
+                              value: s,
+                              checked: notifier.sort == s,
+                              child: Text(commentSortLabels[s] ?? s),
+                            ),
+                        ],
+                        tooltip: 'Sort comments',
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.sort_rounded,
+                                  size: 18, color: colorScheme.primary),
+                              const SizedBox(width: 6),
+                              Text(
+                                // Reflect the controller's active sort; the label
+                                // mapping is the single canonical source.
+                                (commentSortLabels[notifier.sort] ?? notifier.sort)
+                                    .toUpperCase(),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.5,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(Icons.keyboard_arrow_down_rounded,
+                                  size: 18, color: colorScheme.primary),
+                            ],
                           ),
                         ),
-                        Icon(Icons.keyboard_arrow_down_rounded,
-                            size: 18, color: colorScheme.primary),
-                      ],
+                      ),
                     ),
                   ),
                 );
@@ -658,164 +673,232 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
   Widget build(BuildContext context) {
     final p = widget.post;
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: () => context.push('/r/${p.subreddit}'),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: cs.secondaryContainer,
-                    shape: BoxShape.circle,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainer,
+        borderRadius: ShapeTokens.large,
+        border: Border.all(
+          color: cs.outlineVariant.withValues(alpha: 0.18),
+          width: 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: () => context.push('/r/${p.subreddit}'),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: cs.secondaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      p.subreddit.isEmpty ? '?' : p.subreddit[0].toUpperCase(),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: cs.onSecondaryContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
                   ),
-                  child: Text(
-                    p.subreddit.isEmpty ? '?' : p.subreddit[0].toUpperCase(),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: cs.onSecondaryContainer,
-                          fontWeight: FontWeight.w700,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                        onTap: () => context.push('/r/${p.subreddit}'),
+                        child: Text(
+                          p.subredditPrefixed,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: cs.onSurface,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                         ),
+                      ),
+                      const SizedBox(height: 2),
+                      GestureDetector(
+                        onTap: () => context.push('/u/${p.author}'),
+                        child: Text(
+                          'u/${p.author} · ${timeAgo(p.created)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    GestureDetector(
-                      onTap: () => context.push('/r/${p.subreddit}'),
-                      child: Text(
-                        p.subredditPrefixed,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: cs.onSurface,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
+                if (p.stickied)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Icon(Icons.push_pin_rounded,
+                        size: 16, color: cs.primary),
+                  ),
+                if (p.over18)
+                  Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: cs.errorContainer,
+                      borderRadius: ShapeTokens.extraSmall,
                     ),
-                    const SizedBox(height: 2),
-                    GestureDetector(
-                      onTap: () => context.push('/u/${p.author}'),
-                      child: Text(
-                        'u/${p.author} · ${timeAgo(p.created)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                      ),
+                    child: Text(
+                      'NSFW',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: cs.onErrorContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
-                  ],
-                ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(p.title,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w700, height: 1.3)),
+            if (p.linkFlairText != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: cs.primaryContainer.withValues(alpha: 0.72),
+                    borderRadius: ShapeTokens.full),
+                child: Text(p.linkFlairText!,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onPrimaryContainer)),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Text(p.title,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700, height: 1.3)),
-          if (p.linkFlairText != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                  color: cs.primaryContainer.withValues(alpha: 0.72),
-                  borderRadius: ShapeTokens.full),
-              child: Text(p.linkFlairText!,
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: cs.onPrimaryContainer)),
-            ),
-          ],
-          if (p.crosspostFrom != null) ...[
-            const SizedBox(height: 8),
-            Row(children: [
-              Icon(Icons.repeat_rounded, size: 14, color: cs.onSurfaceVariant),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text('Crossposted from r/${p.crosspostFrom}',
-                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-              ),
-            ]),
-          ],
-          const SizedBox(height: 12),
-          _media(cs),
-          if (p.pollOptions.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            for (final opt in p.pollOptions)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHigh,
-                  borderRadius: ShapeTokens.small,
+            if (p.crosspostFrom != null) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                Icon(Icons.repeat_rounded, size: 14, color: cs.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text('Crossposted from r/${p.crosspostFrom}',
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
                 ),
-                child: Text(opt),
+              ]),
+            ],
+            const SizedBox(height: 12),
+            _media(cs),
+            if (p.pollOptions.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              for (final opt in p.pollOptions)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHigh,
+                    borderRadius: ShapeTokens.small,
+                  ),
+                  child: Text(opt),
+                ),
+              Text('Vote in the official app',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ],
+            if (p.isSelf && p.selftext.isNotEmpty)
+              MarkdownBody(
+                data: normalizeRedditSpoilers(p.selftext),
+                builders: {
+                  'spoiler': RedditSpoilerBuilder(),
+                },
+                inlineSyntaxes: [SpoilerInlineSyntax()],
+                styleSheet:
+                    MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+                  p: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 15,
+                        height: 1.45,
+                        color: cs.onSurface,
+                      ),
+                  blockquoteDecoration: BoxDecoration(
+                    color: cs.surfaceContainerHigh.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
+                    border:
+                        Border(left: BorderSide(color: cs.primary, width: 3)),
+                  ),
+                  blockquotePadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  codeblockDecoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  codeblockPadding: const EdgeInsets.all(10),
+                  code: TextStyle(
+                    backgroundColor: Colors.transparent,
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    color: cs.onSurfaceVariant,
+                  ),
+                  a: TextStyle(
+                    color: cs.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+                // Selection disabled: selectable mode ignores element builders,
+                // which would break interactive spoilers here too.
+                onTapLink: (_, href, __) {
+                  if (href != null) {
+                    launchSmartUrl(href);
+                  }
+                },
               ),
-            Text('Vote in the official app',
-                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            const SizedBox(height: 12),
+            Builder(builder: (context) {
+              final ov =
+                  ref.watch(postOverridesProvider.select((m) => m[p.id]));
+              final likes = ov != null ? ov.likes : p.likes;
+              final score = ov?.score ?? p.score;
+              final saved = ov?.saved ?? p.saved;
+              final numComments = ov?.numComments ?? p.numComments;
+              return M3EPostActionBar(
+                score: score,
+                commentCount: numComments,
+                voteState: likes == true ? 1 : (likes == false ? -1 : 0),
+                isSaved: saved,
+                onVote: _vote,
+                onCommentTap: widget.onComments,
+                onSaveTap: () {
+                  ref
+                      .read(postOverridesProvider.notifier)
+                      .toggleSave(
+                        p,
+                        (next) => ref
+                            .read(redditRepositoryProvider)
+                            .setSaved(p.fullname, next),
+                      );
+                },
+                onShareTap: () => shareUrl(
+                  context,
+                  p.url,
+                  subject: p.title,
+                ),
+              );
+            }),
           ],
-          if (p.isSelf && p.selftext.isNotEmpty)
-            MarkdownBody(
-              data: normalizeRedditSpoilers(p.selftext),
-              builders: {
-                'spoiler': RedditSpoilerBuilder(),
-              },
-              inlineSyntaxes: [SpoilerInlineSyntax()],
-              // Selection disabled: selectable mode ignores element builders,
-              // which would break interactive spoilers here too.
-              onTapLink: (_, href, __) {
-                if (href != null) {
-                  launchSmartUrl(href);
-                }
-              },
-            ),
-          const SizedBox(height: 12),
-          Builder(builder: (context) {
-            final ov =
-                ref.watch(postOverridesProvider.select((m) => m[p.id]));
-            final likes = ov != null ? ov.likes : p.likes;
-            final score = ov?.score ?? p.score;
-            final saved = ov?.saved ?? p.saved;
-            final numComments = ov?.numComments ?? p.numComments;
-            return M3EPostActionBar(
-              score: score,
-              commentCount: numComments,
-              voteState: likes == true ? 1 : (likes == false ? -1 : 0),
-              isSaved: saved,
-              onVote: _vote,
-              onCommentTap: widget.onComments,
-              onSaveTap: () {
-                ref
-                    .read(postOverridesProvider.notifier)
-                    .toggleSave(
-                      p,
-                      (next) => ref
-                          .read(redditRepositoryProvider)
-                          .setSaved(p.fullname, next),
-                    );
-              },
-              onShareTap: () => shareUrl(
-                context,
-                p.url,
-                subject: p.title,
-              ),
-            );
-          }),
-        ],
+        ),
       ),
     );
   }
@@ -838,10 +921,96 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     if (p.type == PostType.link) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: OutlinedButton.icon(
-          onPressed: _openMedia,
-          icon: const Icon(Icons.open_in_new_rounded),
-          label: Text(p.domain, overflow: TextOverflow.ellipsis),
+        child: InkWell(
+          onTap: _openMedia,
+          borderRadius: ShapeTokens.medium,
+          child: Container(
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+              borderRadius: ShapeTokens.medium,
+              border: Border.all(
+                color: cs.outlineVariant.withValues(alpha: 0.2),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Row(
+              children: [
+                if (p.thumbnailUrl != null && p.thumbnailUrl!.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: ShapeTokens.small,
+                    child: CachedNetworkImage(
+                      imageUrl: p.thumbnailUrl!,
+                      memCacheWidth:
+                          (72 * MediaQuery.devicePixelRatioOf(context))
+                              .round()
+                              .clamp(1, 300)
+                              .toInt(),
+                      memCacheHeight:
+                          (72 * MediaQuery.devicePixelRatioOf(context))
+                              .round()
+                              .clamp(1, 300)
+                              .toInt(),
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
+                      errorWidget: (_, __, ___) =>
+                          const SizedBox(width: 72, height: 72),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 72,
+                    height: 72,
+                    alignment: Alignment.center,
+                    color: cs.surfaceContainerHighest,
+                    child: Icon(Icons.link_rounded,
+                        color: cs.onSurfaceVariant),
+                  ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          p.domain,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: cs.onSurface,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          p.url,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: cs.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Icon(Icons.open_in_new_rounded,
+                      size: 18, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
