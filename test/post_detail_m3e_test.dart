@@ -231,12 +231,15 @@ void main() {
     );
     await _pumpDetail(tester);
 
-    final capsuleFinder = find.byWidgetPredicate((widget) {
-      if (widget is! Container) return false;
-      final dec = widget.decoration;
-      if (dec is! BoxDecoration) return false;
-      return dec.borderRadius == BorderRadius.circular(20);
-    });
+    final capsuleFinder = find.ancestor(
+      of: find.text('BEST'),
+      matching: find.byWidgetPredicate((widget) {
+        if (widget is! Container) return false;
+        final dec = widget.decoration;
+        if (dec is! BoxDecoration) return false;
+        return dec.borderRadius == BorderRadius.circular(20);
+      }),
+    );
     expect(capsuleFinder, findsOneWidget);
 
     final context = tester.element(capsuleFinder);
@@ -261,7 +264,11 @@ void main() {
     );
     await _pumpDetail(tester);
 
-    final markdownFinder = find.byType(MarkdownBody);
+    final markdownFinder = find.byWidgetPredicate(
+      (w) =>
+          w is MarkdownBody &&
+          w.data.contains('Testing markdown body'),
+    );
     expect(markdownFinder, findsOneWidget);
 
     final markdown = tester.widget<MarkdownBody>(markdownFinder);
