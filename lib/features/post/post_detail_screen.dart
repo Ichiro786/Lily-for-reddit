@@ -428,6 +428,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   onRefresh: notifier.refresh,
                   child: CustomScrollView(
                     controller: _scrollController,
+                    // ignore: deprecated_member_use
                     cacheExtent: 1000,
                     slivers: [
                       if (_searchOpen)
