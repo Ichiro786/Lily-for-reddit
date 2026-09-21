@@ -131,7 +131,8 @@ void main() {
       );
     }
 
-    final swatch = find.byKey(const ValueKey<String>('theme-swatch-4289763866'));
+    final targetColor = AppTheme.accentSwatches[1];
+    final swatch = find.byKey(ValueKey<String>('theme-swatch-${targetColor.toARGB32()}'));
     expect(swatch, findsOneWidget);
     await tester.tap(swatch);
     await tester.pumpAndSettle();
@@ -139,7 +140,7 @@ void main() {
       ProviderScope.containerOf(
         tester.element(find.byType(SettingsList)),
       ).read(settingsControllerProvider).seedColor,
-      4289763866,
+      targetColor.toARGB32(),
     );
   });
 
@@ -180,12 +181,11 @@ void main() {
     );
   });
 
-  testWidgets('SettingsList renders profile header when authenticated and guest card when guest',
+  testWidgets('SettingsList renders guest card when unauthenticated and standalone',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
 
-    // 1. Guest state (standalone SettingsList)
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -200,15 +200,20 @@ void main() {
     expect(find.text('Guest'), findsOneWidget);
     expect(find.text('Sign in to customize and sync'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
+  });
 
-    // 2. Authenticated state (standalone SettingsList)
+  testWidgets('SettingsList renders profile header when authenticated and standalone',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           sharedPrefsProvider.overrideWithValue(prefs),
           authModeProvider.overrideWith((ref) async => 'oauth'),
           authControllerProvider
-              .overrideWith(() => _FakeAuthenticatedAuthController()),
+              .overrideWith(_FakeAuthenticatedAuthController.new),
         ],
         child: _app(const SettingsList(embedded: false)),
       ),
@@ -217,8 +222,13 @@ void main() {
 
     expect(find.text('u/testuser'), findsOneWidget);
     expect(find.text('Guest'), findsNothing);
+  });
 
-    // 3. Embedded state (inside AccountTab) should not render profile or guest card in SettingsList
+  testWidgets('SettingsList does not render profile or guest header when embedded',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
