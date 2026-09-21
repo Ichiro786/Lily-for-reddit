@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/error_view.dart';
 import '../settings/settings_controller.dart';
 import '../../models/post.dart';
 import '../../models/reddit_user.dart';
@@ -23,6 +24,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   bool _loading = false;
   String _query = '';
+  Object? _error;
   String _sort = 'relevance';
   String _time = 'all';
   List<Post> _posts = [];
@@ -75,6 +77,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _controller.clear();
     setState(() {
       _query = '';
+      _error = null;
       _posts = [];
       _subs = [];
       _users = [];
@@ -90,6 +93,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() {
       _loading = true;
       _query = q;
+      _error = null;
     });
     final repo = ref.read(redditRepositoryProvider);
     try {
@@ -112,8 +116,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _users = results[2] as List<RedditUser>;
         _loading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e;
+        });
+      }
     }
   }
 
@@ -173,7 +182,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ? const Center(child: CircularProgressIndicator())
             : _query.isEmpty
                 ? _empty(cs)
-                : TabBarView(
+                : _error != null
+                    ? ErrorView(message: _error, onRetry: () => _search(_query, saveRecent: false))
+                    : TabBarView(
                     children: [
                       _postsTab(),
                       if (!restricted) _subsTab(),

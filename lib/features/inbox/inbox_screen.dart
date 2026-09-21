@@ -223,6 +223,25 @@ class _InboxListState extends ConsumerState<_InboxList>
                         : notifier.markUnread(item.fullname);
                     return false;
                   }
+                  // Deleting removes the message server-side with no undo.
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Delete message?'),
+                      content: const Text(
+                          'This permanently deletes the message from your inbox.'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel')),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok != true) return false;
                   notifier.deleteMessage(item.fullname);
                   return true;
                 },
