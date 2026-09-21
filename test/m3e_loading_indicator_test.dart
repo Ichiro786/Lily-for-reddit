@@ -31,7 +31,13 @@ void main() {
     expect(tester.getSize(indicators.at(0)), const Size(18, 18));
     expect(tester.getSize(indicators.at(1)), const Size(32, 32));
     expect(tester.getSize(indicators.at(2)), const Size(48, 48));
-    expect(find.byType(CustomPaint), findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byType(M3ELoadingIndicator),
+        matching: find.byType(CustomPaint),
+      ),
+      findsNWidgets(3),
+    );
   });
 
   testWidgets('provides an accessible live-region loading label', (tester) async {
@@ -66,7 +72,13 @@ void main() {
     );
     expect(find.byType(M3ELoadingIndicator), findsOneWidget);
     expect(tester.getSize(find.byType(M3ELoadingIndicator)), const Size(40, 40));
-    expect(find.byType(CustomPaint), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(M3ELoadingIndicator),
+        matching: find.byType(CustomPaint),
+      ),
+      findsOneWidget,
+    );
 
     // Pumping a short duration should succeed without pending unmanaged frames
     await tester.pump(const Duration(milliseconds: 100));
@@ -78,12 +90,24 @@ void main() {
       _harness(const M3ELoadingIndicator(size: 36)),
     );
     expect(find.byType(M3ELoadingIndicator), findsOneWidget);
-    expect(find.byType(AnimatedBuilder), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(M3ELoadingIndicator),
+        matching: find.byType(AnimatedBuilder),
+      ),
+      findsOneWidget,
+    );
 
     // Advance animation across several frames
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byType(CustomPaint), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(M3ELoadingIndicator),
+        matching: find.byType(CustomPaint),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('disposes animation controllers cleanly without memory leaks',
