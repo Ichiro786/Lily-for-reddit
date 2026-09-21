@@ -245,9 +245,18 @@ void main() {
     final context = tester.element(capsuleFinder);
     final dec = (tester.widget<Container>(capsuleFinder).decoration as BoxDecoration);
     expect(dec.color, Theme.of(context).colorScheme.surfaceContainerHigh);
-    expect(find.text('BEST'), findsOneWidget);
-    expect(find.byIcon(Icons.sort_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+    expect(
+        find.descendant(of: capsuleFinder, matching: find.text('BEST')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: capsuleFinder, matching: find.byIcon(Icons.sort_rounded)),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: capsuleFinder,
+            matching: find.byIcon(Icons.keyboard_arrow_down_rounded)),
+        findsOneWidget);
   });
 
   testWidgets('selftext markdown body attaches customized MarkdownStyleSheet',
