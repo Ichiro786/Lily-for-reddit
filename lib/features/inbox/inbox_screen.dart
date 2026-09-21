@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/shape_tokens.dart';
 import '../../models/inbox_item.dart';
+import '../auth/auth_controller.dart';
 import '../home/tab_signals.dart';
 import 'inbox_controller.dart';
 import 'm3e_inbox_widgets.dart';
@@ -26,12 +27,15 @@ class InboxScreen extends ConsumerWidget {
       length: _tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Inbox'),
+          title: const Text(
+            'Inbox',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
           actions: [
             Builder(
               builder: (context) => IconButton(
                 tooltip: 'Mark this tab read',
-                icon: const Icon(Icons.mark_email_read_outlined),
+                icon: const Icon(Icons.done_all_rounded),
                 onPressed: () {
                   final index = DefaultTabController.of(context).index;
                   ref
@@ -40,18 +44,70 @@ class InboxScreen extends ConsumerWidget {
                 },
               ),
             ),
+            Builder(
+              builder: (context) => PopupMenuButton<String>(
+                tooltip: 'More options',
+                icon: const Icon(Icons.more_vert_rounded),
+                onSelected: (value) {
+                  final index = DefaultTabController.of(context).index;
+                  switch (value) {
+                    case 'refresh':
+                      ref
+                          .read(inboxControllerProvider(_tabs[index].$2).notifier)
+                          .refresh();
+                      break;
+                    case 'sent':
+                      DefaultTabController.of(context).animateTo(4);
+                      break;
+                    case 'settings':
+                      context.push('/settings');
+                      break;
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'refresh',
+                    child: Row(
+                      children: [
+                        Icon(Icons.refresh_rounded),
+                        SizedBox(width: 12),
+                        Text('Refresh'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'sent',
+                    child: Row(
+                      children: [
+                        Icon(Icons.send_rounded),
+                        SizedBox(width: 12),
+                        Text('Sent messages'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'settings',
+                    child: Row(
+                      children: [
+                        Icon(Icons.notifications_outlined),
+                        SizedBox(width: 12),
+                        Text('Notification settings'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
           bottom: const M3EInboxCategoryTabs(),
         ),
         floatingActionButton: FloatingActionButton(
-          shape: const RoundedRectangleBorder(
-            borderRadius: ShapeTokens.small,
-          ),
+          shape: const CircleBorder(),
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
           tooltip: 'New message',
           onPressed: () => context.push('/compose_message'),
-          child: const Icon(Icons.edit_rounded),
+          child: const Icon(Icons.edit_rounded, size: 24),
         ),
         body: TabBarView(
           children: [for (final tab in _tabs) _InboxList(where: tab.$2)],
@@ -79,7 +135,10 @@ class _InboxListState extends ConsumerState<_InboxList>
   bool get wantKeepAlive => true;
 
   List<InboxItem> _applyFilter(List<InboxItem> items) {
-    if (widget.where != 'inbox' || _kindFilter == 'all') return items;
+    if ((widget.where != 'inbox' && widget.where != 'unread') ||
+        _kindFilter == 'all') {
+      return items;
+    }
     return items.where((item) {
       switch (_kindFilter) {
         case 'replies':
@@ -121,11 +180,30 @@ class _InboxListState extends ConsumerState<_InboxList>
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: Row(
         children: [
+          ActionChip(
+            avatar: Icon(
+              Icons.tune_rounded,
+              size: 16,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            label: const Text('Filter'),
+            shape: const RoundedRectangleBorder(
+              borderRadius: ShapeTokens.full,
+            ),
+            side: BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+            onPressed: () {
+              setState(() => _kindFilter = 'all');
+            },
+          ),
+          const SizedBox(width: 8),
           for (final option in options) ...[
             FilterChip(
+              showCheckmark: _kindFilter == option.$1,
               label: Text(option.$2),
               selected: _kindFilter == option.$1,
               onSelected: (_) => setState(() => _kindFilter = option.$1),
@@ -143,7 +221,7 @@ class _InboxListState extends ConsumerState<_InboxList>
               side: BorderSide(
                 color: _kindFilter == option.$1
                     ? Colors.transparent
-                    : colorScheme.outlineVariant,
+                    : colorScheme.outlineVariant.withValues(alpha: 0.5),
               ),
             ),
             const SizedBox(width: 6),
@@ -172,23 +250,24 @@ class _InboxListState extends ConsumerState<_InboxList>
       onRefresh: notifier.refresh,
       child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => ListView(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(child: Text('Could not load inbox.\n$error')),
-            ),
-          ],
-        ),
+        error: (error, _) {
+          final auth = ref.watch(authControllerProvider).valueOrNull;
+          if (auth == null) {
+            return const M3EInboxGuestView();
+          }
+          return ListView(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(child: Text('Could not load inbox.\n$error')),
+              ),
+            ],
+          );
+        },
         data: (state) {
           final items = _applyFilter(state.items);
           if (items.isEmpty) {
-            return ListView(
-              children: const [
-                SizedBox(height: 120),
-                Center(child: Text('Nothing here')),
-              ],
-            );
+            return const M3EInboxEmptyState();
           }
           return ListView.separated(
             controller: _scroll,
@@ -256,7 +335,7 @@ class _InboxListState extends ConsumerState<_InboxList>
       ),
     );
 
-    if (widget.where != 'inbox') return body;
+    if (widget.where != 'inbox' && widget.where != 'unread') return body;
     return Column(
       children: [
         _filterBar(context),
@@ -278,7 +357,7 @@ class _InboxListState extends ConsumerState<_InboxList>
         alignment: Alignment.centerLeft,
         decoration: BoxDecoration(
           color: colorScheme.tertiary,
-          borderRadius: ShapeTokens.small,
+          borderRadius: ShapeTokens.medium,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -307,7 +386,7 @@ class _InboxListState extends ConsumerState<_InboxList>
       alignment: Alignment.centerRight,
       decoration: BoxDecoration(
         color: colorScheme.error,
-        borderRadius: ShapeTokens.small,
+        borderRadius: ShapeTokens.medium,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

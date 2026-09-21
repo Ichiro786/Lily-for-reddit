@@ -3,16 +3,46 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:luli_for_reddit/core/network/reddit_client.dart';
+import 'package:luli_for_reddit/core/providers.dart';
+import 'package:luli_for_reddit/core/storage/secure_store.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
+import 'package:luli_for_reddit/data/reddit_repository.dart';
+import 'package:luli_for_reddit/features/auth/auth_repository.dart';
 import 'package:luli_for_reddit/features/explore/explore_screen.dart';
 import 'package:luli_for_reddit/features/auth/auth_controller.dart';
 import 'package:luli_for_reddit/features/history/history_store.dart';
 import 'package:luli_for_reddit/features/history/visited_subreddits_store.dart';
+import 'package:luli_for_reddit/features/inbox/inbox_screen.dart';
 import 'package:luli_for_reddit/features/inbox/m3e_inbox_widgets.dart';
 import 'package:luli_for_reddit/features/settings/settings_controller.dart';
 import 'package:luli_for_reddit/features/settings/settings_screen.dart';
 import 'package:luli_for_reddit/models/inbox_item.dart';
+import 'package:luli_for_reddit/models/listing.dart';
 import 'package:luli_for_reddit/models/subreddit.dart';
+
+class _TestInboxRepository extends RedditRepository {
+  _TestInboxRepository()
+      : super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
+
+  @override
+  Future<Listing<InboxItem>> getInbox(
+      {String where = 'inbox', String? after}) async {
+    return Listing(
+      items: [
+        InboxItem(
+          fullname: 't4_1',
+          kind: InboxKind.message,
+          author: 'alice',
+          subject: 'Hello there',
+          body: 'A private message body',
+          created: DateTime.utc(2026, 1, 1),
+        ),
+      ],
+      after: null,
+    );
+  }
+}
 
 class _FakeHistoryController extends HistoryController {
   @override
@@ -355,5 +385,62 @@ void main() {
 
     expect(find.text('Guest'), findsNothing);
     expect(find.text('u/testuser'), findsNothing);
+  });
+
+  testWidgets('Inbox empty state and guest view render correctly',
+      (tester) async {
+    await tester.pumpWidget(
+      _app(
+        const Column(
+          children: [
+            Expanded(child: M3EInboxEmptyState()),
+            Expanded(child: M3EInboxGuestView()),
+          ],
+        ),
+      ),
+    );
+    expect(find.text('No messages'), findsOneWidget);
+    expect(find.text('Sign in to view your inbox'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Sign in'), findsOneWidget);
+  });
+
+  testWidgets('InboxScreen renders M3E app bar overflow menu, filter bar, and items',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final repo = _TestInboxRepository();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPrefsProvider.overrideWithValue(prefs),
+          redditRepositoryProvider.overrideWith((ref) => repo),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(null),
+          home: const InboxScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Inbox'), findsOneWidget);
+    expect(find.byTooltip('Mark this tab read'), findsOneWidget);
+    expect(find.byTooltip('More options'), findsOneWidget);
+    expect(find.byTooltip('New message'), findsOneWidget);
+
+    // Verify filter bar
+    expect(find.text('Filter'), findsOneWidget);
+    expect(find.text('Replies'), findsOneWidget);
+    expect(find.text('Hello there'), findsOneWidget);
+
+    // Verify overflow menu
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Refresh'), findsOneWidget);
+    expect(find.text('Sent messages'), findsOneWidget);
+    expect(find.text('Notification settings'), findsOneWidget);
   });
 }
