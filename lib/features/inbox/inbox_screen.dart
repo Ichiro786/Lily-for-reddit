@@ -67,33 +67,15 @@ class InboxScreen extends ConsumerWidget {
                 itemBuilder: (context) => const [
                   PopupMenuItem(
                     value: 'refresh',
-                    child: Row(
-                      children: [
-                        Icon(Icons.refresh_rounded),
-                        SizedBox(width: 12),
-                        Text('Refresh'),
-                      ],
-                    ),
+                    child: Text('Refresh'),
                   ),
                   PopupMenuItem(
                     value: 'sent',
-                    child: Row(
-                      children: [
-                        Icon(Icons.send_rounded),
-                        SizedBox(width: 12),
-                        Text('Sent messages'),
-                      ],
-                    ),
+                    child: Text('Sent messages'),
                   ),
                   PopupMenuItem(
                     value: 'settings',
-                    child: Row(
-                      children: [
-                        Icon(Icons.notifications_outlined),
-                        SizedBox(width: 12),
-                        Text('Notification settings'),
-                      ],
-                    ),
+                    child: Text('Notification settings'),
                   ),
                 ],
               ),
