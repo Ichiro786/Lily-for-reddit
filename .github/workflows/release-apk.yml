@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name (e.g. v1.0.1). If empty, uses tag ref or version from pubspec.yaml.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -32,6 +37,21 @@ jobs:
 
       - name: Install Flutter dependencies
         run: flutter pub get
+
+      - name: Resolve release tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.tag_name }}" ]]; then
+            tag="${{ inputs.tag_name }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            tag="${{ github.ref_name }}"
+          else
+            version=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+)\+[0-9]+$/\1/p' pubspec.yaml)
+            test -n "$version"
+            tag="v$version"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       # Prefer repository secrets for production signing. When the secrets are
       # not configured yet, use the committed deterministic fallback so every
@@ -70,18 +90,30 @@ jobs:
       - name: Build split release APKs
         run: flutter build apk --release --split-per-abi
 
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          cd build/app/outputs/flutter-apk
+          sha256sum app-*-release.apk > checksums-sha256.txt
+          cat checksums-sha256.txt
+
       - name: Upload split release APKs
         uses: actions/upload-artifact@v4
         with:
-          name: lily-for-reddit-release-apks-${{ github.ref_name }}-run-${{ github.run_number }}
-          path: build/app/outputs/flutter-apk/app-*-release.apk
+          name: lily-for-reddit-release-apks-${{ steps.release_tag.outputs.tag }}-run-${{ github.run_number }}
+          path: |
+            build/app/outputs/flutter-apk/app-*-release.apk
+            build/app/outputs/flutter-apk/checksums-sha256.txt
           if-no-files-found: error
           retention-days: 14
 
       - name: Upload APKs to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/app-*-release.apk
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          files: |
+            build/app/outputs/flutter-apk/app-*-release.apk
+            build/app/outputs/flutter-apk/checksums-sha256.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
