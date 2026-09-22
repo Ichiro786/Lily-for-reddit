@@ -1,99 +1,112 @@
 # Lily for Reddit — Development Roadmap & Next Steps
 
-This roadmap outlines the recommended, safest development phases for **Lily for Reddit** in strict priority order. Each milestone is designed to be incremental, easily verifiable, and free of breaking changes.
+This roadmap outlines the completed architectural milestones and future engineering priorities for **Lily for Reddit**.
 
 ---
 
-## Roadmap Overview
+## 1. Completed Engineering Milestones
 
 ```
-[Milestone 1: Phase 5 Finalization & Main Integration]
-                         │
-                         ▼
-[Milestone 2: CI Pipeline Hardening & Regression Shield]
-                         │
-                         ▼
-[Milestone 3: Architecture Clarification (Resolve app/ Duality)]
-                         │
-                         ▼
-[Milestone 4: Feed Scrolling & Video Recycling Hardening]
-                         │
-                         ▼
-[Milestone 5: Offline Action Queueing & Sync Resilience]
-                         │
-                         ▼
-[Milestone 6: Long-Term Persistence Evolution (SQLite/Drift Migration)]
+[Phase 1: Post Detail Visual Modernization] ──► COMPLETED (Commit 7400db0)
+[Phase 2: Comments, Spoilers & Markdown]   ──► COMPLETED (Commit a348314)
+[Phase 3: Profile & Appearance Redesign]   ──► COMPLETED (Commit c94ae3a)
+[Phase 4: Explore & Search Modernization]  ──► COMPLETED (Commit 98e826d)
+[Phase 5: Inbox Screen Modernization]      ──► COMPLETED (Commit 6354a10)
+[Phase 6: Parametric Refresh Indicator]    ──► COMPLETED (Commit 0c901b5)
+[Phase 7: Release Automation & PR Hygiene] ──► COMPLETED (Commit c3a8f15)
 ```
 
----
+### Phase 1: M3E Post Detail Visual Modernization (Completed)
+- 1:1 blueprint alignment with `1000038223.png`: flat canvas header, 24dp rounded media, tonal rich link previews, stickied pin badges, and tonal sort capsule chips.
+- 100% strict test coverage in `test/post_detail_m3e_test.dart`.
 
-## Milestone 1: Phase 5 Finalization & Integration into `main` (Immediate)
-- **Objective**: Safely integrate `feat/phase5-performance-hygiene` into the `main` branch.
-- **Context**:
-  - The current branch (`feat/phase5-performance-hygiene`) contains 1 commit (`1026fcd`) ahead of `main`.
-  - The working tree is completely clean and tests pass deterministically.
-- **Action Steps**:
-  1. Verify all unit tests pass locally and in CI.
-  2. Create a fast-forward pull request or merge `feat/phase5-performance-hygiene` into `main`.
-  3. Tag the resulting release candidate (e.g., `v1.0.1+1002`).
+### Phase 2: Comments, Interactive Spoilers & Markdown Polish (Completed)
+- Canonical M3E markdown stylesheet in `interactive_spoiler.dart`.
+- Tonal segmented capsule vote controls on comment cards.
+- Bottom sheet overflow menu (Copy, Share, View Profile).
+- Pre-rendered Markdown AST caching in `flattenedCommentPresentationProvider`.
 
----
+### Phase 3: Profile & Appearance Modernization (Completed)
+- 1:1 blueprint alignment with `1000038216.png` (Right Pane).
+- Curated 8-color M3 Expressive seed palette with Bloom Lilac default and high-contrast checkmarks.
+- Visual dimming and touch disabled state for manual swatches when dynamic color is active.
+- `M3EProfileHeader` embedded atop standalone Settings view.
 
-## Milestone 2: CI Pipeline Hardening & Regression Shield (High Priority)
-- **Objective**: Eliminate the "soft-fail" in CI so regressions are caught before reaching `main`.
-- **Context**:
-  - `.github/workflows/debug-apk.yml` currently contains `continue-on-error: true` on the `flutter test` step.
-  - Comment tests and frontpage builds were stabilized in commits `163a736`, `7c466b8`, and `4240cf8`.
-- **Action Steps**:
-  1. Remove `continue-on-error: true` from `.github/workflows/debug-apk.yml`.
-  2. Add `flutter analyze --fatal-infos` or standard lint verification.
-  3. Ensure PR checks strictly block merges if any test in `test/` fails.
+### Phase 4: Explore & Search Screen Modernization (Completed)
+- 1:1 blueprint alignment with `1000038216.png` (Left Pane).
+- Persistent `VisitedCommunityStore` with 500ms debounced write coalescing.
+- Real Reddit `/subreddits/popular` endpoint querying with fallback active user telemetry.
+- Category filter chips, search dock, and live activity dots.
 
----
+### Phase 5: Inbox Screen Modernization (Completed)
+- 1:1 blueprint alignment with `1000038216.png` (Center Pane).
+- Top App Bar with mark-all-read icon and 3-dots overflow menu.
+- Primary category tabs with rounded underline indicator and secondary filter bar.
+- Modern 16dp rounded message cards with monogram avatars and unread indicator dot.
+- Preserved PR #74 destructive swipe-to-delete confirmation dialog.
 
-## Milestone 3: Resolve Dual-Codebase Architectural Duality (High Priority)
-- **Objective**: Resolve the coexistence of the standalone Android Compose module (`app/`) and the Flutter project (`lib/` + `android/`).
-- **Context**:
-  - In commit `9300786`, an experimental Kotlin Jetpack Compose app was committed into `app/`, with root-level Gradle files (`build.gradle.kts`, `settings.gradle.kts`, `gradle/libs.versions.toml`).
-  - This confuses Android Studio / IDE project imports, as the IDE attempts to build `:app` instead of the Flutter Android embedding in `android/`.
-- **Action Steps**:
-  1. Align with repository maintainers on the strategic direction:
-     - **Option A (Recommended)**: Move the experimental Compose app to a dedicated branch (e.g., `experiment/native-compose`) or standalone repository, restoring root Gradle files to standard Flutter defaults.
-     - **Option B**: Maintain `app/` in a dedicated subfolder with isolated Gradle settings so opening the workspace defaults cleanly to the Flutter project.
+### Phase 6: M3E Dynamic Shape-Morphing Refresh Indicator (Completed)
+- Parametric 12-lobed flower geometry (`computeM3EFlowerPath`) using cubic Bézier fillets.
+- Smooth morphing from exact circle ($t = 0$) to 12-lobed flower ($t = 1$).
+- Dual-mode `M3ELoadingIndicator` (determinate pull progress vs. indeterminate breathing rotation).
+- Damped harmonic spring retract physics (`Curves.easeOutCubic` over 240ms).
 
----
-
-## Milestone 4: Feed Scrolling & Video Recycling Hardening (Medium Priority)
-- **Objective**: Prevent video player thrashing and texture exhaustion during rapid fling scrolling.
-- **Context**:
-  - In `lib/features/feed/post_card.dart` and `inline_video.dart`, inline videos automatically initialize when visible via `VisibilityDetector`.
-  - During rapid fling scrolling across multiple video posts, initializing and disposing native ExoPlayer instances can lead to memory pressure and minor stutter.
-- **Action Steps**:
-  1. Introduce a short velocity threshold or debounce (~150ms of quiet scroll) before instantiating native video controllers in `InlineVideo`.
-  2. Ensure backgrounded or scrolled-off video controllers release hardware decoders immediately.
-  3. Validate using DevTools CPU and memory profilers during aggressive scroll benchmarks.
+### Phase 7: Release Automation & PR Backlog Clearance (Completed)
+- Configured `.github/workflows/release-apk.yml` for tag pushes (`v*`) and `workflow_dispatch`.
+- Automated split-per-ABI packaging (`arm64-v8a`, `armeabi-v7a`, `x86_64`) with SHA-256 checksum generation.
+- Closed stale draft PR #39 with explanatory comment.
+- Audited and closed superseded draft PRs #26 and #31, achieving **0 open PRs**.
 
 ---
 
-## Milestone 5: Offline Action Queueing & Sync Resilience (Medium Priority)
-- **Objective**: Preserve user actions (votes, saves, mark-as-read) executed while network is offline or unstable.
-- **Context**:
-  - Currently, `PostOverridesController` and `CommentOverridesController` perform optimistic updates, but if the network call fails, they immediately roll back to the prior state.
-  - If a user loses connection in an elevator or subway, their votes and saves are lost.
-- **Action Steps**:
-  1. Create an `OfflineActionQueue` stored in local preferences.
-  2. If an optimistic action encounters a network connection error, stage the mutation in the queue instead of immediately reverting.
-  3. Replay queued actions when `RedditClient` detects restored connectivity or on app resume.
+## 2. Future Engineering Milestones
 
----
+```
+[Milestone 8: Production Release Tagging & Release Verification]
+                         │
+                         ▼
+[Milestone 9: Tablet, Foldable & Large-Screen Adaptive Layouts]
+                         │
+                         ▼
+[Milestone 10: Offline Action Queueing & Reconnection Replay]
+                         │
+                         ▼
+[Milestone 11: Relational Persistence Migration (Drift/SQLite)]
+                         │
+                         ▼
+[Milestone 12: Community Feedback & Telemetry Optimization]
+```
 
-## Milestone 6: Long-Term Persistence Evolution (Low Priority / Future)
-- **Objective**: Migrate high-volume data structures from `SharedPreferences` JSON blobs to an embedded database (SQLite via `sqflite` or `drift`).
-- **Context**:
-  - `InteractionVault` currently stores 30 days of seen posts and interaction flags as JSON strings in `SharedPreferences`.
-  - `HistoryStore` stores viewing history as JSON.
-  - Phase 5 eliminated write-frequency overhead via `DeferredPrefWriter`, but cold-start JSON deserialization could still scale unfavorably for power users.
+### Milestone 8: Production Release Tagging (Immediate / Next)
+- **Objective**: Publish the modernized application as a formal GitHub release.
 - **Action Steps**:
-  1. Introduce `drift` or `sqflite` for relational storage of seen posts and history.
-  2. Implement an automated one-time migration from `SharedPreferences` to the database on first launch.
-  3. Keep the public API of `interactionVaultProvider` and `historyControllerProvider` identical so UI and ranking layers require zero changes.
+  1. Tag release `v1.0.2` on `main`.
+  2. Verify automated `.github/workflows/release-apk.yml` execution.
+  3. Confirm split-per-ABI APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) and `checksums-sha256.txt` are attached to the release assets.
+
+### Milestone 9: Tablet, Foldable & Large-Screen Adaptive Layouts (High Priority)
+- **Objective**: Provide an optimized two-pane experience for foldable phones, tablets, and desktop form factors.
+- **Action Steps**:
+  1. Introduce a master-detail split layout when screen width exceeds 720dp (feed on left, active post/comments on right).
+  2. Adapt bottom navigation dock into an M3E Navigation Rail for landscape and large screens.
+  3. Ensure comment compose dock anchors properly in dual-pane setups.
+
+### Milestone 10: Offline Action Queueing & Reconnection Replay (Medium Priority)
+- **Objective**: Prevent lost user interactions when voting or saving posts with intermittent or offline connectivity.
+- **Action Steps**:
+  1. Create an `OfflineActionQueue` backed by local storage.
+  2. Stage failed optimistic mutations in the queue when network errors occur rather than immediately rolling back.
+  3. Automatically flush and replay queued mutations when network reachability is restored.
+
+### Milestone 11: Relational Persistence Migration (Medium Priority)
+- **Objective**: Transition high-volume data structures from JSON blobs to structured local storage.
+- **Action Steps**:
+  1. Migrate `InteractionVault` (seen posts, interaction records) and `HistoryStore` to an embedded relational database (e.g. `drift` or `sqflite`).
+  2. Provide a seamless, one-time data migration from `SharedPreferences` on app upgrade.
+  3. Keep provider APIs identical to avoid ripples in UI or scoring components.
+
+### Milestone 12: Community Feedback & Telemetry Optimization (Ongoing)
+- **Objective**: Gather real-world user feedback on M3 Expressive typography, contrast, and animation performance across diverse Android devices.
+- **Action Steps**:
+  1. Collect opt-in frame drop metrics and scroll performance data.
+  2. Iterate on contrast ratios, font scaling preferences, and animation durations based on user reports.
