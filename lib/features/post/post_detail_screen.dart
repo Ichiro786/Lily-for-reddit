@@ -10,6 +10,7 @@ import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/interaction_actions.dart';
 import '../../core/media_aspect_ratio.dart';
 import '../../core/providers.dart';
 import '../../core/root_messenger.dart';
@@ -687,21 +688,8 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     });
   }
 
-  Future<void> _vote(int dir) {
-    return ref.read(postOverridesProvider.notifier).vote(widget.post, dir,
-        (targetDir) async {
-      if (targetDir == 1) {
-        ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
-      } else if (targetDir == -1) {
-        ref
-            .read(interestStoreProvider.notifier)
-            .bump(widget.post.subreddit, -1.5);
-      }
-      await ref
-          .read(redditRepositoryProvider)
-          .vote(widget.post.fullname, targetDir);
-    });
-  }
+  Future<void> _vote(int dir) =>
+      ref.read(interactionActionsProvider).votePost(widget.post, dir);
 
   void _openMedia() {
     final p = widget.post;
@@ -898,16 +886,8 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                 isSaved: saved,
                 onVote: _vote,
                 onCommentTap: widget.onComments,
-                onSaveTap: () {
-                  ref
-                      .read(postOverridesProvider.notifier)
-                      .toggleSave(
-                        p,
-                        (next) => ref
-                            .read(redditRepositoryProvider)
-                            .setSaved(p.fullname, next),
-                      );
-                },
+                onSaveTap: () =>
+                    ref.read(interactionActionsProvider).toggleSavePost(p),
                 onShareTap: () => shareUrl(
                   context,
                   p.url,
@@ -1201,24 +1181,11 @@ class _CommentTile extends ConsumerStatefulWidget {
 }
 
 class _CommentTileState extends ConsumerState<_CommentTile> {
-  Future<void> _vote(int dir) {
-    return ref.read(commentOverridesProvider.notifier).vote(
-          widget.comment,
-          dir,
-          (targetDir) => ref
-              .read(redditRepositoryProvider)
-              .vote(widget.comment.fullname, targetDir),
-        );
-  }
+  Future<void> _vote(int dir) =>
+      ref.read(interactionActionsProvider).voteComment(widget.comment, dir);
 
-  Future<void> _toggleSave() {
-    return ref.read(commentOverridesProvider.notifier).toggleSave(
-          widget.comment,
-          (next) => ref
-              .read(redditRepositoryProvider)
-              .setSaved(widget.comment.fullname, next),
-        );
-  }
+  Future<void> _toggleSave() =>
+      ref.read(interactionActionsProvider).toggleSaveComment(widget.comment);
 
   @override
   Widget build(BuildContext context) {

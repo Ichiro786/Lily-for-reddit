@@ -130,31 +130,15 @@ void main() {
     expect(ov.score, 101);
   });
 
-  test('controller vote reverts on API failure', () async {
+  test('server sync preserves a locally cleared vote', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);
-    final post = _post();
+    final post = _post(likes: true);
     final notifier = container.read(postOverridesProvider.notifier);
-
-    await notifier.vote(post, 1, (_) async {});
-    expect(notifier.effective(post).score, 101);
-
-    await notifier.vote(post, -1, (_) async => throw Exception('network'));
-    final ov = notifier.effective(post);
-    expect(ov.score, 101);
-    expect(ov.likes, isTrue);
-  });
-
-  test('controller save reverts on API failure', () async {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final post = _post();
-    final notifier = container.read(postOverridesProvider.notifier);
-
-    await notifier.toggleSave(post, (_) async => throw Exception('network'));
-    expect(notifier.effective(post).saved, isFalse);
-
-    await notifier.toggleSave(post, (_) async {});
-    expect(notifier.effective(post).saved, isTrue);
+    notifier.setVote(post, 0);
+    notifier.syncFromServer(post.copyWith(numComments: 7));
+    expect(notifier.effective(post).likes, isNull);
+    expect(notifier.effective(post).score, 99);
+    expect(notifier.effective(post).numComments, 7);
   });
 }

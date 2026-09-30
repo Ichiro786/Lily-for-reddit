@@ -19,8 +19,8 @@ class Analytics {
   }
 
   /// Records an anonymous event (no-op when disabled).
-  static void track(String event, [Map<String, dynamic>? props]) {
+  static Future<void> track(String event, [Map<String, dynamic>? props]) async {
     if (!enabled) return;
-    Aptabase.instance.trackEvent(event, props);
+    await Aptabase.instance.trackEvent(event, props);
   }
 }
