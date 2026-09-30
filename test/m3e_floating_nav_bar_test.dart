@@ -18,6 +18,30 @@ Finder _dock() => find
     .first;
 
 void main() {
+  testWidgets(
+    'navigation keeps touch targets and unread semantics when minimized',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(
+            currentIndex: 0,
+            isMinimized: true,
+            unreadCount: 7,
+            onTap: (_) {},
+          ),
+        ),
+      );
+      expect(
+        tester.getSize(find.byTooltip('Home')).height,
+        greaterThanOrEqualTo(48),
+      );
+      expect(find.bySemanticsLabel('Inbox, 7 unread'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
+
   testWidgets('destination taps report the selected tab', (tester) async {
     var selected = -1;
     await tester.pumpWidget(
@@ -35,8 +59,9 @@ void main() {
     expect(selected, 2);
   });
 
-  testWidgets('dock uses 60dp expanded and 44dp minimized heights',
-      (tester) async {
+  testWidgets('dock uses 64dp expanded and accessible 60dp minimized heights', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _harness(
         M3EFloatingNavBar(
@@ -45,7 +70,7 @@ void main() {
         ),
       ),
     );
-    expect(tester.getSize(_dock()).height, 60);
+    expect(tester.getSize(_dock()).height, 64);
 
     await tester.pumpWidget(
       _harness(
@@ -56,8 +81,8 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 220));
-    expect(tester.getSize(_dock()).height, 44);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.getSize(_dock()).height, 60);
   });
 
   testWidgets('Inbox badge dot is visible when unread count is nonzero',

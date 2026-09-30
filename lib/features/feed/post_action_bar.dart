@@ -14,6 +14,7 @@ class M3EPostActionBar extends StatelessWidget {
   final VoidCallback? onSaveTap;
   final VoidCallback? onShareTap;
   final VoidCallback? onMoreTap;
+  final bool frontpageStyle;
 
   const M3EPostActionBar({
     super.key,
@@ -26,6 +27,7 @@ class M3EPostActionBar extends StatelessWidget {
     this.onSaveTap,
     this.onShareTap,
     this.onMoreTap,
+    this.frontpageStyle = false,
   });
 
   String _formatCount(int number) {
@@ -42,6 +44,7 @@ class M3EPostActionBar extends StatelessWidget {
     final upvoteColor = voteColors?.up ?? colorScheme.primary;
     final downvoteColor = voteColors?.down ?? colorScheme.error;
     final voteGroup = _VoteGroup(
+      roomy: frontpageStyle,
       score: _formatCount(score),
       voteState: voteState,
       upvoteColor: upvoteColor,
@@ -57,6 +60,7 @@ class M3EPostActionBar extends StatelessWidget {
     );
 
     final commentButton = _CommentAction(
+      roomy: frontpageStyle,
       commentCount: _formatCount(commentCount),
       onTap: () {
         HapticFeedback.selectionClick();
@@ -65,47 +69,76 @@ class M3EPostActionBar extends StatelessWidget {
     );
 
     final shareButton = _CompactAction(
+      roomy: frontpageStyle,
       semanticsLabel: 'Share',
       circular: true,
       onTap: () {
         HapticFeedback.selectionClick();
         onShareTap?.call();
       },
-      child: const Icon(Icons.shortcut_rounded, size: 17),
+      child: Icon(Icons.shortcut_rounded, size: frontpageStyle ? 22 : 17),
     );
 
     final saveButton = _CompactAction(
+      roomy: frontpageStyle,
       semanticsLabel: isSaved ? 'Unsave' : 'Save',
       circular: true,
       isHighlighted: isSaved,
-      foregroundColor:
-          isSaved ? colorScheme.primary : colorScheme.onSurfaceVariant,
+      foregroundColor: isSaved
+          ? colorScheme.primary
+          : colorScheme.onSurfaceVariant,
       onTap: () {
         HapticFeedback.selectionClick();
         onSaveTap?.call();
       },
       child: Icon(
         isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-        size: 17,
+        size: frontpageStyle ? 22 : 17,
       ),
     );
 
     final moreButton = onMoreTap != null
         ? _CompactAction(
+            roomy: frontpageStyle,
             semanticsLabel: 'More options',
             circular: true,
             onTap: () {
               HapticFeedback.selectionClick();
               onMoreTap!();
             },
-            child: const Icon(Icons.more_horiz_rounded, size: 17),
+            child: Icon(
+              frontpageStyle
+                  ? Icons.more_vert_rounded
+                  : Icons.more_horiz_rounded,
+              size: frontpageStyle ? 22 : 17,
+            ),
           )
         : null;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: frontpageStyle ? 0 : 12,
+        vertical: 4,
+      ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          // Keep every action visible with larger text and smaller viewports.
+          // Other surfaces retain their existing compact horizontal layout.
+          if (frontpageStyle) {
+            return Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                voteGroup,
+                commentButton,
+                shareButton,
+                saveButton,
+                if (moreButton != null) moreButton,
+              ],
+            );
+          }
           final isNarrow = constraints.maxWidth < 360;
           if (isNarrow) {
             return SingleChildScrollView(
@@ -137,10 +170,7 @@ class M3EPostActionBar extends StatelessWidget {
               shareButton,
               const SizedBox(width: 6),
               saveButton,
-              if (moreButton != null) ...[
-                const SizedBox(width: 6),
-                moreButton,
-              ],
+              if (moreButton != null) ...[const SizedBox(width: 6), moreButton],
             ],
           );
         },
@@ -157,6 +187,7 @@ class _VoteGroup extends StatelessWidget {
     required this.downvoteColor,
     required this.onUpvote,
     required this.onDownvote,
+    this.roomy = false,
   });
 
   final String score;
@@ -165,6 +196,7 @@ class _VoteGroup extends StatelessWidget {
   final Color downvoteColor;
   final VoidCallback onUpvote;
   final VoidCallback onDownvote;
+  final bool roomy;
 
   @override
   Widget build(BuildContext context) {
@@ -175,14 +207,16 @@ class _VoteGroup extends StatelessWidget {
     final bgColor = isUpvoted
         ? upvoteColor.withValues(alpha: 0.16)
         : (isDownvoted
-            ? downvoteColor.withValues(alpha: 0.16)
-            : cs.surfaceContainerHigh.withValues(alpha: 0.70));
+              ? downvoteColor.withValues(alpha: 0.16)
+              : (roomy
+                    ? cs.surfaceContainerLowest
+                    : cs.surfaceContainerHigh.withValues(alpha: 0.70)));
 
     final borderColor = isUpvoted
         ? upvoteColor.withValues(alpha: 0.40)
         : (isDownvoted
-            ? downvoteColor.withValues(alpha: 0.40)
-            : cs.outlineVariant.withValues(alpha: 0.20));
+              ? downvoteColor.withValues(alpha: 0.40)
+              : cs.outlineVariant.withValues(alpha: roomy ? 1 : 0.20));
 
     final scoreColor = isUpvoted
         ? upvoteColor
@@ -191,8 +225,8 @@ class _VoteGroup extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+      height: roomy ? 50 : 36,
+      padding: EdgeInsets.symmetric(horizontal: roomy ? 0 : 2),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: ShapeTokens.full,
@@ -202,6 +236,7 @@ class _VoteGroup extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _VoteIcon(
+            roomy: roomy,
             tooltip: 'Upvote',
             icon: Icons.arrow_upward_rounded,
             color: isUpvoted ? upvoteColor : cs.onSurfaceVariant,
@@ -215,13 +250,14 @@ class _VoteGroup extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: scoreColor,
-                  ),
+                fontSize: roomy ? 14 : 12,
+                fontWeight: FontWeight.w800,
+                color: scoreColor,
+              ),
             ),
           ),
           _VoteIcon(
+            roomy: roomy,
             tooltip: 'Downvote',
             icon: Icons.arrow_downward_rounded,
             color: isDownvoted ? downvoteColor : cs.onSurfaceVariant,
@@ -239,22 +275,27 @@ class _VoteIcon extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.onPressed,
+    this.roomy = false,
   });
 
   final String tooltip;
   final IconData icon;
   final Color color;
   final VoidCallback onPressed;
+  final bool roomy;
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      icon: Icon(icon, size: 17, color: color),
+      icon: Icon(icon, size: roomy ? 22 : 17, color: color),
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 36),
-      visualDensity: VisualDensity.compact,
+      constraints: BoxConstraints(
+        minWidth: roomy ? 48 : 32,
+        minHeight: roomy ? 48 : 36,
+      ),
+      visualDensity: roomy ? VisualDensity.standard : VisualDensity.compact,
     );
   }
 }
@@ -263,10 +304,12 @@ class _CommentAction extends StatelessWidget {
   const _CommentAction({
     required this.commentCount,
     required this.onTap,
+    this.roomy = false,
   });
 
   final String commentCount;
   final VoidCallback onTap;
+  final bool roomy;
 
   @override
   Widget build(BuildContext context) {
@@ -276,20 +319,26 @@ class _CommentAction extends StatelessWidget {
       button: true,
       excludeSemantics: true,
       label: '$commentCount comments',
+      onTap: onTap,
       child: Material(
-        color: cs.surfaceContainerHigh.withValues(alpha: 0.70),
+        color: roomy
+            ? cs.surfaceContainerLowest
+            : cs.surfaceContainerHigh.withValues(alpha: 0.70),
         shape: ShapeTokens.fullShape,
         child: InkWell(
           onTap: onTap,
           customBorder: ShapeTokens.fullShape,
           child: Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            constraints: BoxConstraints(
+              minWidth: roomy ? 48 : 0,
+              minHeight: roomy ? 48 : 36,
+            ),
+            padding: EdgeInsets.symmetric(horizontal: roomy ? 6 : 10),
             decoration: ShapeDecoration(
               shape: RoundedRectangleBorder(
                 borderRadius: ShapeTokens.full,
                 side: BorderSide(
-                  color: cs.outlineVariant.withValues(alpha: 0.20),
+                  color: cs.outlineVariant.withValues(alpha: roomy ? 1 : 0.20),
                   width: 1,
                 ),
               ),
@@ -299,7 +348,7 @@ class _CommentAction extends StatelessWidget {
               children: [
                 Icon(
                   Icons.chat_bubble_outline_rounded,
-                  size: 17,
+                  size: roomy ? 22 : 17,
                   color: cs.onSurfaceVariant,
                 ),
                 const SizedBox(width: 5),
@@ -308,7 +357,7 @@ class _CommentAction extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    fontSize: 12,
+                    fontSize: roomy ? 14 : 12,
                     fontWeight: FontWeight.w700,
                     color: cs.onSurfaceVariant,
                   ),
@@ -330,6 +379,7 @@ class _CompactAction extends StatelessWidget {
     this.circular = false,
     this.isHighlighted = false,
     this.foregroundColor,
+    this.roomy = false,
   });
 
   final String semanticsLabel;
@@ -338,6 +388,7 @@ class _CompactAction extends StatelessWidget {
   final bool circular;
   final bool isHighlighted;
   final Color? foregroundColor;
+  final bool roomy;
 
   @override
   Widget build(BuildContext context) {
@@ -346,11 +397,13 @@ class _CompactAction extends StatelessWidget {
 
     final bgColor = isHighlighted
         ? cs.primaryContainer.withValues(alpha: 0.60)
-        : cs.surfaceContainerHigh.withValues(alpha: 0.70);
+        : (roomy
+              ? cs.surfaceContainerLowest
+              : cs.surfaceContainerHigh.withValues(alpha: 0.70));
 
     final borderColor = isHighlighted
         ? cs.primary.withValues(alpha: 0.35)
-        : cs.outlineVariant.withValues(alpha: 0.20);
+        : cs.outlineVariant.withValues(alpha: roomy ? 1 : 0.20);
 
     return Semantics(
       button: true,
@@ -362,7 +415,11 @@ class _CompactAction extends StatelessWidget {
           onTap: onTap,
           customBorder: shape,
           child: Container(
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            width: roomy ? 48 : null,
+            constraints: BoxConstraints(
+              minWidth: roomy ? 48 : 36,
+              minHeight: roomy ? 48 : 36,
+            ),
             decoration: ShapeDecoration(
               shape: shape is CircleBorder
                   ? CircleBorder(side: BorderSide(color: borderColor, width: 1))
@@ -377,7 +434,7 @@ class _CompactAction extends StatelessWidget {
                 child: IconTheme(
                   data: IconThemeData(
                     color: foregroundColor ?? cs.onSurfaceVariant,
-                    size: 17,
+                    size: roomy ? 22 : 17,
                   ),
                   child: child,
                 ),

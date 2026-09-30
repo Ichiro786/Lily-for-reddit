@@ -19,6 +19,7 @@ import '../settings/settings_controller.dart';
 import '../updates/update_checker.dart';
 import 'account_tab.dart';
 import 'tab_signals.dart';
+import 'frontpage_header.dart';
 import '../navigation/m3e_floating_nav_bar.dart';
 
 /// SharedPreferences flag: have we shown the one-time notifications suggestion?
@@ -183,10 +184,15 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                 curve: Curves.fastOutSlowIn,
                 child: child!,
               ),
-              child: FloatingActionButton(
-                tooltip: 'Create post',
-                onPressed: () => context.push('/submit'),
-                child: const Icon(Icons.add_rounded),
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: FloatingActionButton(
+                  tooltip: 'Create post',
+                  elevation: 0,
+                  onPressed: () => context.push('/submit'),
+                  child: const Icon(Icons.add_rounded, size: 28),
+                ),
               ),
             )
           : null,
@@ -313,7 +319,6 @@ class _FrontpageTab extends ConsumerWidget {
     final forYou = settings.forYouFeed;
     final mode = settings.topBarMode;
     final expandable = mode == TopBarMode.expandable;
-    final hasTrailing = expandable;
     // Full mode pins the action row; Expandable floats it in on demand.
     final showActionRow = mode == TopBarMode.full;
     return Column(
@@ -405,43 +410,12 @@ class _FrontpageTab extends ConsumerWidget {
         Expanded(
           child: PostListView(
             feedKey: '',
-            header: Padding(
-              padding: EdgeInsets.fromLTRB(
-                  16, hasTrailing ? 10 : 8, hasTrailing ? 4 : 16, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    forYou ? 'For You' : 'Frontpage',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.2,
-                        ),
-                  ),
-                  if (forYou) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text('Personalized on-device · Beta',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12, color: cs.onSurfaceVariant)),
-                    ),
-                  ] else
-                    const Spacer(),
-                  // Expandable mode: one button that floats the toolbar in.
-                  if (expandable)
-                    IconButton(
-                      tooltip: 'Toolbar',
-                      icon: const Icon(Icons.more_vert_rounded),
-                      onPressed: () =>
-                          _showFloatingToolbar(context, ref, username),
-                    ),
-                ],
-              ),
+            frontpageStyle: true,
+            header: FrontpageHeader(
+              forYou: forYou,
+              onToolbar: expandable
+                  ? () => _showFloatingToolbar(context, ref, username)
+                  : null,
             ),
           ),
         ),

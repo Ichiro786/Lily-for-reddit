@@ -29,10 +29,12 @@ class PostListView extends ConsumerStatefulWidget {
     required this.feedKey,
     this.header,
     this.showSortBar = true,
+    this.frontpageStyle = false,
   });
   final String feedKey;
   final Widget? header;
   final bool showSortBar;
+  final bool frontpageStyle;
 
   @override
   ConsumerState<PostListView> createState() => _PostListViewState();
@@ -99,13 +101,20 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
         ref.read(feedControllerProvider(widget.feedKey).notifier);
     final hasPending = async.valueOrNull?.hasPending ?? false;
 
+    final listPadding = EdgeInsets.fromLTRB(
+      widget.frontpageStyle ? 12 : 10,
+      0,
+      widget.frontpageStyle ? 12 : 10,
+      (widget.frontpageStyle ? 104.0 : 88.0) +
+          MediaQuery.paddingOf(context).bottom,
+    );
+
     final refreshable = M3ERefreshIndicator(
       key: _refreshKey,
       onRefresh: notifier.refresh,
       child: async.when(
         loading: () => ListView(
-          padding: EdgeInsets.fromLTRB(
-              10, 0, 10, 88.0 + MediaQuery.paddingOf(context).bottom),
+          padding: listPadding,
           children: [
             if (widget.header != null) widget.header!,
             const SizedBox(height: 8),
@@ -117,6 +126,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           ],
         ),
         error: (e, _) => ListView(
+          padding: widget.frontpageStyle ? listPadding : null,
           children: [
             if (widget.header != null) widget.header!,
             SizedBox(
@@ -143,12 +153,12 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           }
           if (posts.isEmpty) {
             return ListView(
-              padding: EdgeInsets.fromLTRB(
-                  10, 0, 10, 88.0 + MediaQuery.paddingOf(context).bottom),
+              padding: listPadding,
               children: [
                 if (widget.header != null) widget.header!,
                 if (widget.showSortBar)
                   _SortBar(
+                    frontpageStyle: widget.frontpageStyle,
                     sort: state.sort,
                     time: state.time,
                     onPick: notifier.changeSort,
@@ -161,13 +171,10 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               ],
             );
           }
-          final itemCount =
-              (widget.showSortBar ? 1 : 0) + posts.length + 1;
-          final bottomPadding =
-              88.0 + MediaQuery.paddingOf(context).bottom;
+          final itemCount = (widget.showSortBar ? 1 : 0) + posts.length + 1;
           return ListView.builder(
             controller: _scroll,
-            padding: EdgeInsets.fromLTRB(10, 0, 10, bottomPadding),
+            padding: listPadding,
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
             addAutomaticKeepAlives: false,
             addRepaintBoundaries: false,
@@ -180,6 +187,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
               if (widget.showSortBar) {
                 if (index == 0) {
                   return _SortBar(
+                    frontpageStyle: widget.frontpageStyle,
                     sort: state.sort,
                     time: state.time,
                     onPick: notifier.changeSort,
@@ -195,12 +203,18 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                 final post = posts[index];
                 if (widget.feedKey.isEmpty && index == 0) {
                   return RepaintBoundary(
-                    child: _StartupFirstPostVisibility(post: post),
+                    child: _StartupFirstPostVisibility(
+                      post: post,
+                      frontpageStyle: widget.frontpageStyle,
+                    ),
                   );
                 }
                 return RepaintBoundary(
                   key: ValueKey<String>('post-card-${post.id}'),
-                  child: PostCard(post: post),
+                  child: PostCard(
+                    post: post,
+                    frontpageStyle: widget.frontpageStyle,
+                  ),
                 );
               }
               // footer
@@ -290,9 +304,13 @@ class _EmptyFeed extends StatelessWidget {
 }
 
 class _StartupFirstPostVisibility extends StatelessWidget {
-  const _StartupFirstPostVisibility({required this.post});
+  const _StartupFirstPostVisibility({
+    required this.post,
+    this.frontpageStyle = false,
+  });
 
   final Post post;
+  final bool frontpageStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -303,7 +321,7 @@ class _StartupFirstPostVisibility extends StatelessWidget {
           StartupMetrics.instance.markFirstFeedItemVisible();
         }
       },
-      child: PostCard(post: post),
+      child: PostCard(post: post, frontpageStyle: frontpageStyle),
     );
   }
 }
@@ -349,6 +367,7 @@ class _SortBar extends StatelessWidget {
     required this.onPick,
     this.forYou = false,
     this.onForYou,
+    this.frontpageStyle = false,
   });
 
   final PostSort sort;
@@ -356,6 +375,7 @@ class _SortBar extends StatelessWidget {
   final void Function(PostSort, {TopTime? time}) onPick;
   final bool forYou;
   final VoidCallback? onForYou;
+  final bool frontpageStyle;
 
   static const _frontpageSorts = <PostSort>[
     PostSort.hot,
@@ -368,13 +388,15 @@ class _SortBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      padding: frontpageStyle
+          ? const EdgeInsets.fromLTRB(4, 12, 4, 14)
+          : const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         child: Row(
           children: [
-            if (onForYou != null) ...[
+            if (onForYou != null && !frontpageStyle) ...[
               _chip(
                 context,
                 label: 'For You',
@@ -395,6 +417,16 @@ class _SortBar extends StatelessWidget {
                   _frontpageSorts[i],
                   time: _frontpageSorts[i] == PostSort.top ? time : null,
                 ),
+              ),
+            ],
+            if (onForYou != null && frontpageStyle) ...[
+              const SizedBox(width: 8),
+              _chip(
+                context,
+                label: 'For You',
+                icon: Icons.auto_awesome_rounded,
+                selected: forYou,
+                onPressed: onForYou!,
               ),
             ],
             if (sort == PostSort.best && !forYou) ...[
@@ -441,7 +473,7 @@ class _SortBar extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return FilterChip(
       selected: selected,
-      showCheckmark: selected,
+      showCheckmark: selected && !frontpageStyle,
       onSelected: (_) {
         HapticFeedback.selectionClick();
         onPressed();
@@ -449,24 +481,57 @@ class _SortBar extends StatelessWidget {
       avatar: Icon(
         icon,
         size: 16,
-        color: selected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+        color: selected
+            ? (frontpageStyle ? cs.onPrimaryContainer : cs.onSecondaryContainer)
+            : cs.onSurfaceVariant,
       ),
-      label: Text(label),
+      label: frontpageStyle && selected
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label),
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.check_rounded,
+                  size: 16,
+                  color: cs.onPrimaryContainer,
+                ),
+              ],
+            )
+          : Text(label),
       labelStyle: TextStyle(
         fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-        color: selected ? cs.onSecondaryContainer : cs.onSurface,
+        color: selected
+            ? (frontpageStyle ? cs.onPrimaryContainer : cs.onSecondaryContainer)
+            : cs.onSurface,
       ),
-      selectedColor: cs.secondaryContainer,
-      backgroundColor: cs.surfaceContainerHigh.withValues(alpha: 0.65),
-      checkmarkColor: cs.onSecondaryContainer,
+      selectedColor: frontpageStyle
+          ? cs.primaryContainer
+          : cs.secondaryContainer,
+      backgroundColor: frontpageStyle
+          ? cs.surfaceContainerLowest
+          : cs.surfaceContainerHigh.withValues(alpha: 0.65),
+      checkmarkColor: frontpageStyle
+          ? cs.onPrimaryContainer
+          : cs.onSecondaryContainer,
       side: BorderSide(
         color: selected
-            ? cs.secondaryContainer.withValues(alpha: 0.5)
+            ? (frontpageStyle ? cs.primary : cs.secondaryContainer).withValues(
+                alpha: 0.5,
+              )
             : cs.outlineVariant.withValues(alpha: 0.25),
         width: 1,
       ),
       shape: const StadiumBorder(),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      avatarBoxConstraints: frontpageStyle
+          ? const BoxConstraints.tightFor(width: 18, height: 18)
+          : null,
+      labelPadding: frontpageStyle
+          ? const EdgeInsets.symmetric(horizontal: 6)
+          : null,
+      padding: frontpageStyle
+          ? const EdgeInsets.symmetric(horizontal: 4, vertical: 4)
+          : const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
     );
   }
 
@@ -525,10 +590,14 @@ class _SortBar extends StatelessWidget {
   }
 
   IconData _iconFor(PostSort s) => switch (s) {
-        PostSort.best => Icons.star_rounded,
-        PostSort.hot => Icons.local_fire_department_rounded,
-        PostSort.newest => Icons.schedule_rounded,
-        PostSort.top => Icons.leaderboard_rounded,
-        PostSort.rising => Icons.trending_up_rounded,
-      };
+    PostSort.best => Icons.star_rounded,
+    PostSort.hot => Icons.local_fire_department_rounded,
+    PostSort.newest =>
+      frontpageStyle ? Icons.fiber_new_outlined : Icons.schedule_rounded,
+    PostSort.top =>
+      frontpageStyle
+          ? Icons.workspace_premium_outlined
+          : Icons.leaderboard_rounded,
+    PostSort.rising => Icons.trending_up_rounded,
+  };
 }
