@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:luli_for_reddit/core/interaction_actions.dart';
+import 'package:luli_for_reddit/core/providers.dart';
 import 'package:luli_for_reddit/features/post/comment_card.dart';
 import 'package:luli_for_reddit/features/post/comment_overrides.dart';
 import 'package:luli_for_reddit/models/comment.dart';
+
+import 'support/interaction_fixture.dart';
 
 Comment _comment({
   String id = 'c1',
@@ -38,13 +42,9 @@ Future<void> _vote(
   int dir, {
   bool fail = false,
 }) {
-  return container.read(commentOverridesProvider.notifier).vote(
-        c,
-        dir,
-        (_) async {
-          if (fail) throw Exception('network');
-        },
-      );
+  (container.read(redditRepositoryProvider) as InteractionRepository).fail =
+      fail;
+  return container.read(interactionActionsProvider).voteComment(c, dir);
 }
 
 Future<void> _toggleSave(
@@ -52,18 +52,15 @@ Future<void> _toggleSave(
   Comment c, {
   bool fail = false,
 }) {
-  return container.read(commentOverridesProvider.notifier).toggleSave(
-        c,
-        (_) async {
-          if (fail) throw Exception('network');
-        },
-      );
+  (container.read(redditRepositoryProvider) as InteractionRepository).fail =
+      fail;
+  return container.read(interactionActionsProvider).toggleSaveComment(c);
 }
 
 void main() {
   test('neutral -> upvote applies exactly +1', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _vote(container, c, 1);
@@ -72,7 +69,7 @@ void main() {
 
   test('neutral -> downvote applies exactly -1', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _vote(container, c, -1);
@@ -81,7 +78,7 @@ void main() {
 
   test('upvote -> neutral restores base score', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
     final notifier = container.read(commentOverridesProvider.notifier);
 
@@ -94,7 +91,7 @@ void main() {
 
   test('downvote -> neutral restores base score', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _vote(container, c, -1);
@@ -104,7 +101,7 @@ void main() {
 
   test('upvote -> downvote applies the net delta once', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _vote(container, c, 1);
@@ -114,7 +111,7 @@ void main() {
 
   test('downvote -> upvote applies the net delta once', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _vote(container, c, -1);
@@ -124,7 +121,7 @@ void main() {
 
   test('save/unsave transitions both ways', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _toggleSave(container, c);
@@ -135,7 +132,7 @@ void main() {
 
   test('server-pre-voted baseline is preserved until changed', () async {
     final c = _comment(score: 100, likes: true);
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     expect(_effective(container, c), (dir: 1, score: 100, saved: false));
@@ -146,7 +143,7 @@ void main() {
 
   test('server-saved baseline survives unrelated votes', () async {
     final c = _comment(saved: true);
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _vote(container, c, 1);
@@ -157,7 +154,7 @@ void main() {
 
   test('failed vote reverts to previous authoritative state', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _vote(container, c, 1); // succeeds -> 101/up
@@ -167,7 +164,7 @@ void main() {
 
   test('first failed vote leaves neutral untouched', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _vote(container, c, -1, fail: true);
@@ -176,7 +173,7 @@ void main() {
 
   test('failed save reverts to previous saved state', () async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _toggleSave(container, c, fail: true);
@@ -190,7 +187,7 @@ void main() {
   test('independent comments do not affect each other', () async {
     final a = _comment(id: 'aaa');
     final b = _comment(id: 'bbb');
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     await _vote(container, a, 1);
@@ -205,7 +202,7 @@ void main() {
       'comment interaction state survives rebuilds and collapse/expand',
       (tester) async {
     final c = _comment();
-    final container = ProviderContainer();
+    final container = interactionContainer();
     addTearDown(container.dispose);
 
     var collapsed = false;

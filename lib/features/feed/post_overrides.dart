@@ -42,14 +42,16 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
   PostOverride effective(Post p) =>
       state[p.id] ??
       PostOverride(
-          likes: p.likes,
-          score: p.score,
-          numComments: p.numComments,
-          saved: p.saved);
+        likes: p.likes,
+        score: p.score,
+        numComments: p.numComments,
+        saved: p.saved,
+      );
 
   void _set(String id, PostOverride o) => state = {...state, id: o};
 
-  /// Applies a vote (toggling off if the same direction is tapped again).
+  /// Applies an absolute presentation target. Action orchestration lives in
+  /// InteractionActions, including toggle resolution and API rollback.
   void setVote(Post p, int targetDir) {
     final cur = effective(p);
     final curDir = cur.likes == true ? 1 : (cur.likes == false ? -1 : 0);
@@ -67,8 +69,10 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
   void setSaved(Post p, bool saved) =>
       _set(p.id, effective(p).copyWith(saved: saved));
 
-  void bumpComments(Post p, int delta) =>
-      _set(p.id, effective(p).copyWith(numComments: effective(p).numComments + delta));
+  void bumpComments(Post p, int delta) => _set(
+        p.id,
+        effective(p).copyWith(numComments: effective(p).numComments + delta),
+      );
 
   /// Refresh from a freshly-fetched post (e.g. when the detail opens): always
   /// take the fresh comment count; seed vote/score/saved only if not already
@@ -78,52 +82,16 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
     _set(
       p.id,
       PostOverride(
-        likes: existing?.likes ?? p.likes,
+        likes: existing != null ? existing.likes : p.likes,
         score: existing?.score ?? p.score,
         numComments: p.numComments,
         saved: existing?.saved ?? p.saved,
       ),
     );
   }
-
-  int _directionOf(PostOverride o) =>
-      o.likes == true ? 1 : (o.likes == false ? -1 : 0);
-
-  /// Optimistic vote with revert-on-failure. [api] performs the network call
-  /// with the resolved target direction (0 clears the vote). Centralizes the
-  /// transition math previously duplicated in PostCard and _PostHeaderState;
-  /// callers keep their own telemetry hooks around this call.
-  Future<void> vote(
-    Post p,
-    int dir,
-    Future<void> Function(int targetDir) api,
-  ) async {
-    final previous = _directionOf(effective(p));
-    final target = previous == dir ? 0 : dir;
-    setVote(p, target);
-    try {
-      await api(target);
-    } catch (_) {
-      setVote(p, previous); // restore prior authoritative state
-    }
-  }
-
-  /// Optimistic save/unsave with revert-on-failure.
-  Future<void> toggleSave(
-    Post p,
-    Future<void> Function(bool next) api,
-  ) async {
-    final previous = effective(p).saved;
-    final next = !previous;
-    setSaved(p, next);
-    try {
-      await api(next);
-    } catch (_) {
-      setSaved(p, previous);
-    }
-  }
 }
 
 final postOverridesProvider =
     NotifierProvider<PostOverridesController, Map<String, PostOverride>>(
-        PostOverridesController.new);
+  PostOverridesController.new,
+);

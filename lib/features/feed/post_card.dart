@@ -7,8 +7,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/analytics.dart';
 import '../../core/format.dart';
+import '../../core/interaction_actions.dart';
 import '../../core/media_aspect_ratio.dart';
-import '../../core/providers.dart';
 import '../../core/root_messenger.dart';
 import '../../core/share.dart';
 import '../../core/theme/shape_tokens.dart';
@@ -43,59 +43,11 @@ class _PostCardState extends ConsumerState<PostCard> {
   // store (keyed by post id) so the card stays in sync with the post-detail
   // screen and survives scrolling.
 
-  Future<void> _vote(int dir) {
-    final overrides = ref.read(postOverridesProvider.notifier);
-    final previous = overrides.effective(widget.post).voteDirection;
-    return overrides.vote(widget.post, dir, (target) {
-      ref
-          .read(interactionVaultProvider.notifier)
-          .recordUpvote(widget.post.id, target == 1);
-      if (target == -1) {
-        ref
-            .read(interactionVaultProvider.notifier)
-            .recordDismissal(widget.post.id);
-      } else if (previous == -1) {
-        ref
-            .read(interactionVaultProvider.notifier)
-            .recordDismissal(widget.post.id, false);
-      }
-      // Learn: upvoting a community raises its affinity; downvoting lowers it.
-      if (target == 1) {
-        ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 2);
-        ref.read(keywordStoreProvider.notifier).bumpTitle(widget.post.title, 1);
-      } else if (target == -1) {
-        ref
-            .read(interestStoreProvider.notifier)
-            .bump(widget.post.subreddit, -1.5);
-        ref
-            .read(keywordStoreProvider.notifier)
-            .bumpTitle(widget.post.title, -0.8);
-      }
-      return ref
-          .read(redditRepositoryProvider)
-          .vote(widget.post.fullname, target);
-    });
-  }
+  Future<void> _vote(int dir) =>
+      ref.read(interactionActionsProvider).votePost(widget.post, dir);
 
-  Future<void> _toggleSave() {
-    final overrides = ref.read(postOverridesProvider.notifier);
-    return overrides.toggleSave(widget.post, (next) {
-      ref
-          .read(interactionVaultProvider.notifier)
-          .recordSave(widget.post.id, next);
-      ref
-          .read(interestStoreProvider.notifier)
-          .bump(widget.post.subreddit, next ? 3 : -3);
-      if (next) {
-        ref
-            .read(keywordStoreProvider.notifier)
-            .bumpTitle(widget.post.title, 1.5);
-      }
-      return ref
-          .read(redditRepositoryProvider)
-          .setSaved(widget.post.fullname, next);
-    });
-  }
+  Future<void> _toggleSave() =>
+      ref.read(interactionActionsProvider).toggleSavePost(widget.post);
 
   void _openDetail() {
     Analytics.track('post_opened');
@@ -253,7 +205,10 @@ class _PostCardState extends ConsumerState<PostCard> {
           children: [
             ListTile(
               leading: const Icon(Icons.bookmark_add_outlined),
-              title: Text(post.saved ? 'Unsave post' : 'Save post'),
+              title: Text(
+                  ref.read(postOverridesProvider.notifier).effective(post).saved
+                      ? 'Unsave post'
+                      : 'Save post'),
               onTap: () {
                 Navigator.pop(ctx);
                 _toggleSave();
@@ -943,7 +898,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     final ov = ref.watch(
       postOverridesProvider.select((m) => m[widget.post.id]),
     );
-    final likes = ov?.likes ?? widget.post.likes;
+    final likes = ov != null ? ov.likes : widget.post.likes;
     final score = ov?.score ?? widget.post.score;
     final saved = ov?.saved ?? widget.post.saved;
     final numComments = ov?.numComments ?? widget.post.numComments;

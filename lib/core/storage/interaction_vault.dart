@@ -95,6 +95,9 @@ class InteractionVaultState {
   }
 }
 
+/// Persisted post behavioral signals for personalization/history. These are
+/// committed by InteractionActions after successful vote/save requests and are
+/// never used as optimistic presentation state. Dwell/open/hide remain local.
 class InteractionVault extends Notifier<InteractionVaultState> {
   static const _interactedBaseKey = 'interaction_vault_interacted_posts';
   static const _seenBaseKey = 'interaction_vault_seen_posts';
