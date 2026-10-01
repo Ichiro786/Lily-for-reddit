@@ -50,9 +50,13 @@ void main() {
       () async {
         SharedPreferences.setMockInitialValues({});
         final repo = _Repo();
+        final errors = <Object>[];
         final c = interactionContainer(
           repository: repo,
           prefs: await SharedPreferences.getInstance(),
+          extraOverrides: [
+            moreRepliesFailureProvider.overrideWithValue(errors.add),
+          ],
         );
         addTearDown(c.dispose);
         final p = commentsControllerProvider('flutter/p1');
@@ -90,6 +94,7 @@ void main() {
         }
         await pending;
         final s = c.read(p).requireValue;
+        expect(errors.length, mutation == 'failure' ? 1 : 0);
         expect(s.loadingMore, isEmpty);
         if (mutation == 'failure' || mutation == 'sort') {
           expect(s.comments.where((n) => n.isMore), hasLength(1));

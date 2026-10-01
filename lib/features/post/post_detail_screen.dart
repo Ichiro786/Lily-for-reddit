@@ -1,10 +1,16 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import '../../core/theme/motion_tokens.dart';
+import '../media/expandable_post_media.dart';
+import '../media/post_media_image.dart';
+import '../feed/inline_video.dart';
+import 'comment_media_helper.dart';
+import 'comment_content.dart';
 
 import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,14 +55,16 @@ class PostDetailScreen extends ConsumerStatefulWidget {
   final String subreddit;
   final String postId;
   final Post? initialPost;
-  final String? focusCommentId; // open a single comment thread (from a permalink)
+  final String?
+  focusCommentId; // open a single comment thread (from a permalink)
 
   @override
   ConsumerState<PostDetailScreen> createState() => _PostDetailScreenState();
 }
 
 class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
-  final ScrollController _scrollController = ScrollController();
+  final ItemScrollController _itemScrollController = ItemScrollController();
+  final ItemPositionsListener _itemPositions = ItemPositionsListener.create();
   List<Comment> _flat = const [];
 
   // In-post comment search.
@@ -111,11 +119,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 Navigator.pop(ctx);
                 final permalink = comment.permalink.isNotEmpty
                     ? (comment.permalink.startsWith('http')
-                        ? comment.permalink
-                        : 'https://reddit.com${comment.permalink}')
+                          ? comment.permalink
+                          : 'https://reddit.com${comment.permalink}')
                     : 'https://reddit.com${post.permalink}${comment.id}/';
-                shareUrl(context, permalink,
-                    subject: 'Comment by u/${comment.author}');
+                shareUrl(
+                  context,
+                  permalink,
+                  subject: 'Comment by u/${comment.author}',
+                );
               },
             ),
             if (comment.author.isNotEmpty && comment.author != '[deleted]')
@@ -137,7 +148,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   void dispose() {
     _searchCtrl.dispose();
     _composeCtrl.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -167,22 +177,29 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     if (m.isNotEmpty) _scrollToMatch();
   }
 
+  void _scrollToIndex(int index) {
+    if (!_itemScrollController.isAttached) return;
+    if (MotionTokens.reduced(context)) {
+      _itemScrollController.jumpTo(index: index);
+    } else {
+      _itemScrollController.scrollTo(
+        index: index,
+        duration: MotionTokens.content(context),
+        curve: MotionTokens.emphasized,
+      );
+    }
+  }
+
   void _scrollToMatch() {
-    if (_matchIndices.isEmpty) return;
-    _scrollController.animateTo(
-      (_scrollController.offset + 260).clamp(
-        0.0,
-        _scrollController.position.maxScrollExtent,
-      ),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    if (_matchIndices.isNotEmpty) _scrollToIndex(_matchIndices[_matchPos]);
   }
 
   void _stepMatch(int delta) {
     if (_matchIndices.isEmpty) return;
-    setState(() => _matchPos =
-        (_matchPos + delta + _matchIndices.length) % _matchIndices.length);
+    setState(
+      () => _matchPos =
+          (_matchPos + delta + _matchIndices.length) % _matchIndices.length,
+    );
     _scrollToMatch();
   }
 
@@ -210,9 +227,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             );
       notifier.insertReply(thread.post.fullname, reply);
       ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
-      ref
-          .read(interestStoreProvider.notifier)
-          .bump(thread.post.subreddit, 2.5);
+      ref.read(interestStoreProvider.notifier).bump(thread.post.subreddit, 2.5);
       ref.read(keywordStoreProvider.notifier).bumpTitle(thread.post.title, 1);
     } catch (e) {
       if (!mounted) return;
@@ -222,9 +237,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       if (_pendingComposeAttachment == null) {
         setState(() => _pendingComposeAttachment = attachment);
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text("Couldn't post the comment: ${friendlyError(e)}"),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Couldn't post the comment: ${friendlyError(e)}"),
+        ),
+      );
     }
   }
 
@@ -246,27 +263,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 
   void _scrollToComments() {
-    if (_flat.isEmpty || !_scrollController.hasClients) return;
-    _scrollController.animateTo(
-      (_scrollController.offset + 320).clamp(
-        0.0,
-        _scrollController.position.maxScrollExtent,
-      ),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    if (_flat.isNotEmpty) _scrollToIndex(1);
   }
 
   void _jumpNextTopLevel() {
-    if (_flat.isEmpty || !_scrollController.hasClients) return;
-    _scrollController.animateTo(
-      (_scrollController.offset + 280).clamp(
-        0.0,
-        _scrollController.position.maxScrollExtent,
-      ),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
+    if (_flat.isEmpty || !_itemScrollController.isAttached) return;
+    final visible = _itemPositions.itemPositions.value.where(
+      (p) => p.itemTrailingEdge > 0 && p.itemLeadingEdge < 1,
     );
+    final first = visible.isEmpty
+        ? 0
+        : visible.map((p) => p.index).reduce((a, b) => a < b ? a : b);
+    for (var i = first; i < _flat.length; i++) {
+      if (_flat[i].depth == 0 && !_flat[i].isMore) {
+        _scrollToIndex(i + 1);
+        return;
+      }
+    }
   }
 
   @override
@@ -275,8 +288,34 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         ? '${widget.subreddit}/${widget.postId}/focus_${widget.focusCommentId}'
         : '${widget.subreddit}/${widget.postId}';
     final async = ref.watch(commentsControllerProvider(key));
+    ref.listen(commentsControllerProvider(key), (previous, next) {
+      final updated = next.valueOrNull;
+      if (!_searchOpen || updated == null) return;
+      final selected = _matchIndices.isEmpty
+          ? null
+          : _flat[_matchIndices[_matchPos] - 1].fullname;
+      final flat = visibleComments(updated);
+      final query = _searchCtrl.text.trim().toLowerCase();
+      final matches = <int>[
+        if (query.isNotEmpty)
+          for (var i = 0; i < flat.length; i++)
+            if (!flat[i].isMore && flat[i].body.toLowerCase().contains(query))
+              i + 1,
+      ];
+      final selectedPosition = matches.indexWhere(
+        (i) => flat[i - 1].fullname == selected,
+      );
+      _flat = flat;
+      _matchIndices = matches;
+      _matchPos = selectedPosition >= 0
+          ? selectedPosition
+          : matches.isEmpty
+          ? 0
+          : _matchPos.clamp(0, matches.length - 1);
+    });
     final notifier = ref.read(commentsControllerProvider(key).notifier);
-    final username = ref.watch(
+    final username =
+        ref.watch(
           authControllerProvider.select((auth) => auth.valueOrNull?.username),
         ) ??
         '';
@@ -290,38 +329,67 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             Flexible(
               child: Text(
                 thread?.post.subredditPrefixed ??
-                    (widget.subreddit == '_' ? 'Post' : 'r/${widget.subreddit}'),
+                    (widget.subreddit == '_'
+                        ? 'Post'
+                        : 'r/${widget.subreddit}'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
           ],
         ),
         actions: [
           if (thread != null)
-            IconButton(
-              tooltip: 'Search comments',
-              icon: Icon(
-                  _searchOpen ? Icons.search_off_rounded : Icons.search_rounded),
-              onPressed: _toggleSearch,
+            PopupMenuButton<String>(
+              tooltip: 'Sort comments',
+              icon: const Icon(Icons.sort_rounded),
+              shape: ShapeTokens.largeShape,
+              popUpAnimationStyle: AnimationStyle(
+                duration: MotionTokens.content(context),
+                reverseDuration: MotionTokens.feedback(context),
+                curve: MotionTokens.emphasized,
+              ),
+              onSelected: notifier.changeSort,
+              itemBuilder: (_) => [
+                for (final sort in commentSorts)
+                  CheckedPopupMenuItem(
+                    value: sort,
+                    checked: notifier.sort == sort,
+                    child: Text(commentSortLabels[sort] ?? sort),
+                  ),
+              ],
             ),
           if (thread != null)
             IconButton(
+              tooltip: 'Search comments',
+              icon: Icon(
+                _searchOpen ? Icons.search_off_rounded : Icons.search_rounded,
+              ),
+              onPressed: _toggleSearch,
+            ),
+          if (thread != null)
+            IconButton.filledTonal(
               icon: const Icon(Icons.more_vert_rounded),
-              onPressed: () =>
-                  showPostActionsSheet(context, ref, thread.post),
+              tooltip: 'Post options',
+              onPressed: () => showPostActionsSheet(context, ref, thread.post),
             ),
           if (thread != null && thread.post.author == username)
             PopupMenuButton<String>(
               onSelected: (v) async {
                 final post = thread.post;
                 if (v == 'edit' && post.isSelf) {
-                  final newText = await showEditSheet(context, ref,
-                      thingFullname: post.fullname, initialText: post.selftext);
-                  if (newText != null) notifier.applyEdit(post.fullname, newText);
+                  final newText = await showEditSheet(
+                    context,
+                    ref,
+                    thingFullname: post.fullname,
+                    initialText: post.selftext,
+                  );
+                  if (newText != null) {
+                    notifier.applyEdit(post.fullname, newText);
+                  }
                 } else if (v == 'delete') {
                   final ok = await _confirmDelete(context, 'post');
                   if (ok) {
@@ -342,6 +410,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       ),
       body: Column(
         children: [
+          if (_searchOpen)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+              child: _buildSearchBar(context),
+            ),
           Expanded(
             child: async.when(
               loading: () => _LoadingWithHeader(post: widget.initialPost),
@@ -351,8 +424,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Could not load this post.\n$e',
-                          textAlign: TextAlign.center),
+                      Text(
+                        'Could not load this post.\n$e',
+                        textAlign: TextAlign.center,
+                      ),
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: notifier.refresh,
@@ -365,25 +440,38 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               data: (thread) {
                 final commentMarkdownStyle = _getCommentMarkdownStyle(context);
                 final presentations = ref.watch(
-                  flattenedCommentPresentationProvider((key, commentMarkdownStyle)),
+                  flattenedCommentPresentationProvider((
+                    key,
+                    commentMarkdownStyle,
+                  )),
                 );
                 final flat = [
-                  for (final presentation in presentations) presentation.comment,
+                  for (final presentation in presentations)
+                    presentation.comment,
                 ];
                 _flat = flat;
                 final colorScheme = Theme.of(context).colorScheme;
                 final theme = Theme.of(context);
                 final sortHeader = Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHigh,
+                        color: colorScheme.surface,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: PopupMenuButton<String>(
+                        popUpAnimationStyle: AnimationStyle(
+                          duration: MotionTokens.content(context),
+                          reverseDuration: MotionTokens.feedback(context),
+                          curve: MotionTokens.emphasized,
+                        ),
+                        shape: ShapeTokens.largeShape,
+                        position: PopupMenuPosition.under,
                         onSelected: notifier.changeSort,
                         itemBuilder: (_) => [
                           for (final s in commentSorts)
@@ -396,17 +484,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                         tooltip: 'Sort comments',
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.sort_rounded,
-                                  size: 18, color: colorScheme.primary),
+                              Icon(
+                                Icons.sort_rounded,
+                                size: 18,
+                                color: colorScheme.primary,
+                              ),
                               const SizedBox(width: 6),
                               Text(
                                 // Reflect the controller's active sort; the label
                                 // mapping is the single canonical source.
-                                (commentSortLabels[notifier.sort] ?? notifier.sort)
+                                (commentSortLabels[notifier.sort] ??
+                                        notifier.sort)
                                     .toUpperCase(),
                                 style: theme.textTheme.labelSmall?.copyWith(
                                   fontWeight: FontWeight.w700,
@@ -415,8 +509,20 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              Icon(Icons.keyboard_arrow_down_rounded,
-                                  size: 18, color: colorScheme.primary),
+                              Text(
+                                'COMMENTS',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.5,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 18,
+                                color: colorScheme.primary,
+                              ),
                             ],
                           ),
                         ),
@@ -427,129 +533,131 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
                 return RefreshIndicator(
                   onRefresh: notifier.refresh,
-                  child: CustomScrollView(
-                    controller: _scrollController,
-                    // ignore: deprecated_member_use
-                    cacheExtent: 1000,
-                    slivers: [
-                      if (_searchOpen)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                            child: _buildSearchBar(context),
-                          ),
-                        ),
-                      SliverToBoxAdapter(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  child: ScrollablePositionedList.builder(
+                    itemScrollController: _itemScrollController,
+                    itemPositionsListener: _itemPositions,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    minCacheExtent: 320,
+                    itemCount: flat.isEmpty ? 2 : flat.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return Column(
                           children: [
-                            if (widget.focusCommentId != null)
-                              Material(
-                                color: colorScheme.secondaryContainer,
-                                child: InkWell(
-                                  onTap: () => context.replace(
-                                      '/comments/${widget.subreddit}/${widget.postId}'),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 10),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.subdirectory_arrow_right_rounded,
-                                          size: 18,
-                                          color: colorScheme.onSecondaryContainer,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (widget.focusCommentId != null)
+                                  Material(
+                                    color: colorScheme.secondaryContainer,
+                                    child: InkWell(
+                                      onTap: () => context.replace(
+                                        '/comments/${widget.subreddit}/${widget.postId}',
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 10,
                                         ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            'Viewing a single comment thread',
-                                            style: TextStyle(
-                                              color: colorScheme.onSecondaryContainer,
-                                              fontWeight: FontWeight.w600,
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons
+                                                  .subdirectory_arrow_right_rounded,
+                                              size: 18,
+                                              color: colorScheme
+                                                  .onSecondaryContainer,
                                             ),
-                                          ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Viewing a single comment thread',
+                                                style: TextStyle(
+                                                  color: colorScheme
+                                                      .onSecondaryContainer,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                            Text(
+                                              'Show all',
+                                              style: TextStyle(
+                                                color: colorScheme.primary,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        Text(
-                                          'Show all',
-                                          style: TextStyle(
-                                            color: colorScheme.primary,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
                                   ),
+                                _PostHeader(
+                                  post: thread.post,
+                                  onComments: _scrollToComments,
                                 ),
-                              ),
-                            _PostHeader(
-                              post: thread.post,
-                              onComments: _scrollToComments,
+                                Divider(
+                                  height: 16,
+                                  color: colorScheme.outlineVariant.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                ),
+                                sortHeader,
+                                const SizedBox(height: 8),
+                              ],
                             ),
-                            sortHeader,
-                            const SizedBox(height: 8),
                           ],
-                        ),
-                      ),
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            if (flat.isEmpty) {
-                              return const Padding(
-                                padding: EdgeInsets.all(40),
-                                child: Center(child: Text('No comments yet')),
-                              );
-                            }
-                            final presentation = presentations[index];
-                            final c = presentation.comment;
-                            return RepaintBoundary(
-                              child: _CommentTile(
-                                key: ValueKey(c.fullname),
-                                comment: c,
-                                richBody: presentation.markdownBody,
-                                opAuthor: thread.post.author,
-                                collapsed: thread.collapsed.contains(c.id),
-                                loadingMore:
-                                    thread.loadingMore.contains(moreNodeKey(c)),
-                                onToggle: () => notifier.toggleCollapse(c.id),
-                                onLoadMore: () => notifier.loadMore(c),
-                                onOverflow: () => _showCommentOverflowMenu(
-                                  context,
-                                  c,
-                                  thread.post,
-                                ),
-                                onOpenThread: () {
-                                  final focusId = c.moreChildren.isNotEmpty
-                                      ? c.moreChildren.first
-                                      : c.id;
-                                  context.push(
-                                    '/comments/${Uri.encodeComponent(thread.post.subreddit)}/${thread.post.id}?comment=${Uri.encodeComponent(focusId)}',
-                                  );
-                                },
-                                onReply: () async {
-                                  final reply = await showReplySheet(
-                                    context,
-                                    ref,
-                                    parentFullname: c.fullname,
-                                    parentDepth: c.depth,
-                                    replyingTo: c.author,
-                                  );
-                                  if (reply != null) {
-                                    notifier.insertReply(c.fullname, reply);
-                                    ref
-                                        .read(postOverridesProvider.notifier)
-                                        .bumpComments(thread.post, 1);
-                                    ref
-                                        .read(interestStoreProvider.notifier)
-                                        .bump(thread.post.subreddit, 2.5);
-                                  }
-                                },
-                              ),
+                        );
+                      }
+                      if (flat.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.all(40),
+                          child: Center(child: Text('No comments yet')),
+                        );
+                      }
+                      final presentation = presentations[index - 1];
+                      final c = presentation.comment;
+                      return RepaintBoundary(
+                        child: _CommentTile(
+                          key: ValueKey(c.isMore ? moreNodeKey(c) : c.fullname),
+                          comment: c,
+                          richBody: presentation.markdownBody,
+                          opAuthor: thread.post.author,
+                          collapsed: thread.collapsed.contains(c.id),
+                          loadingMore: thread.loadingMore.contains(
+                            moreNodeKey(c),
+                          ),
+                          onToggle: () => notifier.toggleCollapse(c.id),
+                          onLoadMore: () => notifier.loadMore(c),
+                          onOverflow: () =>
+                              _showCommentOverflowMenu(context, c, thread.post),
+                          onOpenThread: () {
+                            final focusId = c.moreChildren.isNotEmpty
+                                ? c.moreChildren.first
+                                : c.id;
+                            context.push(
+                              '/comments/${Uri.encodeComponent(thread.post.subreddit)}/${thread.post.id}?comment=${Uri.encodeComponent(focusId)}',
                             );
                           },
-                          childCount: flat.isEmpty ? 1 : flat.length,
+                          onReply: () async {
+                            final reply = await showReplySheet(
+                              context,
+                              ref,
+                              parentFullname: c.fullname,
+                              parentDepth: c.depth,
+                              replyingTo: c.author,
+                            );
+                            if (reply != null) {
+                              notifier.insertReply(c.fullname, reply);
+                              ref
+                                  .read(postOverridesProvider.notifier)
+                                  .bumpComments(thread.post, 1);
+                              ref
+                                  .read(interestStoreProvider.notifier)
+                                  .bump(thread.post.subreddit, 2.5);
+                            }
+                          },
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 );
               },
@@ -603,8 +711,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               ),
             ),
             if (has)
-              Text(total == 0 ? '0/0' : '${_matchPos + 1}/$total',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              Text(
+                total == 0 ? '0/0' : '${_matchPos + 1}/$total',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
             IconButton(
               tooltip: 'Previous',
               visualDensity: VisualDensity.compact,
@@ -630,7 +740,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 }
 
-
 Future<bool> _confirmDelete(BuildContext context, String what) async {
   final ok = await showDialog<bool>(
     context: context,
@@ -639,11 +748,13 @@ Future<bool> _confirmDelete(BuildContext context, String what) async {
       content: const Text('This cannot be undone.'),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel')),
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete')),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Delete'),
+        ),
       ],
     ),
   );
@@ -696,7 +807,13 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
     switch (p.type) {
       case PostType.image:
       case PostType.gif:
-        openImageViewer(context, p.previewUrl ?? p.url, title: p.title);
+        openImageViewer(
+          context,
+          p.type == PostType.gif && isCommentGifUrl(p.url)
+              ? normalizedCommentMediaUrl(p.url)
+              : p.previewUrl ?? p.url,
+          title: p.title,
+        );
       case PostType.gallery:
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
@@ -705,10 +822,12 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
           break;
         }
         openVideoViewer(
-            context, p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
-            title: p.title,
-            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
-            externalUrl: p.url);
+          context,
+          p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
+          title: p.title,
+          downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
+          externalUrl: p.url,
+        );
       case PostType.link:
         launchSmartUrl(p.url);
       case PostType.self:
@@ -725,161 +844,175 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: () => context.push('/r/${p.subreddit}'),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: cs.secondaryContainer,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      p.subreddit.isEmpty ? '?' : p.subreddit[0].toUpperCase(),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: cs.onSecondaryContainer,
-                            fontWeight: FontWeight.w700,
-                          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () => context.push('/r/${p.subreddit}'),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: cs.secondaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    p.subreddit.isEmpty ? '?' : p.subreddit[0].toUpperCase(),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: cs.onSecondaryContainer,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      GestureDetector(
-                        onTap: () => context.push('/r/${p.subreddit}'),
-                        child: Text(
-                          p.subredditPrefixed,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    color: cs.onSurface,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      GestureDetector(
-                        onTap: () => context.push('/u/${p.author}'),
-                        child: Text(
-                          'u/${p.author} · ${timeAgo(p.created)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: cs.onSurfaceVariant,
-                                  ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (p.stickied)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: Icon(Icons.push_pin_rounded,
-                        size: 16, color: cs.primary),
-                  ),
-                if (p.over18)
-                  Container(
-                    margin: const EdgeInsets.only(left: 6),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: cs.errorContainer,
-                      borderRadius: ShapeTokens.extraSmall,
-                    ),
-                    child: Text(
-                      'NSFW',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: cs.onErrorContainer,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(p.title,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700, height: 1.3)),
-            if (p.linkFlairText != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                    color: cs.primaryContainer.withValues(alpha: 0.72),
-                    borderRadius: ShapeTokens.full),
-                child: Text(p.linkFlairText!,
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onPrimaryContainer)),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => context.push('/r/${p.subreddit}'),
+                      child: Text(
+                        p.subredditPrefixed,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    GestureDetector(
+                      onTap: () => context.push('/u/${p.author}'),
+                      child: Text(
+                        'u/${p.author} · ${timeAgo(p.created)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (p.stickied)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Icon(
+                    Icons.push_pin_rounded,
+                    size: 16,
+                    color: cs.primary,
+                  ),
+                ),
+              if (p.over18)
+                Container(
+                  margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.errorContainer,
+                    borderRadius: ShapeTokens.extraSmall,
+                  ),
+                  child: Text(
+                    'NSFW',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: cs.onErrorContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
             ],
-            if (p.crosspostFrom != null) ...[
-              const SizedBox(height: 8),
-              Row(children: [
-                Icon(Icons.repeat_rounded, size: 14, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            p.title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              height: 1.3,
+            ),
+          ),
+          if (p.linkFlairText != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: cs.primaryContainer.withValues(alpha: 0.72),
+                borderRadius: ShapeTokens.full,
+              ),
+              child: Text(
+                p.linkFlairText!,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onPrimaryContainer,
+                ),
+              ),
+            ),
+          ],
+          if (p.crosspostFrom != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.repeat_rounded,
+                  size: 14,
+                  color: cs.onSurfaceVariant,
+                ),
                 const SizedBox(width: 6),
                 Flexible(
-                  child: Text('Crossposted from r/${p.crosspostFrom}',
-                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                ),
-              ]),
-            ],
-            const SizedBox(height: 12),
-            _media(cs),
-            if (p.pollOptions.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              for (final opt in p.pollOptions)
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHigh,
-                    borderRadius: ShapeTokens.small,
+                  child: Text(
+                    'Crossposted from r/${p.crosspostFrom}',
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                   ),
-                  child: Text(opt),
                 ),
-              Text('Vote in the official app',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-            ],
-            if (p.isSelf && p.selftext.isNotEmpty)
-              MarkdownBody(
-                data: normalizeRedditSpoilers(p.selftext),
-                builders: {
-                  'spoiler': RedditSpoilerBuilder(),
-                },
-                inlineSyntaxes: [SpoilerInlineSyntax()],
-                styleSheet: buildM3EMarkdownStyleSheet(Theme.of(context)),
-                // Selection disabled: selectable mode ignores element builders,
-                // which would break interactive spoilers here too.
-                onTapLink: (_, href, __) {
-                  if (href != null) {
-                    launchSmartUrl(href);
-                  }
-                },
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          _media(cs),
+          if (p.pollOptions.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            for (final opt in p.pollOptions)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHigh,
+                  borderRadius: ShapeTokens.small,
+                ),
+                child: Text(opt),
               ),
-            const SizedBox(height: 12),
-            Builder(builder: (context) {
-              final ov =
-                  ref.watch(postOverridesProvider.select((m) => m[p.id]));
+            Text(
+              'Vote in the official app',
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
+          ],
+          if (p.isSelf && p.selftext.isNotEmpty)
+            CommentContent(
+              body: p.selftext,
+              styleSheet: buildM3EMarkdownStyleSheet(Theme.of(context)),
+            ),
+          const SizedBox(height: 12),
+          Builder(
+            builder: (context) {
+              final ov = ref.watch(
+                postOverridesProvider.select((m) => m[p.id]),
+              );
               final likes = ov != null ? ov.likes : p.likes;
               final score = ov?.score ?? p.score;
               final saved = ov?.saved ?? p.saved;
               final numComments = ov?.numComments ?? p.numComments;
               return M3EPostActionBar(
+                detailStyle: true,
                 score: score,
                 commentCount: numComments,
                 voteState: likes == true ? 1 : (likes == false ? -1 : 0),
@@ -888,23 +1021,21 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                 onCommentTap: widget.onComments,
                 onSaveTap: () =>
                     ref.read(interactionActionsProvider).toggleSavePost(p),
-                onShareTap: () => shareUrl(
-                  context,
-                  p.url,
-                  subject: p.title,
-                ),
+                onShareTap: () => shareUrl(context, p.url, subject: p.title),
               );
-            }),
-          ],
-        ),
+            },
+          ),
+        ],
+      ),
     );
   }
 
   Widget _media(ColorScheme cs) {
     final p = widget.post;
     if (p.type == PostType.self) return const SizedBox.shrink();
-    final blurNsfw =
-        ref.watch(settingsControllerProvider.select((s) => s.blurNsfw));
+    final blurNsfw = ref.watch(
+      settingsControllerProvider.select((s) => s.blurNsfw),
+    );
     final blur = (p.over18 && blurNsfw) || p.spoiler;
     if (p.type == PostType.gallery && p.gallery.isNotEmpty) {
       return Padding(
@@ -961,13 +1092,14 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                     height: 72,
                     alignment: Alignment.center,
                     color: cs.surfaceContainerHighest,
-                    child: Icon(Icons.link_rounded,
-                        color: cs.onSurfaceVariant),
+                    child: Icon(Icons.link_rounded, color: cs.onSurfaceVariant),
                   ),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -976,9 +1108,7 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                           p.domain,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
+                          style: Theme.of(context).textTheme.titleSmall
                               ?.copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: cs.onSurface,
@@ -989,12 +1119,8 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                           p.url,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: cs.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -1002,8 +1128,11 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                 ),
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
-                  child: Icon(Icons.open_in_new_rounded,
-                      size: 18, color: cs.onSurfaceVariant),
+                  child: Icon(
+                    Icons.open_in_new_rounded,
+                    size: 18,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -1011,57 +1140,56 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
         ),
       );
     }
-    final url =
-        p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
+    final url = p.type == PostType.gif && isCommentGifUrl(p.url)
+        ? normalizedCommentMediaUrl(p.url)
+        : p.previewUrl ?? (p.gallery.isNotEmpty ? p.gallery.first.url : null);
     final renderAspect = intrinsicMediaAspectRatio(
       width: p.previewWidth,
       height: p.previewHeight,
       fallback: p.type == PostType.video ? 16 / 9 : 4 / 3,
     );
-    final extremePortrait = renderAspect < 0.4;
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final viewportHeight = MediaQuery.sizeOf(context).height;
-    final verticalPadding = MediaQuery.viewPaddingOf(context).vertical;
-    final maxHeight = mediaViewportMaxHeight(
-      viewportHeight: viewportHeight,
-      verticalPadding: verticalPadding,
-    );
     final cacheWidth =
-        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
-    final cacheHeight =
-        (cacheWidth / renderAspect).ceil().clamp(1, 1080).toInt();
-
+        (MediaQuery.sizeOf(context).width *
+                MediaQuery.devicePixelRatioOf(context))
+            .round()
+            .clamp(1, 1080);
+    final autoplay =
+        ref.watch(settingsControllerProvider.select((s) => s.autoplayMedia)) &&
+        !MotionTokens.reduced(context);
+    final videoUrl = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: NsfwBlur(
         blur: blur,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final naturalHeight = constraints.maxWidth / renderAspect;
-            final capped = naturalHeight > maxHeight || extremePortrait;
-
-            final content = Stack(
+        child: ExpandablePostMedia(
+          key: ValueKey(p.fullname),
+          aspectRatio: renderAspect,
+          onOpen: _openMedia,
+          builder: (context, height) {
+            if (p.type == PostType.video &&
+                autoplay &&
+                videoUrl.isNotEmpty &&
+                !isYouTubeUrl(p.url) &&
+                !isCommentGifUrl(videoUrl)) {
+              return InlineVideo(
+                key: ValueKey('detail-video-${p.id}'),
+                url: videoUrl,
+                poster: url,
+                height: height,
+                onTap: _openMedia,
+              );
+            }
+            return Stack(
               fit: StackFit.expand,
               alignment: Alignment.center,
               children: [
                 if (url != null)
-                  CachedNetworkImage(
-                    imageUrl: url,
-                    memCacheWidth: cacheWidth,
-                    memCacheHeight: cacheHeight,
-                    fit: capped ? BoxFit.cover : BoxFit.cover,
-                    alignment: capped ? Alignment.topCenter : Alignment.center,
-                    placeholder: (_, __) =>
-                        Container(color: cs.surfaceContainerHighest),
-                    errorWidget: (_, __, ___) => Container(
-                      color: cs.surfaceContainerHighest,
-                      child: Icon(Icons.broken_image_outlined,
-                          color: cs.onSurfaceVariant),
-                    ),
-                  )
-                else
-                  Container(color: cs.surfaceContainerHighest),
-                if (p.type == PostType.video) ...[
+                  PostMediaImage(
+                    url: url,
+                    cacheWidth: cacheWidth,
+                    animate: autoplay || p.type != PostType.gif,
+                  ),
+                if (p.type == PostType.video)
                   Center(
                     child: Container(
                       padding: const EdgeInsets.all(14),
@@ -1069,73 +1197,20 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
                         color: cs.scrim.withValues(alpha: 0.54),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.play_arrow_rounded,
-                        color: cs.onSurface,
+                        color: Colors.white,
                         size: 36,
                       ),
                     ),
                   ),
+                if (p.type == PostType.gif)
                   Positioned(
-                    right: 12,
-                    bottom: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: cs.scrim.withValues(alpha: 0.78),
-                        borderRadius: ShapeTokens.extraSmall,
-                      ),
-                      child: Text(
-                        'VIDEO',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(
-                              color: cs.onSurface,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.4,
-                            ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            );
-
-            final mediaWidget = ClipRRect(
-              borderRadius: ShapeTokens.large,
-              child: GestureDetector(
-                onTap: _openMedia,
-                child: capped
-                    ? SizedBox(
-                        width: double.infinity,
-                        height: maxHeight,
-                        child: content,
-                      )
-                    : AspectRatio(
-                        aspectRatio: renderAspect,
-                        child: content,
-                      ),
-              ),
-            );
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                mediaWidget,
-                if (capped)
-                  Semantics(
-                    button: true,
-                    label: 'View full image',
-                    child: TextButton.icon(
-                      onPressed: _openMedia,
-                      icon: const Icon(Icons.open_in_full_rounded, size: 16),
-                      label: const Text('View full'),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        visualDensity: VisualDensity.compact,
-                      ),
+                    top: 12,
+                    left: 12,
+                    child: Chip(
+                      label: const Text('GIF'),
+                      backgroundColor: cs.surfaceContainerHigh,
                     ),
                   ),
               ],
@@ -1205,9 +1280,9 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
           child: InkWell(
             onTap: widget.loadingMore
                 ? null
-                : (comment.moreChildren.isNotEmpty
-                    ? widget.onOpenThread
-                    : widget.onLoadMore),
+                : comment.moreChildren.isNotEmpty
+                ? widget.onLoadMore
+                : widget.onOpenThread,
             borderRadius: ShapeTokens.full,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1245,40 +1320,41 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
       ),
       onRight: () => _vote(1),
       onLeft: () => _vote(-1),
-      child: Builder(builder: (context) {
-        // Narrow subscription: only this comment's override triggers a
-        // rebuild, mirroring the M3EPostActionBar pattern.
-        final ov = ref.watch(commentOverridesProvider
-            .select((m) => m[comment.fullname]));
-        final effective = ov ??
-            CommentOverride(
-              likes: comment.likes,
-              score: comment.score,
-              saved: comment.saved,
-            );
-        return M3ECommentCard(
-          author: comment.author,
-          timeAgo: timeAgo(comment.created),
-          body: comment.body,
-          richBody: widget.richBody,
-          depth: comment.depth,
-          isOp: comment.author == widget.opAuthor,
-          score: effective.score,
-          voteState: effective.voteDirection,
-          isSaved: effective.saved,
-          replyCount: comment.replies.length,
-          isCollapsed: widget.collapsed,
-          onToggleCollapse: widget.onToggle,
-          onVote: _vote,
-          onReply: widget.onReply,
-          onSave: _toggleSave,
-          onAward: () {},
-          onOverflow: widget.onOverflow,
-          onLoadMoreReplies: comment.replies.isNotEmpty
-              ? widget.onOpenThread
-              : null,
-        );
-      }),
+      child: Builder(
+        builder: (context) {
+          // Narrow subscription: only this comment's override triggers a
+          // rebuild, mirroring the M3EPostActionBar pattern.
+          final ov = ref.watch(
+            commentOverridesProvider.select((m) => m[comment.fullname]),
+          );
+          final effective =
+              ov ??
+              CommentOverride(
+                likes: comment.likes,
+                score: comment.score,
+                saved: comment.saved,
+              );
+          return M3ECommentCard(
+            author: comment.author,
+            timeAgo: timeAgo(comment.created),
+            body: comment.body,
+            richBody: widget.richBody,
+            depth: comment.depth,
+            isOp: comment.author == widget.opAuthor,
+            score: effective.score,
+            voteState: effective.voteDirection,
+            isSaved: effective.saved,
+            replyCount: comment.replies.length,
+            isCollapsed: widget.collapsed,
+            onToggleCollapse: widget.onToggle,
+            onVote: _vote,
+            onReply: widget.onReply,
+            onSave: _toggleSave,
+            onOverflow: widget.onOverflow,
+            onLoadMoreReplies: widget.collapsed ? widget.onToggle : null,
+          );
+        },
+      ),
     );
   }
 }

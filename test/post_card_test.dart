@@ -633,7 +633,7 @@ void main() {
     expect(imageWidget.alignment, Alignment.center);
   });
 
-  testWidgets('capped tall media uses BoxFit.cover and Alignment.topCenter',
+  testWidgets('capped tall media preserves the whole photograph without cropping',
       (tester) async {
     final tallPost = _imagePost(
       width: 300,
@@ -665,8 +665,8 @@ void main() {
     final imageFinder = find.byType(CachedNetworkImage);
     expect(imageFinder, findsOneWidget);
     final imageWidget = tester.widget<CachedNetworkImage>(imageFinder);
-    expect(imageWidget.fit, BoxFit.cover);
-    expect(imageWidget.alignment, Alignment.topCenter);
+    expect(imageWidget.fit, BoxFit.contain);
+    expect(imageWidget.alignment, Alignment.center);
     expect(find.text('View full'), findsOneWidget);
   });
 }

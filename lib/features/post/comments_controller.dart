@@ -5,10 +5,10 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import '../../core/root_messenger.dart';
 import '../../models/comment.dart';
 import '../../models/post.dart';
-import 'comment_media_helper.dart';
-import 'interactive_spoiler.dart';
+import 'comment_content.dart';
 
 class PostThread {
   const PostThread({
@@ -46,6 +46,15 @@ const commentSortLabels = {
   'old': 'Old',
   'qa': 'Q&A',
 };
+
+final moreRepliesFailureProvider = Provider<void Function(Object)>(
+  (ref) =>
+      (_) => showRootSnackBar(
+        const SnackBar(
+          content: Text('Could not load replies. Tap again to retry.'),
+        ),
+      ),
+);
 
 String moreNodeKey(Comment node) =>
     jsonEncode([node.fullname, node.parentId, node.moreChildren]);
@@ -245,12 +254,13 @@ class CommentsController
           loadingMore: {...current.loadingMore}..remove(key),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!_current(generation)) return;
       final current = state.valueOrNull ?? s;
       state = AsyncData(
         current.copyWith(loadingMore: {...current.loadingMore}..remove(key)),
       );
+      ref.read(moreRepliesFailureProvider)(error);
     }
   }
 }
@@ -265,6 +275,23 @@ class FlattenedComment {
   final Widget? markdownBody;
 }
 
+List<Comment> visibleComments(PostThread thread) {
+  final out = <Comment>[];
+  void walk(Comment comment) {
+    out.add(comment);
+    if (!comment.isMore && !thread.collapsed.contains(comment.id)) {
+      for (final reply in comment.replies) {
+        walk(reply);
+      }
+    }
+  }
+
+  for (final comment in thread.comments) {
+    walk(comment);
+  }
+  return out;
+}
+
 final flattenedCommentPresentationProvider = Provider.autoDispose
     .family<List<FlattenedComment>, (String, MarkdownStyleSheet)>((ref, args) {
       final asyncThread = ref.watch(commentsControllerProvider(args.$1));
@@ -272,28 +299,16 @@ final flattenedCommentPresentationProvider = Provider.autoDispose
       if (thread == null) return const [];
 
       final out = <FlattenedComment>[];
-      void walk(Comment comment) {
-        final isCollapsed = thread.collapsed.contains(comment.id);
-        // Collapsed nodes hide their body entirely, so no Markdown is built for
-        // them; expanded nodes render through the shared spoiler-aware pipeline.
-        final body = isCollapsed ? '' : commentTextWithoutMedia(comment.body);
+      for (final comment in visibleComments(thread)) {
+        final body = thread.collapsed.contains(comment.id) ? '' : comment.body;
         out.add(
           FlattenedComment(
             comment: comment,
             markdownBody: body.isEmpty
                 ? null
-                : buildCommentMarkdownBody(body, args.$2),
+                : CommentContent(body: body, styleSheet: args.$2),
           ),
         );
-        if (!comment.isMore && !isCollapsed) {
-          for (final reply in comment.replies) {
-            walk(reply);
-          }
-        }
-      }
-
-      for (final comment in thread.comments) {
-        walk(comment);
       }
       return out;
     });

@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/shape_tokens.dart';
+import '../../core/theme/motion_tokens.dart';
+
+part 'detail_post_actions.dart';
 
 class M3EPostActionBar extends StatelessWidget {
   final int score;
@@ -15,6 +18,7 @@ class M3EPostActionBar extends StatelessWidget {
   final VoidCallback? onShareTap;
   final VoidCallback? onMoreTap;
   final bool frontpageStyle;
+  final bool detailStyle;
 
   const M3EPostActionBar({
     super.key,
@@ -28,6 +32,7 @@ class M3EPostActionBar extends StatelessWidget {
     this.onShareTap,
     this.onMoreTap,
     this.frontpageStyle = false,
+    this.detailStyle = false,
   });
 
   String _formatCount(int number) {
@@ -43,6 +48,20 @@ class M3EPostActionBar extends StatelessWidget {
     final voteColors = theme.extension<VoteColors>();
     final upvoteColor = voteColors?.up ?? colorScheme.primary;
     final downvoteColor = voteColors?.down ?? colorScheme.error;
+    if (detailStyle) {
+      return _DetailPostActions(
+        score: _formatCount(score),
+        comments: _formatCount(commentCount),
+        voteState: voteState,
+        isSaved: isSaved,
+        up: upvoteColor,
+        down: downvoteColor,
+        onVote: onVote,
+        onComments: onCommentTap,
+        onSave: onSaveTap,
+        onShare: onShareTap,
+      );
+    }
     final voteGroup = _VoteGroup(
       roomy: frontpageStyle,
       score: _formatCount(score),
@@ -473,7 +492,7 @@ class _ActionOutline extends StatelessWidget {
           left: roomy && circular ? 2 : 0,
           right: roomy && circular ? 2 : 0,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: MotionTokens.feedback(context),
             decoration: ShapeDecoration(
               color: color,
               shape: circular

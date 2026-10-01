@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import '../core/reddit_comment_media.dart';
 
 part 'comment.freezed.dart';
 
@@ -75,7 +76,7 @@ class Comment with _$Comment {
       fullname: d['name'] as String? ?? 't1_${d['id']}',
       parentId: d['parent_id'] as String? ?? '',
       author: d['author'] as String? ?? '[deleted]',
-      body: d['body'] as String? ?? '',
+      body: resolveCommentBodyMedia(d['body'] as String? ?? '', d['media_metadata']),
       score: (d['score'] as num?)?.toInt() ?? 0,
       created: DateTime.fromMillisecondsSinceEpoch(
         ((d['created_utc'] as num?)?.toInt() ?? 0) * 1000,

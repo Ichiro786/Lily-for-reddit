@@ -3,7 +3,10 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../../core/theme/shape_tokens.dart';
+import '../../core/theme/motion_tokens.dart';
 import '../../core/url_launcher_helper.dart';
+import 'comment_content.dart';
+import 'comment_media_helper.dart';
 
 /// Turns the `<spoiler>…</spoiler>` tags produced by [normalizeRedditSpoilers]
 /// into real markdown elements, which is what lets [RedditSpoilerBuilder]
@@ -39,9 +42,7 @@ MarkdownStyleSheet buildM3EMarkdownStyleSheet(ThemeData theme) {
     blockquoteDecoration: BoxDecoration(
       color: cs.surfaceContainerHigh.withValues(alpha: 0.5),
       borderRadius: BorderRadius.circular(8),
-      border: Border(
-        left: BorderSide(color: cs.primary, width: 3.5),
-      ),
+      border: Border(left: BorderSide(color: cs.primary, width: 3.5)),
     ),
     codeblockDecoration: BoxDecoration(
       color: cs.surfaceContainerHighest,
@@ -53,10 +54,7 @@ MarkdownStyleSheet buildM3EMarkdownStyleSheet(ThemeData theme) {
       fontFamily: 'monospace',
       color: cs.onSurfaceVariant,
     ),
-    a: TextStyle(
-      color: cs.primary,
-      decoration: TextDecoration.underline,
-    ),
+    a: TextStyle(color: cs.primary, decoration: TextDecoration.underline),
   );
 }
 
@@ -76,9 +74,7 @@ MarkdownBody buildCommentMarkdownBody(
 ) {
   return MarkdownBody(
     data: normalizeRedditSpoilers(body),
-    builders: {
-      'spoiler': RedditSpoilerBuilder(),
-    },
+    builders: {'spoiler': RedditSpoilerBuilder()},
     inlineSyntaxes: [SpoilerInlineSyntax()],
     styleSheet: styleSheet,
     onTapLink: (_, href, __) {
@@ -109,7 +105,7 @@ class _InteractiveSpoilerState extends State<InteractiveSpoiler> {
       behavior: HitTestBehavior.opaque,
       onTap: () => setState(() => _revealed = !_revealed),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
+        duration: MotionTokens.feedback(context),
         curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
@@ -118,13 +114,28 @@ class _InteractiveSpoilerState extends State<InteractiveSpoiler> {
               : scheme.surfaceContainerHighest,
           borderRadius: ShapeTokens.extraSmall,
         ),
-        child: Text(
-          _revealed ? widget.text : 'Spoiler (Tap to reveal)',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: scheme.onSurface,
-            fontWeight: _revealed ? FontWeight.normal : FontWeight.w600,
-          ),
-        ),
+        child: _revealed && extractCommentMedia(widget.text).isNotEmpty
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => setState(() => _revealed = false),
+                    icon: const Icon(Icons.visibility_off_outlined),
+                    label: const Text('Hide spoiler'),
+                  ),
+                  CommentContent(
+                    body: widget.text,
+                    styleSheet: buildM3EMarkdownStyleSheet(theme),
+                  ),
+                ],
+              )
+            : Text(
+                _revealed ? widget.text : 'Spoiler (Tap to reveal)',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurface,
+                  fontWeight: _revealed ? FontWeight.normal : FontWeight.w600,
+                ),
+              ),
       ),
     );
   }

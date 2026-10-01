@@ -228,7 +228,7 @@ void main() {
     expect(find.byType(CachedNetworkImage), findsOneWidget);
   });
 
-  testWidgets('comment sort selector renders in M3E tonal capsule chip',
+  testWidgets('comment sort selector sits on the device-theme canvas',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     final post = _createPost();
@@ -251,7 +251,7 @@ void main() {
 
     final context = tester.element(capsuleFinder);
     final dec = (tester.widget<Container>(capsuleFinder).decoration as BoxDecoration);
-    expect(dec.color, Theme.of(context).colorScheme.surfaceContainerHigh);
+    expect(dec.color, Theme.of(context).colorScheme.surface);
     expect(
         find.descendant(of: capsuleFinder, matching: find.text('BEST')),
         findsOneWidget);

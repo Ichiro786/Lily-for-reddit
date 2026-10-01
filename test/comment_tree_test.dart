@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
+import 'package:luli_for_reddit/core/theme/thread_colors.dart';
 import 'package:luli_for_reddit/features/post/comment_card.dart';
 import 'package:luli_for_reddit/features/post/comment_compose_bar.dart';
 
 Widget _harness(Widget child) => MaterialApp(
-      theme: AppTheme.dark(null),
-      home: Scaffold(body: child),
-    );
+  theme: AppTheme.dark(null),
+  home: Scaffold(body: child),
+);
 
 M3ECommentCard _card({required int depth, bool collapsed = false}) {
   return M3ECommentCard(
@@ -28,51 +29,56 @@ M3ECommentCard _card({required int depth, bool collapsed = false}) {
 }
 
 void main() {
-  testWidgets('depth rails consume tonal scheme accents, not hardcoded hues',
-      (tester) async {
-    // Intentional update (Phase 2): rails were re-tokenized to cycle through
-    // the active ColorScheme accents (primary/secondary/tertiary) at reduced
-    // opacity. Expected colors are derived from the pumped theme itself so the
-    // assertion tracks tokenization rather than any specific hue.
-    const seed = Color(0xFF00695C); // deliberately not the legacy purple
-    final scheme = ColorScheme.fromSeed(seedColor: seed);
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(scheme),
-        home: Scaffold(
-          body: Column(
-            children: [
-              _card(depth: 1),
-              _card(depth: 2),
-              _card(depth: 3),
-              _card(depth: 4),
-            ],
+  testWidgets(
+    'depth rails use harmonized rainbow tokens and fill the reply height',
+    (tester) async {
+      const seed = Color(0xFF00695C); // deliberately not the legacy purple
+      final scheme = ColorScheme.fromSeed(seedColor: seed);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(scheme),
+          home: Scaffold(
+            body: ListView(
+              children: [
+                _card(depth: 1),
+                _card(depth: 2),
+                _card(depth: 3),
+                _card(depth: 4),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-
-    final context = tester.element(find.byType(M3ECommentCard).first);
-    final cs = Theme.of(context).colorScheme;
-    final expectedAccents = [cs.primary, cs.secondary, cs.tertiary];
-
-    for (var depth = 1; depth <= 4; depth++) {
-      final rail = tester.widget<Container>(
-        find.byKey(ValueKey<String>('comment-depth-rail-$depth')),
       );
-      final decoration = rail.decoration! as BoxDecoration;
-      final expected =
-          expectedAccents[(depth - 1) % expectedAccents.length];
-      expect(decoration.color, expected.withValues(alpha: 0.55));
-      // Rails stay visually subordinate to card content.
-      expect(decoration.color!.a, lessThan(1.0));
-    }
-    // Nesting remains distinguishable while cycling.
-    expect(expectedAccents.toSet().length, 3);
-  });
 
-  testWidgets('tapping the comment header collapses and expands the body',
-      (tester) async {
+      final context = tester.element(find.byType(M3ECommentCard).first);
+      final expectedAccents = Theme.of(
+        context,
+      ).extension<ThreadColors>()!.rails;
+
+      for (var depth = 1; depth <= 4; depth++) {
+        final rail = tester.widget<Container>(
+          find.byKey(ValueKey<String>('comment-depth-rail-$depth')),
+        );
+        final decoration = rail.decoration! as BoxDecoration;
+        final expected = expectedAccents[(depth - 1) % expectedAccents.length];
+        expect(decoration.color, expected);
+        expect(
+          tester
+              .getSize(
+                find.byKey(ValueKey<String>('comment-depth-rail-$depth')),
+              )
+              .height,
+          greaterThan(100),
+        );
+      }
+      // Nesting remains distinguishable while cycling.
+      expect(expectedAccents.toSet().length, 7);
+    },
+  );
+
+  testWidgets('tapping the comment header collapses and expands the body', (
+    tester,
+  ) async {
     var collapsed = false;
     await tester.pumpWidget(
       _harness(
@@ -108,8 +114,9 @@ void main() {
     expect(find.text('Expanded comment body'), findsOneWidget);
   });
 
-  testWidgets('expanded comment restores reply, save, and overflow actions',
-      (tester) async {
+  testWidgets('expanded comment restores reply, save, and overflow actions', (
+    tester,
+  ) async {
     // Intentional update (Phase 1): M3ECommentCard is now a controlled
     // presenter — the parent owns vote/save state. This harness mirrors
     // _CommentTileState and flips [isSaved] when onSave fires, so the visual
@@ -150,8 +157,9 @@ void main() {
     expect(overflows, 1);
   });
 
-  testWidgets('compose dock sends text and exposes gallery action',
-      (tester) async {
+  testWidgets('compose dock sends text and exposes gallery action', (
+    tester,
+  ) async {
     String? sent;
     var selected = 0;
     var jumps = 0;
@@ -183,9 +191,7 @@ void main() {
     await tester.pumpWidget(
       _harness(
         MediaQuery(
-          data: const MediaQueryData(
-            viewInsets: EdgeInsets.only(bottom: 320),
-          ),
+          data: const MediaQueryData(viewInsets: EdgeInsets.only(bottom: 320)),
           child: CommentComposeBar(
             onSubmit: (_) {},
             onImageSelected: (_) {},
@@ -199,8 +205,9 @@ void main() {
     expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsNothing);
   });
 
-  testWidgets('renders the authoritative score verbatim; taps emit direction',
-      (tester) async {
+  testWidgets('renders the authoritative score verbatim; taps emit direction', (
+    tester,
+  ) async {
     // Regression (Phase 1): the card used to add its own voteState to score,
     // double-counting the parent's optimistic delta. It must render [score]
     // exactly and only report the tapped direction.
@@ -228,8 +235,9 @@ void main() {
     expect(find.text('99'), findsNothing);
   });
 
-  testWidgets('initial vote and saved interaction state come from props',
-      (tester) async {
+  testWidgets('initial vote and saved interaction state come from props', (
+    tester,
+  ) async {
     // Regression (Phase 1): already-voted/already-saved comments used to
     // render as neutral because the card initialised internal state.
     await tester.pumpWidget(
@@ -246,87 +254,87 @@ void main() {
     );
 
     expect(find.text('42'), findsOneWidget);
-    final theme =
-        Theme.of(tester.element(find.byType(M3ECommentCard)));
+    final theme = Theme.of(tester.element(find.byType(M3ECommentCard)));
     final up = tester.widget<Icon>(find.byIcon(Icons.arrow_upward_rounded));
     // Upvote accent comes from the canonical VoteColors extension.
-    expect(
-      up.color,
-      theme.extension<VoteColors>()!.up,
-    );
+    expect(up.color, theme.extension<VoteColors>()!.up);
     expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
-    expect(
-      find.byIcon(Icons.bookmark_outline_rounded),
-      findsNothing,
-    );
+    expect(find.byIcon(Icons.bookmark_outline_rounded), findsNothing);
   });
 
-  testWidgets('interaction visuals follow new state across rebuilds',
-      (tester) async {
+  testWidgets('interaction visuals follow new state across rebuilds', (
+    tester,
+  ) async {
     Widget build(int voteState, bool isSaved) => _harness(
-          M3ECommentCard(
-            key: const ValueKey<String>('card'),
-            author: 'alice',
-            timeAgo: '1h',
-            body: 'Comment body',
-            score: 7,
-            voteState: voteState,
-            isSaved: isSaved,
-          ),
-        );
+      M3ECommentCard(
+        key: const ValueKey<String>('card'),
+        author: 'alice',
+        timeAgo: '1h',
+        body: 'Comment body',
+        score: 7,
+        voteState: voteState,
+        isSaved: isSaved,
+      ),
+    );
 
     await tester.pumpWidget(build(0, false));
     expect(find.byIcon(Icons.bookmark_rounded), findsNothing);
 
     await tester.pumpWidget(build(-1, true));
 
-    final cs =
-        Theme.of(tester.element(find.byType(M3ECommentCard))).colorScheme;
+    final down = Theme.of(
+      tester.element(find.byType(M3ECommentCard)),
+    ).extension<VoteColors>()!.down;
     expect(
       tester.widget<Icon>(find.byIcon(Icons.arrow_downward_rounded)).color,
-      cs.error,
+      down,
     );
     expect(find.byIcon(Icons.bookmark_rounded), findsOneWidget);
     expect(find.text('7'), findsOneWidget);
   });
 
-  testWidgets('vote controls render inside an M3E segmented capsule container',
-      (tester) async {
-    await tester.pumpWidget(
-      _harness(
-        M3ECommentCard(
-          author: 'alice',
-          timeAgo: '1h',
-          body: 'Comment body',
-          score: 15,
+  testWidgets(
+    'vote controls render inside an M3E segmented capsule container',
+    (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          M3ECommentCard(
+            author: 'alice',
+            timeAgo: '1h',
+            body: 'Comment body',
+            score: 15,
+          ),
         ),
-      ),
-    );
+      );
 
-    // Verify presence of M3E capsule containing upvote, score, and downvote.
-    final capsuleFinder = find.byWidgetPredicate((widget) {
-      if (widget is Container && widget.decoration is BoxDecoration) {
-        final box = widget.decoration as BoxDecoration;
-        return box.borderRadius == BorderRadius.circular(18);
-      }
-      return false;
-    });
+      // Verify presence of M3E capsule containing upvote, score, and downvote.
+      final capsuleFinder = find.byWidgetPredicate((widget) {
+        if (widget is Container && widget.decoration is BoxDecoration) {
+          final box = widget.decoration as BoxDecoration;
+          return box.borderRadius == BorderRadius.circular(18);
+        }
+        return false;
+      });
 
-    expect(capsuleFinder, findsOneWidget);
-    expect(
-      find.descendant(
-          of: capsuleFinder, matching: find.byIcon(Icons.arrow_upward_rounded)),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: capsuleFinder, matching: find.text('15')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
+      expect(capsuleFinder, findsOneWidget);
+      expect(
+        find.descendant(
           of: capsuleFinder,
-          matching: find.byIcon(Icons.arrow_downward_rounded)),
-      findsOneWidget,
-    );
-  });
+          matching: find.byIcon(Icons.arrow_upward_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: capsuleFinder, matching: find.text('15')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: capsuleFinder,
+          matching: find.byIcon(Icons.arrow_downward_rounded),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 }

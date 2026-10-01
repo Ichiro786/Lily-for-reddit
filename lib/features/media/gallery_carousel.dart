@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/media_aspect_ratio.dart';
 import '../../core/theme/shape_tokens.dart';
+import '../../core/widgets/m3e_animated_size.dart';
 import '../../core/widgets/m3e_loading_indicator.dart';
 import '../../models/post.dart';
 import 'media_viewers.dart';
@@ -32,6 +33,19 @@ class GalleryCarousel extends StatefulWidget {
 class _GalleryCarouselState extends State<GalleryCarousel> {
   final _controller = PageController();
   int _index = 0;
+  bool _expanded = false;
+
+  @override
+  void didUpdateWidget(covariant GalleryCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_index >= widget.images.length) {
+      _index = 0;
+      _expanded = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _controller.hasClients) _controller.jumpToPage(0);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -42,7 +56,8 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final first = widget.images.first;
+    if (widget.images.isEmpty) return const SizedBox.shrink();
+    final first = widget.images[_index];
     final aspect = intrinsicMediaAspectRatio(
       width: first.width,
       height: first.height,
@@ -56,13 +71,14 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final naturalHeight = width / aspect;
-        final displayHeight = widget.height ??
-            (naturalHeight > maxHeight ? maxHeight : naturalHeight);
+        final displayHeight =
+            widget.height ??
+            (naturalHeight > maxHeight && !_expanded
+                ? maxHeight
+                : naturalHeight);
         final capped = widget.height == null && naturalHeight > maxHeight;
         final dpr = MediaQuery.devicePixelRatioOf(context);
         final cacheWidth = (width * dpr).round().clamp(1, 1080).toInt();
-        final cacheHeight =
-            (displayHeight * dpr).round().clamp(1, 1080).toInt();
 
         final stack = Stack(
           fit: StackFit.expand,
@@ -81,12 +97,10 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
                 child: CachedNetworkImage(
                   imageUrl: widget.images[i].url,
                   memCacheWidth: cacheWidth,
-                  memCacheHeight: cacheHeight,
-                  fit: capped ? BoxFit.cover : BoxFit.cover,
-                  alignment: capped ? Alignment.topCenter : Alignment.center,
-                  placeholder: (_, __) => const Center(
-                    child: M3ELoadingIndicator.medium(),
-                  ),
+                  fit: BoxFit.contain,
+                  alignment: Alignment.center,
+                  placeholder: (_, __) =>
+                      const Center(child: M3ELoadingIndicator.medium()),
                   errorWidget: (_, __, ___) => ColoredBox(
                     color: colorScheme.surfaceContainerHighest,
                     child: Icon(
@@ -112,7 +126,7 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
                     Icon(
                       Icons.collections_rounded,
                       size: 14,
-                      color: colorScheme.onSurface,
+                      color: Colors.white,
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -143,8 +157,8 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: i == _index
-                              ? colorScheme.onSurface
-                              : colorScheme.onSurface.withValues(alpha: 0.54),
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.54),
                         ),
                       ),
                   ],
@@ -155,27 +169,29 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
 
         final viewport = widget.height == null && !capped
             ? AspectRatio(aspectRatio: aspect, child: stack)
-            : SizedBox(width: double.infinity, height: displayHeight, child: stack);
+            : SizedBox(
+                width: double.infinity,
+                height: displayHeight,
+                child: stack,
+              );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: ShapeTokens.large,
-              child: viewport,
+            M3EAnimatedSize(
+              alignment: Alignment.topCenter,
+              child: ClipRRect(
+                borderRadius: ShapeTokens.large,
+                child: viewport,
+              ),
             ),
             if (capped)
               Semantics(
                 button: true,
                 label: 'View full gallery',
                 child: TextButton.icon(
-                  onPressed: () => openGalleryViewer(
-                    context,
-                    widget.images,
-                    title: widget.title,
-                    initialIndex: _index,
-                  ),
+                  onPressed: () => setState(() => _expanded = !_expanded),
                   icon: const Icon(Icons.open_in_full_rounded, size: 16),
-                  label: const Text('View full'),
+                  label: Text(_expanded ? 'Show less' : 'View full'),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     visualDensity: VisualDensity.compact,

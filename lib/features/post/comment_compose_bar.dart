@@ -79,14 +79,9 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     return SafeArea(
       top: false,
       child: Container(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 8,
-          bottom: MediaQuery.of(context).padding.bottom + 8,
-        ),
-        // Same elevated chrome surface as sheets and the floating nav dock.
-        decoration: BoxDecoration(color: colorScheme.surfaceContainerHigh),
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 8),
+        // Floating controls share the active scaffold canvas.
+        decoration: BoxDecoration(color: colorScheme.surface),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -143,7 +138,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
               children: [
                 Expanded(
                   child: Container(
-                    height: 48,
+                    constraints: const BoxConstraints(minHeight: 48),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     // Canonical filled-input surface from the app's
                     // InputDecorationTheme family.
@@ -161,6 +156,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                               color: colorScheme.onSurface,
                             ),
                             decoration: InputDecoration(
+                              filled: false,
                               hintText: widget.hintText,
                               hintStyle: theme.textTheme.bodyMedium?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
@@ -172,16 +168,13 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                             textInputAction: TextInputAction.send,
                           ),
                         ),
-                        InkWell(
-                          onTap: _pickImage,
-                          borderRadius: BorderRadius.circular(999),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              Icons.add_photo_alternate_outlined,
-                              size: 22,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
+                        IconButton(
+                          tooltip: 'Attach image',
+                          onPressed: _pickImage,
+                          icon: Icon(
+                            Icons.add_photo_alternate_outlined,
+                            size: 22,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -194,19 +187,20 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                     height: 48,
                     width: 48,
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
+                      color: colorScheme.primaryContainer,
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
                       icon: Icon(
                         Icons.keyboard_arrow_down_rounded,
                         size: 24,
-                        color: colorScheme.primary,
+                        color: colorScheme.onPrimaryContainer,
                       ),
                       onPressed: () {
                         HapticFeedback.selectionClick();
                         widget.onJumpNext?.call();
                       },
+                      tooltip: 'Next comment thread',
                     ),
                   ),
                 ],

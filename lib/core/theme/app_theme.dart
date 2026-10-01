@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'color_schemes.dart';
 import 'shape_tokens.dart';
 import 'typography.dart';
+import 'thread_colors.dart';
 
 /// Upvote / downvote accent colors, exposed as a theme extension so vote
 /// controls can read brightness-correct colors.
@@ -105,7 +106,10 @@ class AppTheme {
       brightness: brightness,
       scaffoldBackgroundColor: scheme.surface,
       textTheme: M3ETypography.textTheme(scheme.onSurface),
-      extensions: [brightness == Brightness.light ? _voteLight : _voteDark],
+      extensions: [
+        brightness == Brightness.light ? _voteLight : _voteDark,
+        ThreadColors.fromScheme(scheme),
+      ],
     );
 
     return base.copyWith(
