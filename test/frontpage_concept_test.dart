@@ -211,6 +211,9 @@ void main() {
             ),
           );
           expect(tester.takeException(), isNull, reason: '$width / $scale');
+          await tester.ensureVisible(
+            find.byIcon(Icons.bookmark_outline_rounded),
+          );
           await tester.tap(find.byIcon(Icons.bookmark_outline_rounded));
           expect(saved, isTrue);
           expect(
@@ -221,6 +224,55 @@ void main() {
       }
     },
   );
+
+  testWidgets('concept actions share a single baseline and compact outlines', (
+    tester,
+  ) async {
+    for (final width in [320.0, 360.0, 412.0]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(null),
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: width - 48,
+                child: M3EPostActionBar(
+                  frontpageStyle: true,
+                  score: 48900,
+                  commentCount: 2400,
+                  onMoreTap: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final icons = [
+        Icons.arrow_upward_rounded,
+        Icons.arrow_downward_rounded,
+        Icons.chat_bubble_outline_rounded,
+        Icons.shortcut_rounded,
+        Icons.bookmark_outline_rounded,
+        Icons.more_vert_rounded,
+      ];
+      final baseline = tester.getCenter(find.byIcon(icons.first)).dy;
+      for (final icon in icons) {
+        expect(tester.getCenter(find.byIcon(icon)).dy, closeTo(baseline, 0.1));
+      }
+      for (final outline in find.byType(AnimatedContainer).evaluate()) {
+        expect(tester.getSize(find.byWidget(outline.widget)).height, 36);
+      }
+      // Large test-font metrics may overflow; every action remains reachable
+      // on the same row instead of being wrapped into an unbalanced layout.
+      await tester.ensureVisible(find.byIcon(Icons.more_vert_rounded));
+      expect(
+        find.byIcon(Icons.more_vert_rounded).hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   testWidgets('homepage uses scoped card style across color modes', (
     tester,

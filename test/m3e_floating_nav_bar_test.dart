@@ -18,6 +18,64 @@ Finder _dock() => find
     .first;
 
 void main() {
+  testWidgets('labels fade immediately and finish hiding within 120ms', (
+    tester,
+  ) async {
+    Widget nav(bool minimized) => _harness(
+      M3EFloatingNavBar(currentIndex: 0, isMinimized: minimized, onTap: (_) {}),
+    );
+    await tester.pumpWidget(nav(false));
+    await tester.pumpWidget(nav(true));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    final fades = tester.widgetList<FadeTransition>(
+      find.descendant(
+        of: find.byType(M3EFloatingNavBar),
+        matching: find.byType(FadeTransition),
+      ),
+    );
+    expect(fades, hasLength(4));
+    for (final fade in fades) {
+      expect(fade.opacity.value, lessThan(1));
+      expect(fade.opacity.value, greaterThan(0));
+    }
+    await tester.pump(const Duration(milliseconds: 80));
+    for (final fade in fades) {
+      expect(fade.opacity.value, 0);
+    }
+    expect(tester.getSize(_dock()).height, 60);
+    expect(find.byTooltip('Inbox').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reduced motion hides labels without an animation delay', (
+    tester,
+  ) async {
+    Widget nav(bool minimized) => _harness(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: M3EFloatingNavBar(
+          currentIndex: 0,
+          isMinimized: minimized,
+          onTap: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpWidget(nav(false));
+    await tester.pumpWidget(nav(true));
+    await tester.pump();
+    expect(tester.getSize(_dock()).height, 60);
+    for (final fade in tester.widgetList<FadeTransition>(
+      find.descendant(
+        of: find.byType(M3EFloatingNavBar),
+        matching: find.byType(FadeTransition),
+      ),
+    )) {
+      expect(fade.opacity.value, 0);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'navigation keeps touch targets and unread semantics when minimized',
     (tester) async {

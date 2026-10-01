@@ -83,14 +83,15 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
         viewedAt: DateTime.now().millisecondsSinceEpoch);
     final list = [entry, ...state.where((e) => e.id != p.id)];
     if (list.length > _cap) list.removeRange(_cap, list.length);
+    // Keep the index coherent before notifying historyContainsProvider.
+    _rebuildIndex(list);
     state = list;
-    _rebuildIndex(state);
     _writer?.schedule();
   }
 
   void removeViewed(String id) {
-    state = state.where((e) => e.id != id).toList();
     _idSet.remove(id);
+    state = state.where((e) => e.id != id).toList();
     _writer?.schedule();
   }
 
@@ -99,14 +100,15 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
   void clearOlderThan(Duration age) {
     final cutoff =
         DateTime.now().millisecondsSinceEpoch - age.inMilliseconds;
-    state = state.where((e) => e.viewedAt >= cutoff).toList();
-    _rebuildIndex(state);
+    final entries = state.where((e) => e.viewedAt >= cutoff).toList();
+    _rebuildIndex(entries);
+    state = entries;
     _writer?.schedule();
   }
 
   void clear() {
-    state = [];
     _idSet.clear();
+    state = [];
     _persist(); // explicit wipe: durable immediately
   }
 

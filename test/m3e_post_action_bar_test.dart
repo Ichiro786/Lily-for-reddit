@@ -135,7 +135,7 @@ void main() {
 
       final commentContainerFinder = find.descendant(
         of: find.bySemanticsLabel(RegExp(r'12 comments')),
-        matching: find.byType(Container),
+        matching: find.byType(AnimatedContainer),
       ).first;
       expect(tester.getSize(commentContainerFinder).height, 36);
     });

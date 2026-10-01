@@ -76,7 +76,7 @@ class M3EPostActionBar extends StatelessWidget {
         HapticFeedback.selectionClick();
         onShareTap?.call();
       },
-      child: Icon(Icons.shortcut_rounded, size: frontpageStyle ? 22 : 17),
+      child: Icon(Icons.shortcut_rounded, size: frontpageStyle ? 20 : 17),
     );
 
     final saveButton = _CompactAction(
@@ -93,7 +93,7 @@ class M3EPostActionBar extends StatelessWidget {
       },
       child: Icon(
         isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-        size: frontpageStyle ? 22 : 17,
+        size: frontpageStyle ? 20 : 17,
       ),
     );
 
@@ -110,7 +110,7 @@ class M3EPostActionBar extends StatelessWidget {
               frontpageStyle
                   ? Icons.more_vert_rounded
                   : Icons.more_horiz_rounded,
-              size: frontpageStyle ? 22 : 17,
+              size: frontpageStyle ? 20 : 17,
             ),
           )
         : null;
@@ -122,21 +122,28 @@ class M3EPostActionBar extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Keep every action visible with larger text and smaller viewports.
-          // Other surfaces retain their existing compact horizontal layout.
+          // Keep the concept's single, balanced action row. At very narrow
+          // widths or large text, scroll horizontally instead of scattering
+          // the last controls onto a second line.
           if (frontpageStyle) {
-            return Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                voteGroup,
-                commentButton,
-                shareButton,
-                saveButton,
-                if (moreButton != null) moreButton,
-              ],
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  voteGroup,
+                  const SizedBox(width: 4),
+                  commentButton,
+                  const SizedBox(width: 4),
+                  shareButton,
+                  const SizedBox(width: 4),
+                  saveButton,
+                  if (moreButton != null) ...[
+                    const SizedBox(width: 4),
+                    moreButton,
+                  ],
+                ],
+              ),
             );
           }
           final isNarrow = constraints.maxWidth < 360;
@@ -222,48 +229,45 @@ class _VoteGroup extends StatelessWidget {
         ? upvoteColor
         : (isDownvoted ? downvoteColor : cs.onSurface);
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      height: roomy ? 50 : 36,
-      padding: EdgeInsets.symmetric(horizontal: roomy ? 0 : 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: ShapeTokens.full,
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _VoteIcon(
-            roomy: roomy,
-            tooltip: 'Upvote',
-            icon: Icons.arrow_upward_rounded,
-            color: isUpvoted ? upvoteColor : cs.onSurfaceVariant,
-            onPressed: onUpvote,
-          ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 20, maxWidth: 76),
-            child: Text(
-              score,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontSize: roomy ? 14 : 12,
-                fontWeight: FontWeight.w800,
-                color: scoreColor,
+    return _ActionOutline(
+      roomy: roomy,
+      color: bgColor,
+      borderColor: borderColor,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _VoteIcon(
+              roomy: roomy,
+              tooltip: 'Upvote',
+              icon: Icons.arrow_upward_rounded,
+              color: isUpvoted ? upvoteColor : cs.onSurfaceVariant,
+              onPressed: onUpvote,
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 20, maxWidth: 76),
+              child: Text(
+                score,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: scoreColor,
+                ),
               ),
             ),
-          ),
-          _VoteIcon(
-            roomy: roomy,
-            tooltip: 'Downvote',
-            icon: Icons.arrow_downward_rounded,
-            color: isDownvoted ? downvoteColor : cs.onSurfaceVariant,
-            onPressed: onDownvote,
-          ),
-        ],
+            _VoteIcon(
+              roomy: roomy,
+              tooltip: 'Downvote',
+              icon: Icons.arrow_downward_rounded,
+              color: isDownvoted ? downvoteColor : cs.onSurfaceVariant,
+              onPressed: onDownvote,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -289,11 +293,14 @@ class _VoteIcon extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
-      icon: Icon(icon, size: roomy ? 22 : 17, color: color),
+      icon: Icon(icon, size: roomy ? 20 : 17, color: color),
       padding: EdgeInsets.zero,
       constraints: BoxConstraints(
-        minWidth: roomy ? 48 : 32,
+        minWidth: roomy ? 36 : 32,
         minHeight: roomy ? 48 : 36,
+      ),
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       visualDensity: roomy ? VisualDensity.standard : VisualDensity.compact,
     );
@@ -321,48 +328,40 @@ class _CommentAction extends StatelessWidget {
       label: '$commentCount comments',
       onTap: onTap,
       child: Material(
-        color: roomy
-            ? cs.surfaceContainerLowest
-            : cs.surfaceContainerHigh.withValues(alpha: 0.70),
+        color: Colors.transparent,
         shape: ShapeTokens.fullShape,
         child: InkWell(
           onTap: onTap,
           customBorder: ShapeTokens.fullShape,
-          child: Container(
-            constraints: BoxConstraints(
-              minWidth: roomy ? 48 : 0,
-              minHeight: roomy ? 48 : 36,
-            ),
-            padding: EdgeInsets.symmetric(horizontal: roomy ? 6 : 10),
-            decoration: ShapeDecoration(
-              shape: RoundedRectangleBorder(
-                borderRadius: ShapeTokens.full,
-                side: BorderSide(
-                  color: cs.outlineVariant.withValues(alpha: roomy ? 1 : 0.20),
-                  width: 1,
-                ),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.chat_bubble_outline_rounded,
-                  size: roomy ? 22 : 17,
-                  color: cs.onSurfaceVariant,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  commentCount,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontSize: roomy ? 14 : 12,
-                    fontWeight: FontWeight.w700,
+          child: _ActionOutline(
+            roomy: roomy,
+            color: roomy
+                ? cs.surfaceContainerLowest
+                : cs.surfaceContainerHigh.withValues(alpha: 0.70),
+            borderColor: cs.outlineVariant.withValues(alpha: roomy ? 1 : 0.20),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: roomy ? 6 : 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: roomy ? 20 : 17,
                     color: cs.onSurfaceVariant,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 5),
+                  Text(
+                    commentCount,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -408,35 +407,31 @@ class _CompactAction extends StatelessWidget {
     return Semantics(
       button: true,
       label: semanticsLabel,
+      onTap: onTap,
+      excludeSemantics: true,
       child: Material(
-        color: bgColor,
+        color: Colors.transparent,
         shape: shape,
         child: InkWell(
           onTap: onTap,
           customBorder: shape,
-          child: Container(
-            width: roomy ? 48 : null,
-            constraints: BoxConstraints(
-              minWidth: roomy ? 48 : 36,
-              minHeight: roomy ? 48 : 36,
-            ),
-            decoration: ShapeDecoration(
-              shape: shape is CircleBorder
-                  ? CircleBorder(side: BorderSide(color: borderColor, width: 1))
-                  : RoundedRectangleBorder(
-                      borderRadius: ShapeTokens.full,
-                      side: BorderSide(color: borderColor, width: 1),
+          child: SizedBox(
+            width: roomy ? 40 : 36,
+            child: _ActionOutline(
+              roomy: roomy,
+              circular: circular,
+              color: bgColor,
+              borderColor: borderColor,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 7),
+                child: Center(
+                  child: IconTheme(
+                    data: IconThemeData(
+                      color: foregroundColor ?? cs.onSurfaceVariant,
+                      size: roomy ? 20 : 17,
                     ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 7),
-              child: Center(
-                child: IconTheme(
-                  data: IconThemeData(
-                    color: foregroundColor ?? cs.onSurfaceVariant,
-                    size: roomy ? 22 : 17,
+                    child: child,
                   ),
-                  child: child,
                 ),
               ),
             ),
@@ -445,4 +440,49 @@ class _CompactAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 36dp visual controls with a 48dp vertical hit region on the frontpage.
+/// Painting the outline inside the hit region avoids oversized vote pills
+/// while keeping every glyph on the same baseline.
+class _ActionOutline extends StatelessWidget {
+  const _ActionOutline({
+    required this.roomy,
+    required this.color,
+    required this.borderColor,
+    required this.child,
+    this.circular = false,
+  });
+
+  final bool roomy;
+  final bool circular;
+  final Color color;
+  final Color borderColor;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: roomy ? 48 : 36,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        Positioned.fill(
+          top: roomy ? 6 : 0,
+          bottom: roomy ? 6 : 0,
+          left: roomy && circular ? 2 : 0,
+          right: roomy && circular ? 2 : 0,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: ShapeDecoration(
+              color: color,
+              shape: circular
+                  ? CircleBorder(side: BorderSide(color: borderColor))
+                  : StadiumBorder(side: BorderSide(color: borderColor)),
+            ),
+          ),
+        ),
+        child,
+      ],
+    ),
+  );
 }

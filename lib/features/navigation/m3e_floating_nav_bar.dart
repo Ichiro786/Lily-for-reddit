@@ -25,7 +25,7 @@ class M3EFloatingNavBar extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 300);
+        : Duration(milliseconds: isMinimized ? 120 : 200);
     void select(int index) {
       HapticFeedback.selectionClick();
       onTap(index);
@@ -137,42 +137,48 @@ class M3EFloatingNavBar extends StatelessWidget {
                                           curve: Curves.easeOutCubic,
                                           heightFactor: isMinimized ? 0 : 1,
                                           alignment: Alignment.topCenter,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 2,
-                                            ),
-                                            child: Column(
-                                              children: [
-                                                Text(
-                                                  label,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .labelMedium
-                                                      ?.copyWith(
-                                                        letterSpacing: 0,
-                                                        color:
-                                                            currentIndex ==
-                                                                index
-                                                            ? cs.onPrimaryContainer
-                                                            : cs.onSurfaceVariant,
-                                                      ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Container(
-                                                  width: 24,
-                                                  height: 2,
-                                                  decoration: BoxDecoration(
-                                                    color: currentIndex == index
-                                                        ? cs.primary
-                                                        : Colors.transparent,
-                                                    borderRadius:
-                                                        ShapeTokens.full,
+                                          child: AnimatedOpacity(
+                                            opacity: isMinimized ? 0 : 1,
+                                            duration: duration,
+                                            curve: Curves.easeOutCubic,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 2,
+                                              ),
+                                              child: Column(
+                                                children: [
+                                                  Text(
+                                                    label,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .labelMedium
+                                                        ?.copyWith(
+                                                          letterSpacing: 0,
+                                                          color:
+                                                              currentIndex ==
+                                                                  index
+                                                              ? cs.onPrimaryContainer
+                                                              : cs.onSurfaceVariant,
+                                                        ),
                                                   ),
-                                                ),
-                                              ],
+                                                  const SizedBox(height: 4),
+                                                  Container(
+                                                    width: 24,
+                                                    height: 2,
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          currentIndex == index
+                                                          ? cs.primary
+                                                          : Colors.transparent,
+                                                      borderRadius:
+                                                          ShapeTokens.full,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),

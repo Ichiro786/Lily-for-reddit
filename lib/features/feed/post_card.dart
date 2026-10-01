@@ -109,14 +109,35 @@ class _PostCardState extends ConsumerState<PostCard> {
       PostDisplay.card => _cardsCard(context),
       PostDisplay.mini => _miniCard(context),
     };
-    // Dim already-viewed posts when history tracking is on.
+    // Only an explicit history entry may dim a card. Paint a local overlay
+    // instead of filtering the entire subtree (including scrolling media).
+    // Visibility/impression signals are deliberately not read-state signals.
     if (seen && trackHistory) {
-      card = ColorFiltered(
-        colorFilter: ColorFilter.mode(
-          Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.45),
-          BlendMode.srcOver,
-        ),
-        child: card,
+      final compact = postDisplay == PostDisplay.mini;
+      card = Stack(
+        children: [
+          card,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: !compact && widget.frontpageStyle ? 0 : 12,
+                  vertical: 6,
+                ),
+                child: DecoratedBox(
+                  key: ValueKey('read-overlay-${widget.post.id}'),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).scaffoldBackgroundColor
+                        .withValues(alpha: 0.45),
+                    borderRadius: !compact && widget.frontpageStyle
+                        ? ShapeTokens.extraLarge
+                        : ShapeTokens.large,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       );
     }
     // "Why you're seeing this" banner (For You feed only).
@@ -356,8 +377,9 @@ class _PostCardState extends ConsumerState<PostCard> {
           borderRadius: widget.frontpageStyle
               ? ShapeTokens.extraLarge
               : ShapeTokens.large,
-          splashColor: cs.onSurface.withValues(alpha: 0.08),
-          highlightColor: cs.onSurface.withValues(alpha: 0.04),
+          // A touch that becomes a scroll must not tint the unread card.
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
           child: child,
         ),
       ),
