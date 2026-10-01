@@ -1,12 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-class M3EFloatingNavBar extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-  final bool isMinimized;
-  final int unreadCount;
+import '../../core/theme/shape_tokens.dart';
 
+/// Detached navigation with the concept's icon-and-label active container.
+class M3EFloatingNavBar extends StatelessWidget {
   const M3EFloatingNavBar({
     super.key,
     required this.currentIndex,
@@ -15,187 +15,179 @@ class M3EFloatingNavBar extends StatelessWidget {
     this.unreadCount = 0,
   });
 
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final bool isMinimized;
+  final int unreadCount;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final cs = Theme.of(context).colorScheme;
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 300);
+    void select(int index) {
+      HapticFeedback.selectionClick();
+      onTap(index);
+    }
 
+    final labelHeight = MediaQuery.textScalerOf(context).scale(12) * 4 / 3;
+    final height = isMinimized ? 60.0 : math.max(64.0, 48 + labelHeight);
     return RepaintBoundary(
       child: SafeArea(
         top: false,
-        left: false,
-        right: false,
         minimum: const EdgeInsets.only(bottom: 12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.fastOutSlowIn,
-            height: isMinimized ? 44.0 : 60.0,
+            duration: duration,
+            curve: Curves.easeOutCubic,
+            height: height,
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(isMinimized ? 999 : 28),
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.25),
-                width: 1,
-              ),
+              color: cs.surfaceContainerLow,
+              borderRadius: ShapeTokens.extraLarge,
+              border: Border.all(color: cs.outlineVariant),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+                  color: cs.shadow.withValues(alpha: 0.20),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildNavItem(
-                  context: context,
-                  index: 0,
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
-                  label: 'Home',
-                ),
-                _buildNavItem(
-                  context: context,
-                  index: 1,
-                  icon: Icons.explore_outlined,
-                  activeIcon: Icons.explore_rounded,
-                  label: 'Discover',
-                ),
-                _buildNavItem(
-                  context: context,
-                  index: 2,
-                  icon: Icons.mail_outline_rounded,
-                  activeIcon: Icons.mail_rounded,
-                  label: 'Inbox',
-                  badgeCount: unreadCount,
-                ),
-                _buildNavItem(
-                  context: context,
-                  index: 3,
-                  icon: Icons.person_outline_rounded,
-                  activeIcon: Icons.person_rounded,
-                  label: 'Profile',
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required BuildContext context,
-    required int index,
-    required IconData icon,
-    required IconData activeIcon,
-    required String label,
-    int badgeCount = 0,
-  }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isSelected = currentIndex == index;
-
-    final Color iconColor = isSelected
-        ? colorScheme.onSecondaryContainer
-        : colorScheme.onSurfaceVariant;
-    final Color labelColor = isSelected
-        ? colorScheme.primary
-        : colorScheme.onSurfaceVariant;
-
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onTap(index);
-          },
-          borderRadius: BorderRadius.circular(isMinimized ? 999 : 20),
-          splashColor: colorScheme.secondaryContainer.withValues(alpha: 0.35),
-          highlightColor: Colors.transparent,
-          child: AnimatedPadding(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.fastOutSlowIn,
-            padding: EdgeInsets.symmetric(vertical: isMinimized ? 6 : 4),
-            child: ClipRect(
-              child: OverflowBox(
-                minHeight: 0,
-                maxHeight: 60,
-                alignment: Alignment.center,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Active indicator capsule around icon
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.fastOutSlowIn,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isSelected ? 16 : 0,
-                        vertical: isSelected ? (isMinimized ? 2 : 4) : 0,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? colorScheme.secondaryContainer
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Icon(
-                            isSelected ? activeIcon : icon,
-                            size: isMinimized ? 22 : 23,
-                            color: iconColor,
-                          ),
-                          if (badgeCount > 0)
-                            Positioned(
-                              right: -4,
-                              top: -2,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.primary,
-                                  shape: BoxShape.circle,
+                for (final (index, icon, activeIcon, label) in const [
+                  (0, Icons.home_outlined, Icons.home_rounded, 'Home'),
+                  (
+                    1,
+                    Icons.explore_outlined,
+                    Icons.explore_rounded,
+                    'Discover',
+                  ),
+                  (2, Icons.mail_outline_rounded, Icons.mail_rounded, 'Inbox'),
+                  (
+                    3,
+                    Icons.person_outline_rounded,
+                    Icons.person_rounded,
+                    'Profile',
+                  ),
+                ])
+                  Expanded(
+                    child: Semantics(
+                      button: true,
+                      selected: currentIndex == index,
+                      onTap: () => select(index),
+                      label: index == 2 && unreadCount > 0
+                          ? '$label, $unreadCount unread'
+                          : label,
+                      excludeSemantics: true,
+                      child: Tooltip(
+                        message: label,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Material(
+                            color: currentIndex == index
+                                ? cs.primaryContainer
+                                : Colors.transparent,
+                            animationDuration: duration,
+                            borderRadius: ShapeTokens.medium,
+                            child: InkWell(
+                              borderRadius: ShapeTokens.medium,
+                              onTap: () => select(index),
+                              child: ClipRect(
+                                child: OverflowBox(
+                                  minHeight: 0,
+                                  maxHeight: math.max(64.0, 48 + labelHeight),
+                                  alignment: Alignment.center,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Icon(
+                                            currentIndex == index
+                                                ? activeIcon
+                                                : icon,
+                                            size: 24,
+                                            color: currentIndex == index
+                                                ? cs.primary
+                                                : cs.onSurfaceVariant,
+                                          ),
+                                          if (index == 2 && unreadCount > 0)
+                                            Positioned(
+                                              right: -3,
+                                              top: -2,
+                                              child: Container(
+                                                width: 8,
+                                                height: 8,
+                                                decoration: BoxDecoration(
+                                                  color: cs.primary,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      ClipRect(
+                                        child: AnimatedAlign(
+                                          duration: duration,
+                                          curve: Curves.easeOutCubic,
+                                          heightFactor: isMinimized ? 0 : 1,
+                                          alignment: Alignment.topCenter,
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 2,
+                                            ),
+                                            child: Column(
+                                              children: [
+                                                Text(
+                                                  label,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelMedium
+                                                      ?.copyWith(
+                                                        letterSpacing: 0,
+                                                        color:
+                                                            currentIndex ==
+                                                                index
+                                                            ? cs.onPrimaryContainer
+                                                            : cs.onSurfaceVariant,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Container(
+                                                  width: 24,
+                                                  height: 2,
+                                                  decoration: BoxDecoration(
+                                                    color: currentIndex == index
+                                                        ? cs.primary
+                                                        : Colors.transparent,
+                                                    borderRadius:
+                                                        ShapeTokens.full,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    // Text label: Smoothly collapses to 0 height in minimized state
-                    ClipRect(
-                      child: AnimatedAlign(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.fastOutSlowIn,
-                        alignment: Alignment.topCenter,
-                        heightFactor: isMinimized ? 0.0 : 1.0,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 220),
-                          curve: Curves.fastOutSlowIn,
-                          opacity: isMinimized ? 0.0 : 1.0,
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontSize: 10.5,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: labelColor,
-                              letterSpacing: 0.1,
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+              ],
             ),
           ),
         ),

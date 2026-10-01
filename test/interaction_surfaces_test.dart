@@ -29,7 +29,9 @@ Widget _surface(ProviderContainer container, Post post, bool detail) =>
                 initialPost: post,
               )
             : Scaffold(
-                body: ListView(children: [PostCard(post: post)]),
+                body: ListView(
+                  children: [PostCard(post: post, frontpageStyle: true)],
+                ),
               ),
       ),
     );

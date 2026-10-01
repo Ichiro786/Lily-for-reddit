@@ -29,8 +29,11 @@ import 'compact_post_card.dart';
 import 'post_action_bar.dart';
 
 class PostCard extends ConsumerStatefulWidget {
-  const PostCard({super.key, required this.post});
+  const PostCard({super.key, required this.post, this.frontpageStyle = false});
   final Post post;
+
+  /// The homepage concept treatment; other feeds retain their presentation.
+  final bool frontpageStyle;
 
   @override
   ConsumerState<PostCard> createState() => _PostCardState();
@@ -329,10 +332,17 @@ class _PostCardState extends ConsumerState<PostCard> {
     required VoidCallback onTap,
   }) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: EdgeInsets.symmetric(
+        horizontal: widget.frontpageStyle ? 0 : 12,
+        vertical: 6,
+      ),
       decoration: BoxDecoration(
-        color: cs.surfaceContainer,
-        borderRadius: ShapeTokens.large,
+        color: widget.frontpageStyle
+            ? cs.surfaceContainerLow
+            : cs.surfaceContainer,
+        borderRadius: widget.frontpageStyle
+            ? ShapeTokens.extraLarge
+            : ShapeTokens.large,
         border: Border.all(
           color: cs.outlineVariant.withValues(alpha: 0.18),
           width: 1,
@@ -343,7 +353,9 @@ class _PostCardState extends ConsumerState<PostCard> {
         color: cs.surface.withValues(alpha: 0),
         child: InkWell(
           onTap: onTap,
-          borderRadius: ShapeTokens.large,
+          borderRadius: widget.frontpageStyle
+              ? ShapeTokens.extraLarge
+              : ShapeTokens.large,
           splashColor: cs.onSurface.withValues(alpha: 0.08),
           highlightColor: cs.onSurface.withValues(alpha: 0.04),
           child: child,
@@ -359,7 +371,12 @@ class _PostCardState extends ConsumerState<PostCard> {
       cs,
       onTap: _openDetail,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        padding: EdgeInsets.fromLTRB(
+          widget.frontpageStyle ? 12 : 14,
+          12,
+          widget.frontpageStyle ? 12 : 14,
+          8,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -369,12 +386,16 @@ class _PostCardState extends ConsumerState<PostCard> {
               p.title,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: cs.onSurface,
-                    fontWeight: FontWeight.w600,
-                    height: 1.28,
-                    letterSpacing: -0.15,
-                  ),
+              style:
+                  (widget.frontpageStyle
+                          ? Theme.of(context).textTheme.titleLarge
+                          : Theme.of(context).textTheme.titleMedium)
+                      ?.copyWith(
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w600,
+                        height: 1.28,
+                        letterSpacing: -0.15,
+                      ),
             ),
             if (p.linkFlairText != null) ...[
               const SizedBox(height: 6),
@@ -410,7 +431,12 @@ class _PostCardState extends ConsumerState<PostCard> {
       cs,
       onTap: _openDetail,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        padding: EdgeInsets.fromLTRB(
+          widget.frontpageStyle ? 12 : 14,
+          12,
+          widget.frontpageStyle ? 12 : 14,
+          8,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -420,12 +446,16 @@ class _PostCardState extends ConsumerState<PostCard> {
               p.title,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: cs.onSurface,
-                    fontWeight: FontWeight.w600,
-                    height: 1.28,
-                    letterSpacing: -0.15,
-                  ),
+              style:
+                  (widget.frontpageStyle
+                          ? Theme.of(context).textTheme.titleLarge
+                          : Theme.of(context).textTheme.titleMedium)
+                      ?.copyWith(
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w600,
+                        height: 1.28,
+                        letterSpacing: -0.15,
+                      ),
             ),
             if (p.linkFlairText != null) ...[
               const SizedBox(height: 6),
@@ -553,16 +583,28 @@ class _PostCardState extends ConsumerState<PostCard> {
       children: [
         GestureDetector(
           onTap: () => context.push('/r/${p.subreddit}'),
-          child: CircleAvatar(
-            radius: 14,
-            backgroundColor: cs.secondaryContainer,
-            child: Text(
-              p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          child: SizedBox(
+            width: widget.frontpageStyle ? 48 : null,
+            height: widget.frontpageStyle ? 48 : null,
+            child: Center(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: CircleAvatar(
+                radius: widget.frontpageStyle ? 16 : 14,
+                backgroundColor: widget.frontpageStyle
+                    ? cs.primaryContainer
+                    : cs.secondaryContainer,
+                child: Text(
+                  p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontSize: 13,
-                    color: cs.onSecondaryContainer,
+                    color: widget.frontpageStyle
+                        ? cs.onPrimaryContainer
+                        : cs.onSecondaryContainer,
                     fontWeight: FontWeight.w700,
                   ),
+                ),
+              ),
             ),
           ),
         ),
@@ -570,45 +612,52 @@ class _PostCardState extends ConsumerState<PostCard> {
         Expanded(
           child: GestureDetector(
             onTap: () => context.push('/r/${p.subreddit}'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  subreddit,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontSize: 13.5,
-                        color: cs.onSurface,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'u/${p.author}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontSize: 11.5,
-                              color: cs.onSurfaceVariant,
-                            ),
-                      ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: widget.frontpageStyle ? 48 : 0,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    subreddit,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontSize: widget.frontpageStyle ? 14 : 13.5,
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '·  ${timeAgo(p.created)}',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontSize: 11.5,
-                            color: cs.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'u/${p.author}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                fontSize: 11.5,
+                                color: cs.onSurfaceVariant,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '·  ${timeAgo(p.created)}',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontSize: 11.5,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -639,7 +688,9 @@ class _PostCardState extends ConsumerState<PostCard> {
               ? _showTuneSheet
               : _showPostMenu,
           tooltip: 'More actions',
-          visualDensity: VisualDensity.compact,
+          visualDensity: widget.frontpageStyle
+              ? VisualDensity.standard
+              : VisualDensity.compact,
           iconSize: 20,
           icon: Icon(Icons.more_vert_rounded, color: cs.onSurfaceVariant),
         ),
@@ -903,6 +954,7 @@ class _PostCardState extends ConsumerState<PostCard> {
     final saved = ov?.saved ?? widget.post.saved;
     final numComments = ov?.numComments ?? widget.post.numComments;
     return M3EPostActionBar(
+      frontpageStyle: widget.frontpageStyle,
       score: score,
       commentCount: numComments,
       voteState: likes == true ? 1 : (likes == false ? -1 : 0),
