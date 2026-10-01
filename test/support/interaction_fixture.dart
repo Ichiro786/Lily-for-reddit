@@ -14,34 +14,34 @@ import 'package:luli_for_reddit/models/post.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Post interactionPost({bool? likes, bool saved = false}) => Post(
-      id: 'p1',
-      fullname: 't3_p1',
-      title: 'Flutter architecture testing',
-      subreddit: 'flutter',
-      subredditPrefixed: 'r/flutter',
-      author: 'tester',
-      score: 100,
-      numComments: 1,
-      upvoteRatio: 0.95,
-      created: DateTime.utc(2026, 1, 1),
-      permalink: '/r/flutter/comments/p1',
-      url: 'https://reddit.com/r/flutter/comments/p1',
-      domain: 'reddit.com',
-      type: PostType.self,
-      isSelf: true,
-      likes: likes,
-      saved: saved,
-    );
+  id: 'p1',
+  fullname: 't3_p1',
+  title: 'Flutter architecture testing',
+  subreddit: 'flutter',
+  subredditPrefixed: 'r/flutter',
+  author: 'tester',
+  score: 100,
+  numComments: 1,
+  upvoteRatio: 0.95,
+  created: DateTime.utc(2026, 1, 1),
+  permalink: '/r/flutter/comments/p1',
+  url: 'https://reddit.com/r/flutter/comments/p1',
+  domain: 'reddit.com',
+  type: PostType.self,
+  isSelf: true,
+  likes: likes,
+  saved: saved,
+);
 
 Comment interactionComment() => Comment(
-      id: 'c1',
-      fullname: 't1_c1',
-      author: 'alice',
-      body: 'Comment body',
-      score: 10,
-      created: DateTime.utc(2026, 1, 1),
-      depth: 0,
-    );
+  id: 'c1',
+  fullname: 't1_c1',
+  author: 'alice',
+  body: 'Comment body',
+  score: 10,
+  created: DateTime.utc(2026, 1, 1),
+  depth: 0,
+);
 
 class InteractionRequest {
   InteractionRequest(this.fullname, this.value);
@@ -52,8 +52,8 @@ class InteractionRequest {
 
 class InteractionRepository extends RedditRepository {
   InteractionRepository({this.controlled = false, Post? post})
-      : post = post ?? interactionPost(),
-        super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
+    : post = post ?? interactionPost(),
+      super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
   final bool controlled;
   final Post post;
   bool fail = false;
@@ -82,8 +82,7 @@ class InteractionRepository extends RedditRepository {
     required String postId,
     String sort = 'confidence',
     String? focusCommentId,
-  }) async =>
-      (post, [interactionComment()]);
+  }) async => (post, [interactionComment()]);
 }
 
 class _SignedOutAuth extends AuthController {
@@ -95,14 +94,15 @@ ProviderContainer interactionContainer({
   InteractionRepository? repository,
   SharedPreferences? prefs,
   void Function(String, String)? report,
-}) =>
-    ProviderContainer(
-      overrides: [
-        redditRepositoryProvider.overrideWithValue(
-          repository ?? InteractionRepository(),
-        ),
-        authControllerProvider.overrideWith(_SignedOutAuth.new),
-        interactionReporterProvider.overrideWithValue(report ?? (_, __) {}),
-        if (prefs != null) sharedPrefsProvider.overrideWithValue(prefs),
-      ],
-    );
+  List<Override> extraOverrides = const [],
+}) => ProviderContainer(
+  overrides: [
+    ...extraOverrides,
+    redditRepositoryProvider.overrideWithValue(
+      repository ?? InteractionRepository(),
+    ),
+    authControllerProvider.overrideWith(_SignedOutAuth.new),
+    interactionReporterProvider.overrideWithValue(report ?? (_, __) {}),
+    if (prefs != null) sharedPrefsProvider.overrideWithValue(prefs),
+  ],
+);

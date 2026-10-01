@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +10,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/analytics.dart';
 import '../../core/format.dart';
 import '../../core/interaction_actions.dart';
+import '../../core/route_observer.dart';
+import '../auth/auth_controller.dart';
 import '../../core/media_aspect_ratio.dart';
 import '../../core/root_messenger.dart';
 import '../../core/share.dart';
@@ -39,8 +43,111 @@ class PostCard extends ConsumerStatefulWidget {
   ConsumerState<PostCard> createState() => _PostCardState();
 }
 
-class _PostCardState extends ConsumerState<PostCard> {
+class _PostCardState extends ConsumerState<PostCard>
+    with WidgetsBindingObserver, RouteAware {
   String? _dwellPostId;
+  Timer? _dwellTimer;
+  bool _visible = false;
+  bool _foreground = true;
+  bool _routeActive = true;
+  bool _exposureRecorded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      appRouteObserver.subscribe(this, route);
+      _routeActive = route.isCurrent;
+    }
+  }
+
+  @override
+  void didPushNext() {
+    _routeActive = false;
+    _syncExposure();
+  }
+
+  @override
+  void didPopNext() {
+    _routeActive = true;
+    _syncExposure();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _syncExposure();
+  }
+
+  @override
+  void didUpdateWidget(covariant PostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.post.id != widget.post.id) {
+      _dwellTimer?.cancel();
+      _dwellTimer = null;
+      _dwellPostId = null;
+      _exposureRecorded = false;
+      _visible = false;
+    }
+  }
+
+  void _syncExposure() {
+    if (!mounted) return;
+    final enabled =
+        ref.read(settingsControllerProvider).trackHistory &&
+        !ref.read(authTransitionProvider);
+    if (!_visible ||
+        !_foreground ||
+        !_routeActive ||
+        !enabled ||
+        _exposureRecorded) {
+      _dwellTimer?.cancel();
+      _dwellTimer = null;
+      return;
+    }
+    if (_dwellTimer != null) return;
+    final id = widget.post.id;
+    final epoch = ref.read(authSessionEpochProvider);
+    _dwellTimer = Timer(const Duration(seconds: 1), () {
+      _dwellTimer = null;
+      if (!mounted ||
+          !_visible ||
+          !_foreground ||
+          !_routeActive ||
+          !ref.read(settingsControllerProvider).trackHistory ||
+          ref.read(authTransitionProvider) ||
+          epoch != ref.read(authSessionEpochProvider) ||
+          widget.post.id != id) {
+        return;
+      }
+      _exposureRecorded = true;
+      if (_dwellPostId != id) {
+        _dwellPostId = id;
+        ref.read(interactionVaultProvider.notifier).recordDwell(id);
+      }
+      if (widget.post.feedReason != null) {
+        ref.read(impressionStoreProvider.notifier).record(id);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _dwellTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    appRouteObserver.unsubscribe(this);
+    super.dispose();
+  }
 
   // Vote / score / saved / comment-count live in the shared post-overrides
   // store (keyed by post id) so the card stays in sync with the post-detail
@@ -55,7 +162,9 @@ class _PostCardState extends ConsumerState<PostCard> {
   void _openDetail() {
     Analytics.track('post_opened');
     if (ref.read(settingsControllerProvider).trackHistory) {
-      ref.read(interactionVaultProvider.notifier).recordCommentOpened(widget.post.id);
+      ref
+          .read(interactionVaultProvider.notifier)
+          .recordCommentOpened(widget.post.id);
       ref.read(historyControllerProvider.notifier).markViewed(widget.post);
       ref.read(interestStoreProvider.notifier).bump(widget.post.subreddit, 0.5);
     }
@@ -84,10 +193,13 @@ class _PostCardState extends ConsumerState<PostCard> {
           break;
         }
         final src = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
-        openVideoViewer(context, src,
-            title: p.title,
-            downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
-            externalUrl: p.url);
+        openVideoViewer(
+          context,
+          src,
+          title: p.title,
+          downloadUrl: p.fallbackVideoUrl ?? resolveVideoUrl(p.url),
+          externalUrl: p.url,
+        );
       case PostType.link:
         launchSmartUrl(p.url);
       case PostType.self:
@@ -97,12 +209,27 @@ class _PostCardState extends ConsumerState<PostCard> {
 
   @override
   Widget build(BuildContext context) {
-    final postDisplay =
-        ref.watch(settingsControllerProvider.select((s) => s.postDisplay));
-    final trackHistory =
-        ref.watch(settingsControllerProvider.select((s) => s.trackHistory));
-    final swipeActions =
-        ref.watch(settingsControllerProvider.select((s) => s.swipeActions));
+    ref.listen(
+      settingsControllerProvider.select((s) => s.trackHistory),
+      (_, __) => _syncExposure(),
+    );
+    ref.listen(authTransitionProvider, (_, __) => _syncExposure());
+    ref.listen(authSessionEpochProvider, (_, __) {
+      _dwellTimer?.cancel();
+      _dwellTimer = null;
+      _dwellPostId = null;
+      _exposureRecorded = false;
+      _syncExposure();
+    });
+    final postDisplay = ref.watch(
+      settingsControllerProvider.select((s) => s.postDisplay),
+    );
+    final trackHistory = ref.watch(
+      settingsControllerProvider.select((s) => s.trackHistory),
+    );
+    final swipeActions = ref.watch(
+      settingsControllerProvider.select((s) => s.swipeActions),
+    );
     final seen = ref.watch(historyContainsProvider(widget.post.id));
     Widget card = switch (postDisplay) {
       PostDisplay.large => _largeCard(context),
@@ -127,8 +254,9 @@ class _PostCardState extends ConsumerState<PostCard> {
                 child: DecoratedBox(
                   key: ValueKey('read-overlay-${widget.post.id}'),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor
-                        .withValues(alpha: 0.45),
+                    color: Theme.of(
+                      context,
+                    ).scaffoldBackgroundColor.withValues(alpha: 0.45),
                     borderRadius: !compact && widget.frontpageStyle
                         ? ShapeTokens.extraLarge
                         : ShapeTokens.large,
@@ -143,9 +271,6 @@ class _PostCardState extends ConsumerState<PostCard> {
     // "Why you're seeing this" banner (For You feed only).
     final reason = widget.post.feedReason;
     if (reason != null) {
-      // Count the impression: shown-but-never-opened posts get demoted on the
-      // next feed build (batched + deduped inside the store).
-      ref.read(impressionStoreProvider.notifier).record(widget.post.id);
       final cs = Theme.of(context).colorScheme;
       card = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -162,9 +287,10 @@ class _PostCardState extends ConsumerState<PostCard> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: cs.primary),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: cs.primary,
+                    ),
                   ),
                 ),
                 // Discoverable entry to the feed-tuning sheet (also on long-press)
@@ -174,17 +300,22 @@ class _PostCardState extends ConsumerState<PostCard> {
                   borderRadius: ShapeTokens.medium,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.tune_rounded, size: 13, color: cs.primary),
                         const SizedBox(width: 4),
-                        Text('Tune',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: cs.primary)),
+                        Text(
+                          'Tune',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: cs.primary,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -199,10 +330,9 @@ class _PostCardState extends ConsumerState<PostCard> {
     return VisibilityDetector(
       key: ValueKey<String>('dwell-${widget.post.id}'),
       onVisibilityChanged: (info) {
-        if (info.visibleFraction >= 0.6 && _dwellPostId != widget.post.id) {
-          _dwellPostId = widget.post.id;
-          ref.read(interactionVaultProvider.notifier).recordDwell(widget.post.id);
-        }
+        _visible = info.visibleFraction >= 0.6;
+        if (!_visible) _exposureRecorded = false;
+        _syncExposure();
       },
       child: GestureDetector(
         onLongPress: widget.post.feedReason != null
@@ -230,9 +360,10 @@ class _PostCardState extends ConsumerState<PostCard> {
             ListTile(
               leading: const Icon(Icons.bookmark_add_outlined),
               title: Text(
-                  ref.read(postOverridesProvider.notifier).effective(post).saved
-                      ? 'Unsave post'
-                      : 'Save post'),
+                ref.read(postOverridesProvider.notifier).effective(post).saved
+                    ? 'Unsave post'
+                    : 'Save post',
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 _toggleSave();
@@ -267,14 +398,14 @@ class _PostCardState extends ConsumerState<PostCard> {
     final muted = ref.read(mutedSubsProvider.notifier).contains(sub);
     final interest = ref.read(interestStoreProvider.notifier);
     void toast(String msg) => showRootSnackBar(
-          SnackBar(
-            content: Text(msg),
-            action: SnackBarAction(
-              label: 'Manage',
-              onPressed: () => context.push('/manage_for_you'),
-            ),
-          ),
-        );
+      SnackBar(
+        content: Text(msg),
+        action: SnackBarAction(
+          label: 'Manage',
+          onPressed: () => context.push('/manage_for_you'),
+        ),
+      ),
+    );
 
     showModalBottomSheet(
       context: context,
@@ -283,65 +414,67 @@ class _PostCardState extends ConsumerState<PostCard> {
       // through onto an item (which fired More/Less directly with no sheet).
       builder: (ctx) => TapGuard(
         child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-              child: Row(
-                children: [
-                  Icon(Icons.auto_awesome_rounded,
-                      size: 18, color: Theme.of(ctx).colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Text('Tune your feed',
-                      style: Theme.of(ctx)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 18,
+                      color: Theme.of(ctx).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Tune your feed',
+                      style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.thumb_up_alt_outlined),
-              title: const Text('More like this'),
-              subtitle: Text('Show more from r/$sub and similar'),
-              onTap: () {
-                interest.bump(sub, 5);
-                ref
-                    .read(keywordStoreProvider.notifier)
-                    .bumpTitle(widget.post.title, 2);
-                Navigator.pop(ctx);
-                toast("We'll show more like this");
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.thumb_down_alt_outlined),
-              title: const Text('Less like this'),
-              subtitle: Text('Show less from r/$sub'),
-              onTap: () {
-                interest.bump(sub, -5);
-                ref
-                    .read(keywordStoreProvider.notifier)
-                    .bumpTitle(widget.post.title, -2);
-                Navigator.pop(ctx);
-                toast("We'll show less like this");
-              },
-            ),
-            ListTile(
-              leading: Icon(muted
-                  ? Icons.volume_up_rounded
-                  : Icons.volume_off_rounded),
-              title: Text(muted ? 'Unmute r/$sub' : 'Mute r/$sub in For You'),
-              onTap: () {
-                ref.read(mutedSubsProvider.notifier).toggle(sub);
-                Navigator.pop(ctx);
-                toast(muted
-                    ? 'r/$sub unmuted'
-                    : 'r/$sub muted from For You');
-              },
-            ),
-          ],
-        ),
+              ListTile(
+                leading: const Icon(Icons.thumb_up_alt_outlined),
+                title: const Text('More like this'),
+                subtitle: Text('Show more from r/$sub and similar'),
+                onTap: () {
+                  interest.bump(sub, 5);
+                  ref
+                      .read(keywordStoreProvider.notifier)
+                      .bumpTitle(widget.post.title, 2);
+                  Navigator.pop(ctx);
+                  toast("We'll show more like this");
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.thumb_down_alt_outlined),
+                title: const Text('Less like this'),
+                subtitle: Text('Show less from r/$sub'),
+                onTap: () {
+                  interest.bump(sub, -5);
+                  ref
+                      .read(keywordStoreProvider.notifier)
+                      .bumpTitle(widget.post.title, -2);
+                  Navigator.pop(ctx);
+                  toast("We'll show less like this");
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  muted ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                ),
+                title: Text(muted ? 'Unmute r/$sub' : 'Mute r/$sub in For You'),
+                onTap: () {
+                  ref.read(mutedSubsProvider.notifier).toggle(sub);
+                  Navigator.pop(ctx);
+                  toast(muted ? 'r/$sub unmuted' : 'r/$sub muted from For You');
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -431,10 +564,9 @@ class _PostCardState extends ConsumerState<PostCard> {
                 p.selftext,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: cs.onSurfaceVariant),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
               ),
             ],
             const SizedBox(height: 4),
@@ -491,10 +623,9 @@ class _PostCardState extends ConsumerState<PostCard> {
                 p.selftext,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: cs.onSurfaceVariant),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
               ),
             ],
             const SizedBox(height: 4),
@@ -517,10 +648,10 @@ class _PostCardState extends ConsumerState<PostCard> {
         maxLines: 3,
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: cs.onSurface,
-              fontWeight: FontWeight.w700,
-              height: 1.2,
-            ),
+          color: cs.onSurface,
+          fontWeight: FontWeight.w700,
+          height: 1.2,
+        ),
       ),
       flair: p.linkFlairText == null ? null : _flair(cs, p.linkFlairText!),
       thumbnail: _thumb(cs, 72),
@@ -533,7 +664,8 @@ class _PostCardState extends ConsumerState<PostCard> {
   /// Data-saver thumbnails setting is enabled.
   String? _cardImg(Post p) {
     final midResThumbnails = ref.watch(
-        settingsControllerProvider.select((s) => s.midResThumbnails));
+      settingsControllerProvider.select((s) => s.midResThumbnails),
+    );
     if (!midResThumbnails) return p.previewUrl;
     return p.previewMedUrl ?? p.thumbnailUrl ?? p.previewUrl;
   }
@@ -543,12 +675,16 @@ class _PostCardState extends ConsumerState<PostCard> {
     final p = widget.post;
     if (p.type == PostType.self) return null;
     final url =
-        _cardImg(p) ?? (p.gallery.isNotEmpty ? p.gallery.first.url : p.thumbnailUrl);
-    final blurNsfw =
-        ref.watch(settingsControllerProvider.select((s) => s.blurNsfw));
+        _cardImg(p) ??
+        (p.gallery.isNotEmpty ? p.gallery.first.url : p.thumbnailUrl);
+    final blurNsfw = ref.watch(
+      settingsControllerProvider.select((s) => s.blurNsfw),
+    );
     final blur = (p.over18 && blurNsfw) || p.spoiler;
-    final cacheSize =
-        (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(1, 300).toInt();
+    final cacheSize = (size * MediaQuery.devicePixelRatioOf(context))
+        .round()
+        .clamp(1, 300)
+        .toInt();
     return ClipRRect(
       borderRadius: ShapeTokens.small,
       child: SizedBox(
@@ -575,12 +711,13 @@ class _PostCardState extends ConsumerState<PostCard> {
               Container(
                 color: cs.surfaceContainerHighest,
                 child: Icon(
-                    blur
-                        ? Icons.visibility_off_rounded
-                        : (p.type == PostType.link
+                  blur
+                      ? Icons.visibility_off_rounded
+                      : (p.type == PostType.link
                             ? Icons.link_rounded
                             : Icons.image_rounded),
-                    color: cs.onSurfaceVariant),
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             if (p.type == PostType.video)
               Center(
@@ -699,9 +836,9 @@ class _PostCardState extends ConsumerState<PostCard> {
             child: Text(
               'NSFW',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: cs.onErrorContainer,
-                    fontWeight: FontWeight.w700,
-                  ),
+                color: cs.onErrorContainer,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         const SizedBox(width: 2),
@@ -721,22 +858,26 @@ class _PostCardState extends ConsumerState<PostCard> {
   }
 
   Widget _flair(ColorScheme cs, String text) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-            color: cs.primaryContainer.withValues(alpha: 0.72),
-            borderRadius: ShapeTokens.full),
-        child: Text(text,
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              color: cs.onPrimaryContainer,
-            )),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: cs.primaryContainer.withValues(alpha: 0.72),
+      borderRadius: ShapeTokens.full,
+    ),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w700,
+        color: cs.onPrimaryContainer,
+      ),
+    ),
+  );
 
   Widget _media(ColorScheme cs) {
     final p = widget.post;
-    final blurNsfw =
-        ref.watch(settingsControllerProvider.select((s) => s.blurNsfw));
+    final blurNsfw = ref.watch(
+      settingsControllerProvider.select((s) => s.blurNsfw),
+    );
     final blur = (p.over18 && blurNsfw) || p.spoiler;
     switch (p.type) {
       case PostType.gallery:
@@ -776,26 +917,28 @@ class _PostCardState extends ConsumerState<PostCard> {
       verticalPadding: MediaQuery.viewPaddingOf(context).vertical,
     );
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final cacheWidth =
-        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
+    final cacheWidth = (MediaQuery.sizeOf(context).width * dpr)
+        .round()
+        .clamp(1, 1080)
+        .toInt();
     final autoplay = ref.watch(
       settingsControllerProvider.select((s) => s.autoplayMedia),
     );
     final videoUrl = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
 
     Widget viewFullButton() => Semantics(
-          button: true,
-          label: 'View full image',
-          child: TextButton.icon(
-            onPressed: _openMedia,
-            icon: const Icon(Icons.open_in_full_rounded, size: 16),
-            label: const Text('View full'),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-        );
+      button: true,
+      label: 'View full image',
+      child: TextButton.icon(
+        onPressed: _openMedia,
+        icon: const Icon(Icons.open_in_full_rounded, size: 16),
+        label: const Text('View full'),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          visualDensity: VisualDensity.compact,
+        ),
+      ),
+    );
 
     if (p.type == PostType.video &&
         autoplay &&
@@ -830,44 +973,45 @@ class _PostCardState extends ConsumerState<PostCard> {
     }
 
     Widget mediaStack({required bool capped}) => Stack(
-          fit: StackFit.expand,
-          children: [
-            if (url != null)
-              CachedNetworkImage(
-                imageUrl: url,
-                memCacheWidth: cacheWidth,
-                fit: capped ? BoxFit.cover : BoxFit.cover,
-                alignment: capped ? Alignment.topCenter : Alignment.center,
-                placeholder: (_, __) =>
-                    Container(color: cs.surfaceContainerLowest),
-                errorWidget: (_, __, ___) => Container(
-                  color: cs.surfaceContainerLowest,
-                  child: Icon(Icons.broken_image_outlined,
-                      color: cs.onSurfaceVariant),
-                ),
-              )
-            else
-              Container(color: cs.surfaceContainerLowest),
-            if (p.type == PostType.video)
-              const Center(child: _PlayBadge()),
-            if (p.type == PostType.gallery)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: _Pill(
-                    icon: Icons.collections_rounded,
-                    label: '${p.gallery.length}'),
+      fit: StackFit.expand,
+      children: [
+        if (url != null)
+          CachedNetworkImage(
+            imageUrl: url,
+            memCacheWidth: cacheWidth,
+            fit: capped ? BoxFit.cover : BoxFit.cover,
+            alignment: capped ? Alignment.topCenter : Alignment.center,
+            placeholder: (_, __) => Container(color: cs.surfaceContainerLowest),
+            errorWidget: (_, __, ___) => Container(
+              color: cs.surfaceContainerLowest,
+              child: Icon(
+                Icons.broken_image_outlined,
+                color: cs.onSurfaceVariant,
               ),
-            if (p.type == PostType.gif)
-              const Positioned(top: 8, left: 8, child: _Pill(label: 'GIF')),
-            if (p.type == PostType.video)
-              const Positioned(
-                bottom: 8,
-                right: 8,
-                child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
-              ),
-          ],
-        );
+            ),
+          )
+        else
+          Container(color: cs.surfaceContainerLowest),
+        if (p.type == PostType.video) const Center(child: _PlayBadge()),
+        if (p.type == PostType.gallery)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: _Pill(
+              icon: Icons.collections_rounded,
+              label: '${p.gallery.length}',
+            ),
+          ),
+        if (p.type == PostType.gif)
+          const Positioned(top: 8, left: 8, child: _Pill(label: 'GIF')),
+        if (p.type == PostType.video)
+          const Positioned(
+            bottom: 8,
+            right: 8,
+            child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
+          ),
+      ],
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -893,10 +1037,7 @@ class _PostCardState extends ConsumerState<PostCard> {
           );
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              media,
-              if (capped) viewFullButton(),
-            ],
+            children: [media, if (capped) viewFullButton()],
           );
         },
       ),
@@ -912,8 +1053,9 @@ class _PostCardState extends ConsumerState<PostCard> {
         borderRadius: ShapeTokens.small,
         child: Container(
           decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest,
-              borderRadius: ShapeTokens.small),
+            color: cs.surfaceContainerHighest,
+            borderRadius: ShapeTokens.small,
+          ),
           child: Row(
             children: [
               if (p.thumbnailUrl != null)
@@ -925,10 +1067,11 @@ class _PostCardState extends ConsumerState<PostCard> {
                         .round()
                         .clamp(1, 300)
                         .toInt(),
-                    memCacheHeight: (72 * MediaQuery.devicePixelRatioOf(context))
-                        .round()
-                        .clamp(1, 300)
-                        .toInt(),
+                    memCacheHeight:
+                        (72 * MediaQuery.devicePixelRatioOf(context))
+                            .round()
+                            .clamp(1, 300)
+                            .toInt(),
                     width: 72,
                     height: 72,
                     fit: BoxFit.cover,
@@ -947,16 +1090,21 @@ class _PostCardState extends ConsumerState<PostCard> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(p.domain,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: cs.onSurfaceVariant)),
+                  child: Text(
+                    p.domain,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.only(right: 12),
-                child: Icon(Icons.open_in_new_rounded,
-                    size: 18, color: cs.onSurfaceVariant),
+                child: Icon(
+                  Icons.open_in_new_rounded,
+                  size: 18,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ],
           ),

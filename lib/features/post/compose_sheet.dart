@@ -39,18 +39,22 @@ Future<Comment?> showReplySheet(
         final repo = ref.read(redditRepositoryProvider);
         if (media == null) {
           return repo.reply(
-              parentFullname: parentFullname,
-              text: text,
-              depth: parentDepth + 1);
+            parentFullname: parentFullname,
+            text: text,
+            depth: parentDepth + 1,
+          );
         }
         if (media.isVideo) {
-          final url =
-              await uploadToCatbox(bytes: media.bytes, filename: media.filename);
+          final url = await uploadToCatbox(
+            bytes: media.bytes,
+            filename: media.filename,
+          );
           final body = text.isEmpty ? url : '$text\n\n$url';
           return repo.reply(
-              parentFullname: parentFullname,
-              text: body,
-              depth: parentDepth + 1);
+            parentFullname: parentFullname,
+            text: body,
+            depth: parentDepth + 1,
+          );
         }
         return repo.replyWithImage(
           parentFullname: parentFullname,
@@ -160,7 +164,7 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
 
   Future<void> _insertGif() async {
     final url = await showGiphyPicker(context, widget.ref);
-    if (url == null) return;
+    if (!mounted || url == null) return;
     final sep = _controller.text.isEmpty ? '' : '\n';
     _controller.text = '${_controller.text}$sep$url';
   }
@@ -168,6 +172,7 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
   Future<void> _submit() async {
     final text = _controller.text.trim();
     if (text.isEmpty && _media == null) return;
+    final drafts = widget.ref.read(draftsProvider);
     setState(() {
       _busy = true;
       _error = null;
@@ -177,7 +182,7 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
           ? await widget.onSubmitMedia!(text, _media)
           : await widget.onSubmit!(text);
       if (widget.draftKey != null) {
-        widget.ref.read(draftsProvider).clear(widget.draftKey!);
+        drafts.clear(widget.draftKey!);
       }
       if (mounted) Navigator.pop(context, result);
     } catch (e) {
@@ -200,11 +205,12 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(widget.title,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            widget.title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _controller,
@@ -212,9 +218,7 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
             minLines: 3,
             maxLines: 8,
             onChanged: _onChanged,
-            decoration: const InputDecoration(
-              hintText: 'Markdown supported',
-            ),
+            decoration: const InputDecoration(hintText: 'Markdown supported'),
           ),
           const SizedBox(height: 6),
           if (widget.allowAttachments)
@@ -253,7 +257,8 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.send_rounded),
             label: Text(_busy ? 'Sending…' : widget.submitLabel),
           ),
@@ -262,4 +267,3 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
     );
   }
 }
-

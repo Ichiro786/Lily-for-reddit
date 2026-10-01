@@ -39,11 +39,15 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
         if ((widget.initialTo ?? '').isEmpty) _to.text = m['to'] ?? '';
         _subject.text = m['subject'] ?? '';
         _body.text = m['body'] ?? '';
-      } catch (_) {/* ignore malformed draft */}
+      } catch (_) {
+        /* ignore malformed draft */
+      }
     }
   }
 
-  void _saveDraft() => ref.read(draftsProvider).save(
+  void _saveDraft() => ref
+      .read(draftsProvider)
+      .save(
         _draftKey,
         jsonEncode({
           'to': _to.text,
@@ -65,28 +69,34 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
     final subject = _subject.text.trim();
     var body = _body.text.trim();
     if (to.isEmpty || subject.isEmpty || (body.isEmpty && _media == null)) {
-      setState(() => _error = 'Recipient, subject and a message or attachment '
-          'are required.');
+      setState(
+        () => _error =
+            'Recipient, subject and a message or attachment '
+            'are required.',
+      );
       return;
     }
     setState(() {
       _busy = true;
       _error = null;
     });
+    final repo = ref.read(redditRepositoryProvider);
+    final drafts = ref.read(draftsProvider);
     try {
       if (_media != null) {
         // Reddit messages are markdown-text only, so host on Catbox + link.
         final url = await uploadToCatbox(
-            bytes: _media!.bytes, filename: _media!.filename);
+          bytes: _media!.bytes,
+          filename: _media!.filename,
+        );
         body = body.isEmpty ? url : '$body\n\n$url';
       }
-      await ref
-          .read(redditRepositoryProvider)
-          .composeMessage(to: to, subject: subject, text: body);
-      ref.read(draftsProvider).clear(_draftKey);
+      await repo.composeMessage(to: to, subject: subject, text: body);
+      drafts.clear(_draftKey);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Message sent')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message sent')));
       context.pop();
     } catch (e) {
       if (mounted) {
@@ -112,7 +122,8 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Text('Send'),
             ),
           ),
@@ -126,14 +137,19 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
             autocorrect: false,
             onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
-                labelText: 'To', prefixText: 'u/', prefixIcon: Icon(Icons.person_rounded)),
+              labelText: 'To',
+              prefixText: 'u/',
+              prefixIcon: Icon(Icons.person_rounded),
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _subject,
             onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
-                labelText: 'Subject', prefixIcon: Icon(Icons.subject_rounded)),
+              labelText: 'Subject',
+              prefixIcon: Icon(Icons.subject_rounded),
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -142,7 +158,9 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
             maxLines: 14,
             onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
-                labelText: 'Message (Markdown)', alignLabelWithHint: true),
+              labelText: 'Message (Markdown)',
+              alignLabelWithHint: true,
+            ),
           ),
           const SizedBox(height: 4),
           AttachmentControls(
@@ -156,8 +174,10 @@ class _ComposeMessageScreenState extends ConsumerState<ComposeMessageScreen> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ],
         ],
       ),

@@ -40,15 +40,14 @@ class FeedState {
     String? after,
     bool? loadingMore,
     bool? hasPending,
-  }) =>
-      FeedState(
-        posts: posts ?? this.posts,
-        sort: sort ?? this.sort,
-        time: time ?? this.time,
-        after: after,
-        loadingMore: loadingMore ?? this.loadingMore,
-        hasPending: hasPending ?? this.hasPending,
-      );
+  }) => FeedState(
+    posts: posts ?? this.posts,
+    sort: sort ?? this.sort,
+    time: time ?? this.time,
+    after: after,
+    loadingMore: loadingMore ?? this.loadingMore,
+    hasPending: hasPending ?? this.hasPending,
+  );
 }
 
 /// Feed for the frontpage (key == '') or a subreddit (key == name).
@@ -76,6 +75,26 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   bool _enrichmentInFlight = false;
   bool _disposed = false;
   bool _filterReadOnNextBuild = false;
+  int _generation = 0;
+
+  bool _current(int generation) => !_disposed && generation == _generation;
+
+  int _beginRequest() {
+    _disposed = false;
+    _pending = null;
+    _pendingAfter = null;
+    _enrichmentInFlight = false;
+    return ++_generation;
+  }
+
+  void _check(int generation) {
+    if (!_current(generation)) {
+      throw DioException(
+        requestOptions: RequestOptions(path: 'feed'),
+        type: DioExceptionType.cancel,
+      );
+    }
+  }
 
   Future<Listing<Post>> _fetch({
     String? after,
@@ -89,10 +108,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       return _repo.getForYouFeed(
         interest: ref.read(interestStoreProvider),
         muted: ref.read(mutedSubsProvider),
-        seen: {
-          for (final e in history) e.id,
-          ...vault.seenPosts.keys,
-        },
+        seen: {for (final e in history) e.id, ...vault.seenPosts.keys},
         impressions: ref.read(impressionStoreProvider),
         titleScore: kw.scoreTitle,
         titleKeyword: kw.topKeywordIn,
@@ -103,7 +119,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
             ? const {}
             : {
                 for (final p in state.valueOrNull?.posts ?? const <Post>[])
-                  p.id
+                  p.id,
               },
       );
     }
@@ -118,7 +134,11 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       );
     }
     return _repo.getPosts(
-        subreddit: _subreddit, sort: _sort!, time: _time, after: after);
+      subreddit: _subreddit,
+      sort: _sort!,
+      time: _time,
+      after: after,
+    );
   }
 
   Future<Listing<Post>> _fetchWithRetry({
@@ -126,22 +146,24 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     bool fast = false,
     Listing<Post>? bestSeed,
   }) async {
+    final generation = _generation;
     try {
       return await _fetch(after: after, fast: fast, bestSeed: bestSeed);
     } on DioException catch (error) {
       if (!_isRetryableTransport(error)) rethrow;
       await Future<void>.delayed(const Duration(milliseconds: 250));
+      _check(generation);
       return _fetch(after: after, fast: fast, bestSeed: bestSeed);
     }
   }
 
   bool _isRetryableTransport(DioException error) => switch (error.type) {
-        DioExceptionType.connectionError ||
-        DioExceptionType.connectionTimeout ||
-        DioExceptionType.sendTimeout ||
-        DioExceptionType.receiveTimeout => true,
-        _ => false,
-      };
+    DioExceptionType.connectionError ||
+    DioExceptionType.connectionTimeout ||
+    DioExceptionType.sendTimeout ||
+    DioExceptionType.receiveTimeout => true,
+    _ => false,
+  };
 
   bool get _shouldFilterViewedForYou {
     final settings = ref.read(settingsControllerProvider);
@@ -174,20 +196,33 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       return posts;
     }
     final history = ref.read(historyControllerProvider.notifier);
-    return [for (final post in posts) if (!history.containsId(post.id)) post];
+    return [
+      for (final post in posts)
+        if (!history.containsId(post.id)) post,
+    ];
   }
 
   @override
   Future<FeedState> build(String arg) async {
-    ref.onDispose(() => _disposed = true);
+    ref.watch(redditRepositoryProvider);
+    ref.onDispose(() {
+      _disposed = true;
+      _generation++;
+    });
+    final generation = _beginRequest();
     if (!_initialized) {
       _sort = ref.read(settingsControllerProvider).defaultSort;
       _initialized = true;
     }
+    return _loadInitial(generation);
+  }
+
+  Future<FeedState> _loadInitial(int generation) async {
     // RedditClient owns token refresh and 401 replay. FeedController only
     // retries clearly transient transport failures via _fetchWithRetry().
     if (_forYou) {
       final preview = await _fetchWithRetry(fast: true);
+      _check(generation);
       _lastLoaded = DateTime.now();
       final previewState = FeedState(
         posts: await _rankForYouPosts(preview.items),
@@ -195,13 +230,17 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         time: _time,
         after: preview.after,
       );
+      _check(generation);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_disposed) unawaited(_enrichForYou(previewState, preview));
+        if (_current(generation)) {
+          unawaited(_enrichForYou(previewState, preview, generation));
+        }
       });
       return previewState;
     }
 
     final listing = await _fetchWithRetry();
+    _check(generation);
     _lastLoaded = DateTime.now();
     return FeedState(
       posts: _filterReadPostsOnRefresh(listing.items),
@@ -211,7 +250,15 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     );
   }
 
+  Future<void> _reload({bool loading = false}) async {
+    final generation = _beginRequest();
+    if (loading) state = const AsyncLoading();
+    final next = await AsyncValue.guard(() => _loadInitial(generation));
+    if (_current(generation)) state = next;
+  }
+
   Future<void> changeSort(PostSort sort, {TopTime? time}) async {
+    _filterReadOnNextBuild = false;
     _sort = sort;
     if (time != null) _time = time;
     // Persist the frontpage sort + turn off the For You feed.
@@ -220,46 +267,55 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
       s.setDefaultSort(sort);
       s.setForYouFeed(false);
     }
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() => build(arg));
+    await _reload(loading: true);
   }
 
   /// Switches the frontpage to the "For You (Beta)" feed (persisted).
   Future<void> selectForYou() async {
+    _filterReadOnNextBuild = false;
     ref.read(settingsControllerProvider.notifier).setForYouFeed(true);
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() => build(arg));
+    await _reload(loading: true);
   }
 
   Future<void> refresh() async {
     _filterReadOnNextBuild = true;
+    final generation = _generation + 1;
     try {
-      state = await AsyncValue.guard(() => build(arg));
+      await _reload();
     } finally {
-      _filterReadOnNextBuild = false;
+      if (_current(generation)) _filterReadOnNextBuild = false;
     }
   }
 
   Future<void> _enrichForYou(
-      FeedState preview, Listing<Post> bestSeed) async {
-    if (_disposed || _enrichmentInFlight || !_forYou) return;
+    FeedState preview,
+    Listing<Post> bestSeed,
+    int generation,
+  ) async {
+    if (!_current(generation) || _enrichmentInFlight || !_forYou) return;
     _enrichmentInFlight = true;
     try {
       final listing = await _fetchWithRetry(bestSeed: bestSeed);
-      if (_disposed || !_forYou || state.valueOrNull != preview) return;
+      if (!_current(generation) || !_forYou || state.valueOrNull != preview) {
+        return;
+      }
       final current = state.valueOrNull;
       if (current == null || listing.items.isEmpty) return;
       final rankedItems = await _rankForYouPosts(listing.items);
+      if (!_current(generation) || state.valueOrNull != preview) return;
       final currentIds = {for (final p in current.posts) p.id};
-      final changed = rankedItems.length != current.posts.length ||
+      final changed =
+          rankedItems.length != current.posts.length ||
           rankedItems.asMap().entries.any(
-              (e) => e.value.id != current.posts[e.key].id);
+            (e) => e.value.id != current.posts[e.key].id,
+          );
       final hasNew = rankedItems.any((p) => !currentIds.contains(p.id));
       if (changed && hasNew) {
         _pending = rankedItems;
         _pendingAfter = listing.after;
-        state = AsyncData(current.copyWith(
-            hasPending: true, after: current.after));
+        state = AsyncData(
+          current.copyWith(hasPending: true, after: current.after),
+        );
       } else if (listing.after != current.after) {
         // Keep the visible preview stable while adopting the full cursor bundle.
         state = AsyncData(current.copyWith(after: listing.after));
@@ -267,7 +323,7 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
     } catch (_) {
       // The preview remains usable when enrichment is unavailable.
     } finally {
-      _enrichmentInFlight = false;
+      if (_current(generation)) _enrichmentInFlight = false;
     }
   }
 
@@ -278,19 +334,23 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
   /// When returning to a stale feed, quietly fetch the first page. If it has
   /// posts we're not already showing, stage them behind a "New posts" pill
   /// instead of yanking the list out from under the user.
-  Future<void> refreshIfStale(
-      [Duration maxAge = const Duration(minutes: 5)]) async {
+  Future<void> refreshIfStale([
+    Duration maxAge = const Duration(minutes: 5),
+  ]) async {
     if (state.isLoading) return;
     final cur = state.valueOrNull;
     if (cur == null) return;
     if (cur.hasPending) return; // already staged
     if (DateTime.now().difference(_lastLoaded) < maxAge) return;
+    final generation = _generation;
     try {
       final listing = await _fetch();
+      if (!_current(generation) || state.valueOrNull != cur) return;
       _lastLoaded = DateTime.now();
       final pending = _forYou
           ? await _rankForYouPosts(listing.items)
           : listing.items;
+      if (!_current(generation) || state.valueOrNull != cur) return;
       final currentIds = {for (final p in cur.posts) p.id};
       final hasNew = pending.any((p) => !currentIds.contains(p.id));
       if (hasNew) {
@@ -298,15 +358,19 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         _pendingAfter = listing.after;
         state = AsyncData(cur.copyWith(hasPending: true, after: cur.after));
       }
-    } catch (_) {/* leave the current feed in place */}
+    } catch (_) {
+      /* leave the current feed in place */
+    }
   }
 
   /// Swaps the staged "New posts" page in (called when the pill is tapped).
   void applyPending() {
     final cur = state.valueOrNull;
     if (cur == null || _pending == null) return;
-    state = AsyncData(cur.copyWith(
-        posts: _pending!, after: _pendingAfter, hasPending: false));
+    _generation++;
+    state = AsyncData(
+      cur.copyWith(posts: _pending!, after: _pendingAfter, hasPending: false),
+    );
     _pending = null;
     _pendingAfter = null;
   }
@@ -320,23 +384,40 @@ class FeedController extends FamilyAsyncNotifier<FeedState, String> {
         _enrichmentInFlight) {
       return;
     }
-    state = AsyncData(current.copyWith(loadingMore: true, after: current.after));
+    state = AsyncData(
+      current.copyWith(loadingMore: true, after: current.after),
+    );
+    final generation = _generation;
     try {
       final listing = await _fetch(after: current.after);
+      if (!_current(generation)) return;
       final nextItems = _forYou
           ? await _rankForYouPosts(listing.items)
           : listing.items;
-      state = AsyncData(current.copyWith(
-        posts: [...current.posts, ...nextItems],
-        after: listing.after,
-        loadingMore: false,
-      ));
+      if (!_current(generation)) return;
+      final latest = state.valueOrNull;
+      if (latest == null) return;
+      final ids = {for (final p in latest.posts) p.id};
+      state = AsyncData(
+        latest.copyWith(
+          posts: [...latest.posts, ...nextItems.where((p) => ids.add(p.id))],
+          after: listing.after,
+          loadingMore: false,
+        ),
+      );
     } catch (_) {
-      state = AsyncData(current.copyWith(loadingMore: false, after: current.after));
+      if (!_current(generation)) return;
+      final latest = state.valueOrNull;
+      if (latest != null) {
+        state = AsyncData(
+          latest.copyWith(loadingMore: false, after: latest.after),
+        );
+      }
     }
   }
 }
 
 final feedControllerProvider =
     AsyncNotifierProviderFamily<FeedController, FeedState, String>(
-        FeedController.new);
+      FeedController.new,
+    );

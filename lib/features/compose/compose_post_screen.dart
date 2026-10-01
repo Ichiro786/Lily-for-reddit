@@ -13,6 +13,12 @@ import '../media/giphy_picker.dart';
 
 enum _Kind { text, link, image, gallery, video }
 
+final postMediaPickerProvider = Provider<ImagePicker>((ref) => ImagePicker());
+final postGifPickerProvider =
+    Provider<Future<String?> Function(BuildContext, WidgetRef)>(
+      (ref) => showGiphyPicker,
+    );
+
 class ComposePostScreen extends ConsumerStatefulWidget {
   const ComposePostScreen({super.key, this.initialSubreddit});
   final String? initialSubreddit;
@@ -22,8 +28,9 @@ class ComposePostScreen extends ConsumerStatefulWidget {
 }
 
 class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
-  late final _subreddit =
-      TextEditingController(text: widget.initialSubreddit ?? '');
+  late final _subreddit = TextEditingController(
+    text: widget.initialSubreddit ?? '',
+  );
   final _title = TextEditingController();
   final _body = TextEditingController();
   final _url = TextEditingController();
@@ -41,6 +48,8 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   List<Flair> _flairs = [];
   Flair? _flair;
   String _flairsFor = '';
+  int _flairRevision = 0;
+  int _pickerRevision = 0;
 
   static const _draftKey = 'compose_post';
 
@@ -61,22 +70,26 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
         if (ki != null && ki >= 0 && ki < _Kind.values.length) {
           _kind = _Kind.values[ki];
         }
-        _hasDraft = _title.text.trim().isNotEmpty ||
+        _hasDraft =
+            _title.text.trim().isNotEmpty ||
             _body.text.trim().isNotEmpty ||
             _url.text.trim().isNotEmpty ||
             _subreddit.text.trim().isNotEmpty;
-      } catch (_) {/* ignore malformed draft */}
+      } catch (_) {
+        /* ignore malformed draft */
+      }
     }
     if (_subreddit.text.trim().isNotEmpty) _loadFlairs();
   }
 
   bool _hasDraft = false;
 
-  bool get _hasMedia =>
-      _image != null || _gallery.isNotEmpty || _video != null;
+  bool get _hasMedia => _image != null || _gallery.isNotEmpty || _video != null;
 
   void _saveDraft() {
-    ref.read(draftsProvider).save(
+    ref
+        .read(draftsProvider)
+        .save(
           _draftKey,
           jsonEncode({
             'sr': _subreddit.text,
@@ -86,7 +99,8 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             'kind': _kind.index,
           }),
         );
-    final has = _subreddit.text.trim().isNotEmpty ||
+    final has =
+        _subreddit.text.trim().isNotEmpty ||
         _title.text.trim().isNotEmpty ||
         _body.text.trim().isNotEmpty ||
         _url.text.trim().isNotEmpty;
@@ -95,6 +109,8 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
 
   @override
   void dispose() {
+    _flairRevision++;
+    _pickerRevision++;
     _subreddit.dispose();
     _title.dispose();
     _body.dispose();
@@ -104,37 +120,108 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
 
   Future<void> _loadFlairs() async {
     final sr = _subreddit.text.trim();
-    if (sr.isEmpty || sr == _flairsFor) return;
+    if (sr == _flairsFor) return;
+    final revision = ++_flairRevision;
     _flairsFor = sr;
-    final flairs = await ref.read(redditRepositoryProvider).getLinkFlairs(sr);
-    if (mounted) {
+    _flairs = [];
+    _flair = null;
+    if (sr.isEmpty) {
+      if (mounted) setState(() {});
+      return;
+    }
+    try {
+      final flairs = await ref.read(redditRepositoryProvider).getLinkFlairs(sr);
+      if (!mounted ||
+          revision != _flairRevision ||
+          sr != _subreddit.text.trim()) {
+        return;
+      }
       setState(() {
         _flairs = flairs;
         _flair = null;
       });
+    } catch (_) {
+      if (mounted && revision == _flairRevision) {
+        setState(() {
+          _flairsFor = '';
+          _error = 'Could not load subreddit flairs. Please try again.';
+        });
+      }
     }
   }
 
   Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked != null) setState(() => _image = picked);
+    final revision = ++_pickerRevision;
+    try {
+      final picked = await ref
+          .read(postMediaPickerProvider)
+          .pickImage(source: ImageSource.gallery);
+      if (mounted &&
+          revision == _pickerRevision &&
+          _kind == _Kind.image &&
+          picked != null) {
+        setState(() => _image = picked);
+      }
+    } catch (_) {
+      _pickerError(revision);
+    }
   }
 
   Future<void> _pickGallery() async {
-    final picked = await ImagePicker().pickMultiImage();
-    if (picked.isNotEmpty) setState(() => _gallery = picked);
+    final revision = ++_pickerRevision;
+    try {
+      final picked = await ref.read(postMediaPickerProvider).pickMultiImage();
+      if (mounted &&
+          revision == _pickerRevision &&
+          _kind == _Kind.gallery &&
+          picked.isNotEmpty) {
+        setState(() => _gallery = picked);
+      }
+    } catch (_) {
+      _pickerError(revision);
+    }
   }
 
   Future<void> _pickVideo() async {
-    final picked = await ImagePicker().pickVideo(source: ImageSource.gallery);
-    if (picked != null) setState(() => _video = picked);
+    final revision = ++_pickerRevision;
+    try {
+      final picked = await ref
+          .read(postMediaPickerProvider)
+          .pickVideo(source: ImageSource.gallery);
+      if (mounted &&
+          revision == _pickerRevision &&
+          _kind == _Kind.video &&
+          picked != null) {
+        setState(() => _video = picked);
+      }
+    } catch (_) {
+      _pickerError(revision);
+    }
   }
 
   Future<void> _insertGif() async {
-    final url = await showGiphyPicker(context, ref);
-    if (url == null) return;
-    final sep = _body.text.isEmpty ? '' : '\n';
-    setState(() => _body.text = '${_body.text}$sep$url');
+    final revision = ++_pickerRevision;
+    try {
+      final url = await ref.read(postGifPickerProvider)(context, ref);
+      if (!mounted ||
+          revision != _pickerRevision ||
+          _kind != _Kind.text ||
+          url == null) {
+        return;
+      }
+      final sep = _body.text.isEmpty ? '' : '\n';
+      setState(() => _body.text = '${_body.text}$sep$url');
+    } catch (_) {
+      _pickerError(revision);
+    }
+  }
+
+  void _pickerError(int revision) {
+    if (mounted && revision == _pickerRevision) {
+      setState(
+        () => _error = 'Could not open the media picker. Please try again.',
+      );
+    }
   }
 
   String _mimeFor(String name) {
@@ -178,25 +265,27 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
       switch (_kind) {
         case _Kind.text:
           final id = await repo.submitPost(
-              subreddit: sr,
-              title: title,
-              kind: 'self',
-              text: _body.text.trim(),
-              nsfw: _nsfw,
-              spoiler: _spoiler,
-              sendReplies: _sendReplies,
-              flair: _flair);
+            subreddit: sr,
+            title: title,
+            kind: 'self',
+            text: _body.text.trim(),
+            nsfw: _nsfw,
+            spoiler: _spoiler,
+            sendReplies: _sendReplies,
+            flair: _flair,
+          );
           _goToPost(sr, id);
         case _Kind.link:
           final id = await repo.submitPost(
-              subreddit: sr,
-              title: title,
-              kind: 'link',
-              url: _url.text.trim(),
-              nsfw: _nsfw,
-              spoiler: _spoiler,
-              sendReplies: _sendReplies,
-              flair: _flair);
+            subreddit: sr,
+            title: title,
+            kind: 'link',
+            url: _url.text.trim(),
+            nsfw: _nsfw,
+            spoiler: _spoiler,
+            sendReplies: _sendReplies,
+            flair: _flair,
+          );
           _goToPost(sr, id);
         case _Kind.image:
           final url = await repo.uploadImage(
@@ -205,14 +294,15 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             mimeType: _image!.mimeType ?? _mimeFor(_image!.name),
           );
           final id = await repo.submitPost(
-              subreddit: sr,
-              title: title,
-              kind: 'image',
-              url: url,
-              nsfw: _nsfw,
-              spoiler: _spoiler,
-              sendReplies: _sendReplies,
-              flair: _flair);
+            subreddit: sr,
+            title: title,
+            kind: 'image',
+            url: url,
+            nsfw: _nsfw,
+            spoiler: _spoiler,
+            sendReplies: _sendReplies,
+            flair: _flair,
+          );
           _goToPost(sr, id);
         case _Kind.gallery:
           final mediaIds = <String>[];
@@ -242,7 +332,10 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             quality: 75,
           );
           final video = await repo.uploadMediaAsset(
-              bytes: videoBytes, filename: _video!.name, mimeType: 'video/mp4');
+            bytes: videoBytes,
+            filename: _video!.name,
+            mimeType: 'video/mp4',
+          );
           final poster = await repo.uploadMediaAsset(
             bytes: posterBytes ?? videoBytes,
             filename: 'poster.jpg',
@@ -303,137 +396,162 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
           builder: (ctx) => AlertDialog(
             title: const Text('Discard attachment?'),
             content: const Text(
-                'Your text is saved as a draft, but the attached image/video '
-                'is not. Leave anyway?'),
+              'Your text is saved as a draft, but the attached image/video '
+              'is not. Leave anyway?',
+            ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Stay')),
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Stay'),
+              ),
               FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Leave')),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Leave'),
+              ),
             ],
           ),
         );
         if (leave == true && context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('New post'),
-        actions: [
-          if (_hasDraft && !_busy)
+        appBar: AppBar(
+          title: const Text('New post'),
+          actions: [
+            if (_hasDraft && !_busy)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.cloud_done_outlined,
+                      size: 16,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Draft saved',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Row(
-                children: [
-                  Icon(Icons.cloud_done_outlined,
-                      size: 16, color: cs.onSurfaceVariant),
-                  const SizedBox(width: 4),
-                  Text('Draft saved',
-                      style:
-                          TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                ],
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton(
+                onPressed: _busy ? null : _submit,
+                child: _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Post'),
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton(
-              onPressed: _busy ? null : _submit,
-              child: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Post'),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextField(
+              controller: _subreddit,
+              autocorrect: false,
+              textInputAction: TextInputAction.next,
+              onChanged: (_) => _saveDraft(),
+              onEditingComplete: _loadFlairs,
+              onTapOutside: (_) => _loadFlairs(),
+              decoration: const InputDecoration(
+                labelText: 'Subreddit',
+                prefixText: 'r/',
+                prefixIcon: Icon(Icons.forum_rounded),
+              ),
             ),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: _subreddit,
-            autocorrect: false,
-            textInputAction: TextInputAction.next,
-            onChanged: (_) => _saveDraft(),
-            onEditingComplete: _loadFlairs,
-            onTapOutside: (_) => _loadFlairs(),
-            decoration: const InputDecoration(
-              labelText: 'Subreddit',
-              prefixText: 'r/',
-              prefixIcon: Icon(Icons.forum_rounded),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _title,
-            onChanged: (_) => _saveDraft(),
-            decoration: const InputDecoration(
-                labelText: 'Title', prefixIcon: Icon(Icons.title_rounded)),
-            maxLines: 2,
-            minLines: 1,
-          ),
-          if (_flairs.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final f in _flairs)
-                  ChoiceChip(
-                    label: Text(f.text),
-                    selected: _flair?.id == f.id,
-                    onSelected: (s) =>
-                        setState(() => _flair = s ? f : null),
-                  ),
-              ],
+            TextField(
+              controller: _title,
+              onChanged: (_) => _saveDraft(),
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                prefixIcon: Icon(Icons.title_rounded),
+              ),
+              maxLines: 2,
+              minLines: 1,
             ),
-          ],
-          const SizedBox(height: 16),
-          SegmentedButton<_Kind>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(value: _Kind.text, icon: Icon(Icons.notes_rounded)),
-              ButtonSegment(value: _Kind.link, icon: Icon(Icons.link_rounded)),
-              ButtonSegment(value: _Kind.image, icon: Icon(Icons.image_rounded)),
-              ButtonSegment(
-                  value: _Kind.gallery, icon: Icon(Icons.collections_rounded)),
-              ButtonSegment(
-                  value: _Kind.video, icon: Icon(Icons.videocam_rounded)),
+            if (_flairs.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final f in _flairs)
+                    ChoiceChip(
+                      label: Text(f.text),
+                      selected: _flair?.id == f.id,
+                      onSelected: (s) => setState(() => _flair = s ? f : null),
+                    ),
+                ],
+              ),
             ],
-            selected: {_kind},
-            onSelectionChanged: (s) {
-              setState(() => _kind = s.first);
-              _saveDraft();
-            },
-          ),
-          const SizedBox(height: 16),
-          ..._kindBody(cs),
-          const SizedBox(height: 16),
-          SwitchListTile(
-            value: _nsfw,
-            onChanged: (v) => setState(() => _nsfw = v),
-            title: const Text('NSFW'),
-            contentPadding: EdgeInsets.zero,
-          ),
-          SwitchListTile(
-            value: _spoiler,
-            onChanged: (v) => setState(() => _spoiler = v),
-            title: const Text('Spoiler'),
-            contentPadding: EdgeInsets.zero,
-          ),
-          SwitchListTile(
-            value: _sendReplies,
-            onChanged: (v) => setState(() => _sendReplies = v),
-            title: const Text('Send me reply notifications'),
-            contentPadding: EdgeInsets.zero,
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(_error!, style: TextStyle(color: cs.error)),
+            const SizedBox(height: 16),
+            SegmentedButton<_Kind>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: _Kind.text,
+                  icon: Icon(Icons.notes_rounded),
+                ),
+                ButtonSegment(
+                  value: _Kind.link,
+                  icon: Icon(Icons.link_rounded),
+                ),
+                ButtonSegment(
+                  value: _Kind.image,
+                  icon: Icon(Icons.image_rounded),
+                ),
+                ButtonSegment(
+                  value: _Kind.gallery,
+                  icon: Icon(Icons.collections_rounded),
+                ),
+                ButtonSegment(
+                  value: _Kind.video,
+                  icon: Icon(Icons.videocam_rounded),
+                ),
+              ],
+              selected: {_kind},
+              onSelectionChanged: (s) {
+                setState(() => _kind = s.first);
+                _saveDraft();
+              },
+            ),
+            const SizedBox(height: 16),
+            ..._kindBody(cs),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              value: _nsfw,
+              onChanged: (v) => setState(() => _nsfw = v),
+              title: const Text('NSFW'),
+              contentPadding: EdgeInsets.zero,
+            ),
+            SwitchListTile(
+              value: _spoiler,
+              onChanged: (v) => setState(() => _spoiler = v),
+              title: const Text('Spoiler'),
+              contentPadding: EdgeInsets.zero,
+            ),
+            SwitchListTile(
+              value: _sendReplies,
+              onChanged: (v) => setState(() => _sendReplies = v),
+              title: const Text('Send me reply notifications'),
+              contentPadding: EdgeInsets.zero,
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: TextStyle(color: cs.error)),
+            ],
           ],
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -448,8 +566,9 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             maxLines: 12,
             onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
-                labelText: 'Body (Markdown, optional)',
-                alignLabelWithHint: true),
+              labelText: 'Body (Markdown, optional)',
+              alignLabelWithHint: true,
+            ),
           ),
           Align(
             alignment: Alignment.centerLeft,
@@ -468,7 +587,9 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             autocorrect: false,
             onChanged: (_) => _saveDraft(),
             decoration: const InputDecoration(
-                labelText: 'URL', prefixIcon: Icon(Icons.link_rounded)),
+              labelText: 'URL',
+              prefixIcon: Icon(Icons.link_rounded),
+            ),
           ),
         ];
       case _Kind.image:
@@ -503,10 +624,12 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
     }
   }
 
-  Widget _pickerBox(ColorScheme cs,
-      {required String label,
-      required IconData icon,
-      required VoidCallback onTap}) {
+  Widget _pickerBox(
+    ColorScheme cs, {
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),

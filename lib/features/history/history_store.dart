@@ -27,20 +27,20 @@ class HistoryEntry {
   final int viewedAt; // millis since epoch; 0 = legacy/unknown
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'sub': subreddit,
-        'title': title,
-        'permalink': permalink,
-        'ts': viewedAt,
-      };
+    'id': id,
+    'sub': subreddit,
+    'title': title,
+    'permalink': permalink,
+    'ts': viewedAt,
+  };
 
   factory HistoryEntry.fromJson(Map<String, dynamic> j) => HistoryEntry(
-        id: j['id'] as String? ?? '',
-        subreddit: j['sub'] as String? ?? '',
-        title: j['title'] as String? ?? '',
-        permalink: j['permalink'] as String? ?? '',
-        viewedAt: (j['ts'] as num?)?.toInt() ?? 0,
-      );
+    id: j['id'] as String? ?? '',
+    subreddit: j['sub'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    permalink: j['permalink'] as String? ?? '',
+    viewedAt: (j['ts'] as num?)?.toInt() ?? 0,
+  );
 }
 
 class HistoryController extends Notifier<List<HistoryEntry>> {
@@ -50,6 +50,7 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
   late SharedPreferences _prefs;
   final _idSet = <String>{};
   DeferredPrefWriter? _writer;
+  void Function(List<HistoryEntry>)? _captureHistory;
 
   @override
   List<HistoryEntry> build() {
@@ -60,10 +61,18 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
     // one write per quiet window. Dispose flushes pending work. The writer
     // captures [prefs] directly so disposal-time flushes never read through
     // the dead container.
-    _writer = DeferredPrefWriter(_persist);
+    final key = _key;
+    List<HistoryEntry> snapshot = [];
+    _captureHistory = (value) => snapshot = value;
+    final writer = DeferredPrefWriter(
+      () => prefs.setStringList(key, [
+        for (final e in snapshot) jsonEncode(e.toJson()),
+      ]),
+    );
+    _writer = writer;
     ref.onDispose(() {
-      unawaited(_writer?.flush());
-      _writer?.cancel();
+      unawaited(writer.flush());
+      writer.cancel();
     });
     final raw = prefs.getStringList(_key) ?? const [];
     final entries = [
@@ -76,43 +85,49 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
 
   void markViewed(Post p) {
     final entry = HistoryEntry(
-        id: p.id,
-        subreddit: p.subreddit,
-        title: p.title,
-        permalink: p.permalink,
-        viewedAt: DateTime.now().millisecondsSinceEpoch);
+      id: p.id,
+      subreddit: p.subreddit,
+      title: p.title,
+      permalink: p.permalink,
+      viewedAt: DateTime.now().millisecondsSinceEpoch,
+    );
     final list = [entry, ...state.where((e) => e.id != p.id)];
     if (list.length > _cap) list.removeRange(_cap, list.length);
     // Keep the index coherent before notifying historyContainsProvider.
     _rebuildIndex(list);
     state = list;
-    _writer?.schedule();
+    _schedulePersist();
   }
 
   void removeViewed(String id) {
     _idSet.remove(id);
     state = state.where((e) => e.id != id).toList();
-    _writer?.schedule();
+    _schedulePersist();
   }
 
   /// Removes entries older than [age]. Legacy entries (no timestamp) count as
   /// old and are removed too.
   void clearOlderThan(Duration age) {
-    final cutoff =
-        DateTime.now().millisecondsSinceEpoch - age.inMilliseconds;
+    final cutoff = DateTime.now().millisecondsSinceEpoch - age.inMilliseconds;
     final entries = state.where((e) => e.viewedAt >= cutoff).toList();
     _rebuildIndex(entries);
     state = entries;
-    _writer?.schedule();
+    _schedulePersist();
   }
 
   void clear() {
+    _writer?.cancel();
     _idSet.clear();
     state = [];
     _persist(); // explicit wipe: durable immediately
   }
 
   bool containsId(String id) => _idSet.contains(id);
+
+  void _schedulePersist() {
+    _captureHistory?.call(state);
+    _writer?.schedule();
+  }
 
   void _rebuildIndex(Iterable<HistoryEntry> entries) {
     _idSet
@@ -121,14 +136,16 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
   }
 
   Future<void> _persist() {
-    return _prefs.setStringList(
-        _key, [for (final e in state) jsonEncode(e.toJson())]);
+    return _prefs.setStringList(_key, [
+      for (final e in state) jsonEncode(e.toJson()),
+    ]);
   }
 }
 
 final historyControllerProvider =
     NotifierProvider<HistoryController, List<HistoryEntry>>(
-        HistoryController.new);
+      HistoryController.new,
+    );
 
 /// Whether a post id has been viewed (for dimming in feeds).
 final historyContainsProvider = Provider.family<bool, String>((ref, id) {

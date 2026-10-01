@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../core/widgets/m3e_loading_indicator.dart';
+import '../../core/route_observer.dart';
 
 /// A feed video that autoplays (muted, looping) while it's on screen and pauses
 /// when scrolled away. Tap opens the full-screen viewer (with sound).
@@ -27,51 +28,125 @@ class InlineVideo extends StatefulWidget {
   State<InlineVideo> createState() => _InlineVideoState();
 }
 
-class _InlineVideoState extends State<InlineVideo> {
+class _InlineVideoState extends State<InlineVideo>
+    with WidgetsBindingObserver, RouteAware {
   VideoPlayerController? _c;
   bool _ready = false;
   bool _muted = true;
   bool _visible = false;
   bool _initializing = false;
   int _generation = 0;
+  bool _foreground = true;
+  bool _routeActive = true;
+  bool _failed = false;
+  bool get _canPlay => mounted && _visible && _foreground && _routeActive;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      appRouteObserver.subscribe(this, route);
+      _routeActive = route.isCurrent;
+    }
+  }
+
+  @override
+  void didPushNext() {
+    _routeActive = false;
+    unawaited(_syncPlayback());
+  }
+
+  @override
+  void didPopNext() {
+    _routeActive = true;
+    unawaited(_syncPlayback());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    unawaited(_syncPlayback());
+  }
+
+  @override
+  void didUpdateWidget(covariant InlineVideo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _visible = false;
+      final c = _c;
+      if (c != null) _cancelInitialization(c);
+      _muted = true;
+      _failed = false;
+    }
+  }
 
   void _onVisibility(VisibilityInfo info) {
     final visible = info.visibleFraction > 0.6;
     if (visible == _visible) return;
     _visible = visible;
-    if (visible) {
-      unawaited(_initializeIfVisible());
-      return;
-    }
+    unawaited(_syncPlayback());
+  }
 
+  Future<void> _syncPlayback() async {
     final c = _c;
-    if (c == null) return;
-    if (!_ready) {
-      // Initialization has started but the card left the viewport. Dispose the
-      // controller now so a fast fling does not keep a decoder/network request
-      // alive for an item the user did not actually see.
-      _cancelInitialization(c);
+    if (!_canPlay) {
+      if (c == null) return;
+      if (!_ready) {
+        _cancelInitialization(c);
+      } else {
+        try {
+          await c.pause();
+        } catch (_) {}
+      }
+    } else if (_ready && c != null) {
+      try {
+        await c.play();
+      } catch (_) {
+        if (identical(c, _c)) _cancelInitialization(c);
+      }
     } else {
-      c.pause();
+      await _initializeIfVisible();
     }
   }
 
   Future<void> _initializeIfVisible() async {
-    if (!mounted || !_visible || _c != null || _initializing) return;
+    if (!_canPlay || _c != null || _initializing) return;
+    final uri = Uri.tryParse(widget.url);
+    if (uri == null ||
+        !['http', 'https'].contains(uri.scheme) ||
+        uri.host.isEmpty) {
+      setState(() => _failed = true);
+      return;
+    }
     _initializing = true;
+    _failed = false;
     final generation = ++_generation;
-    final c = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    // This widget owns app/route/visibility playback. Disable the controller's
+    // competing automatic resume observer, which can play an offscreen card.
+    final c = VideoPlayerController.networkUrl(
+      uri,
+      videoPlayerOptions: VideoPlayerOptions(allowBackgroundPlayback: true),
+    );
     _c = c;
-    c.setLooping(true);
-    c.setVolume(0);
 
     try {
       await c.initialize();
-      final active = mounted &&
-          _visible &&
-          generation == _generation &&
-          identical(_c, c);
+      final active =
+          mounted && _canPlay && generation == _generation && identical(_c, c);
       if (!active) return;
+      await c.setLooping(true);
+      await c.setVolume(_muted ? 0 : 1);
+      if (!_canPlay || generation != _generation || !identical(_c, c)) return;
       _ready = true;
       setState(() {});
       await c.play();
@@ -79,8 +154,12 @@ class _InlineVideoState extends State<InlineVideo> {
       if (generation == _generation && identical(_c, c)) {
         _c = null;
         _ready = false;
+        _initializing = false;
+        _failed = true;
         if (mounted) setState(() {});
-        await c.dispose();
+        try {
+          await c.dispose();
+        } catch (_) {}
       }
     } finally {
       if (generation == _generation && identical(_c, c)) {
@@ -94,16 +173,18 @@ class _InlineVideoState extends State<InlineVideo> {
     _initializing = false;
     _c = null;
     _ready = false;
-    unawaited(c.dispose());
+    unawaited(c.dispose().catchError((Object _) {}));
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    appRouteObserver.unsubscribe(this);
     _generation++;
     final c = _c;
     _c = null;
-    if (c != null) unawaited(c.dispose());
+    if (c != null) unawaited(c.dispose().catchError((Object _) {}));
     super.dispose();
   }
 
@@ -112,10 +193,11 @@ class _InlineVideoState extends State<InlineVideo> {
     final c = _c;
     final colorScheme = Theme.of(context).colorScheme;
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final posterWidth =
-        (MediaQuery.sizeOf(context).width * dpr).round().clamp(1, 1080).toInt();
-    final posterHeight =
-        (widget.height * dpr).round().clamp(1, 1080).toInt();
+    final posterWidth = (MediaQuery.sizeOf(context).width * dpr)
+        .round()
+        .clamp(1, 1080)
+        .toInt();
+    final posterHeight = (widget.height * dpr).round().clamp(1, 1080).toInt();
     final poster = widget.poster;
     return VisibilityDetector(
       key: Key('inlinevid_${widget.url}'),
@@ -151,8 +233,16 @@ class _InlineVideoState extends State<InlineVideo> {
                     alpha: 0.12,
                   ),
                 ),
-              if (!_ready)
+              if (!_ready && !_failed)
                 const Center(child: M3ELoadingIndicator.small()),
+              if (_failed)
+                Center(
+                  child: IconButton(
+                    tooltip: 'Retry video',
+                    onPressed: () => unawaited(_syncPlayback()),
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ),
               // Mute / unmute toggle.
               if (_ready)
                 Positioned(
@@ -161,7 +251,11 @@ class _InlineVideoState extends State<InlineVideo> {
                   child: GestureDetector(
                     onTap: () {
                       setState(() => _muted = !_muted);
-                      c?.setVolume(_muted ? 0 : 1);
+                      if (c != null) {
+                        unawaited(
+                          c.setVolume(_muted ? 0 : 1).catchError((Object _) {}),
+                        );
+                      }
                     },
                     child: Container(
                       padding: const EdgeInsets.all(7),

@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/reddit_constants.dart';
@@ -13,7 +15,56 @@ class UpdateInfo {
 /// Checks the GitHub Releases API for a newer version. Distribution is via
 /// GitHub (no Play Store), so this is the update channel.
 class UpdateChecker {
-  final Dio _dio = Dio();
+  UpdateChecker({Dio? dio, Future<List<String>> Function()? supportedAbis})
+    : _dio = dio ?? Dio(),
+      _supportedAbis = supportedAbis ?? deviceAbis;
+  final Dio _dio;
+  final Future<List<String>> Function() _supportedAbis;
+
+  static Future<List<String>> deviceAbis() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return [];
+    try {
+      return await const MethodChannel(
+            'lily/device',
+          ).invokeListMethod<String>('supportedAbis') ??
+          [];
+    } on PlatformException {
+      return [];
+    } on MissingPluginException {
+      return [];
+    }
+  }
+
+  static String? compatibleApk(List<dynamic> assets, List<String> abis) {
+    String? match(String token) {
+      final pattern = RegExp('(^|[-_.])${RegExp.escape(token)}([-.]|\$)');
+      for (final asset in assets) {
+        if (asset is! Map) continue;
+        final name = asset['name'];
+        final url = asset['browser_download_url'];
+        if (name is! String || url is! String) continue;
+        final lower = name.toLowerCase();
+        final uri = Uri.tryParse(url);
+        if (lower.endsWith('.apk') &&
+            pattern.hasMatch(lower) &&
+            uri != null &&
+            uri.scheme == 'https' &&
+            uri.host.isNotEmpty) {
+          return url;
+        }
+      }
+      return null;
+    }
+
+    for (final abi in abis) {
+      if (!['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'].contains(abi)) {
+        continue;
+      }
+      final url = match(abi);
+      if (url != null) return url;
+    }
+    return match('universal');
+  }
 
   Future<String> currentVersion() async {
     final info = await PackageInfo.fromPlatform();
@@ -29,28 +80,19 @@ class UpdateChecker {
       final data = res.data as Map<String, dynamic>;
       final tag = normalizeReleaseVersion(data['tag_name'] as String? ?? '');
       final current = normalizeReleaseVersion(
-          installedVersion ?? await currentVersion());
-      if (tag.isEmpty || current.isEmpty || !isNewerReleaseVersion(tag, current)) {
+        installedVersion ?? await currentVersion(),
+      );
+      if (tag.isEmpty ||
+          current.isEmpty ||
+          !isNewerReleaseVersion(tag, current)) {
         return null;
       }
-      // Pick the LARGEST .apk — that's the universal build (installs on any
-      // device). Releases also carry smaller per-ABI split APKs for F-Droid.
       final assets = (data['assets'] as List?) ?? const [];
-      String? apk;
-      int bestSize = -1;
-      for (final a in assets) {
-        final m = a as Map;
-        final name = (m['name'] as String? ?? '').toLowerCase();
-        if (!name.endsWith('.apk')) continue;
-        final size = (m['size'] as num?)?.toInt() ?? 0;
-        if (size > bestSize) {
-          bestSize = size;
-          apk = m['browser_download_url'] as String?;
-        }
-      }
+      final apk = compatibleApk(assets, await _supportedAbis());
       return UpdateInfo(
         version: tag,
-        url: data['html_url'] as String? ??
+        url:
+            data['html_url'] as String? ??
             'https://github.com/${RedditConstants.githubRepo}/releases',
         apkUrl: apk,
       );
