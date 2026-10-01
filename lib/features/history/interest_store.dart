@@ -12,8 +12,10 @@ import '../settings/settings_controller.dart';
 /// Suffix that keys all learning stores to the active account, so taste
 /// profiles never leak between accounts. '' while logged out / loading.
 String _userSuffix(Ref ref) {
+  ref.watch(authSessionEpochProvider);
   final u = ref.watch(
-      authControllerProvider.select((s) => s.valueOrNull?.username ?? ''));
+    authControllerProvider.select((s) => s.valueOrNull?.username ?? ''),
+  );
   return u.isEmpty ? '' : '_${u.toLowerCase()}';
 }
 
@@ -21,9 +23,7 @@ String _userSuffix(Ref ref) {
 String userScopedPrefsKey(Ref ref, String baseKey) {
   final key = '$baseKey${_userSuffix(ref)}';
   final prefs = ref.read(sharedPrefsProvider);
-  if (key != baseKey &&
-      !prefs.containsKey(key) &&
-      prefs.containsKey(baseKey)) {
+  if (key != baseKey && !prefs.containsKey(key) && prefs.containsKey(baseKey)) {
     final legacy = prefs.get(baseKey);
     if (legacy is String) prefs.setString(key, legacy);
     if (legacy is List) prefs.setStringList(key, legacy.cast<String>());
@@ -42,6 +42,7 @@ class InterestStore extends Notifier<Map<String, double>> {
   late String _key;
   late SharedPreferences _prefs;
   DeferredPrefWriter? _writer;
+  void Function(Map<String, double>)? _captureWeights;
 
   @override
   Map<String, double> build() {
@@ -51,10 +52,19 @@ class InterestStore extends Notifier<Map<String, double>> {
     // Coalesce bump-driven writes; dispose flushes pending work. The writer
     // captures [prefs] directly so disposal-time flushes never read through
     // the dead container.
-    _writer = DeferredPrefWriter(() => _persistMap());
+    final key = _key;
+    Map<String, double> snapshot = {};
+    _captureWeights = (value) => snapshot = value;
+    final writer = DeferredPrefWriter(
+      () => prefs.setString(
+        key,
+        jsonEncode({...snapshot, '_ts': DateTime.now().millisecondsSinceEpoch}),
+      ),
+    );
+    _writer = writer;
     ref.onDispose(() {
-      unawaited(_writer?.flush());
-      _writer?.cancel();
+      unawaited(writer.flush());
+      writer.cancel();
     });
     final raw = prefs.getString(_key);
     if (raw == null) return {};
@@ -63,12 +73,13 @@ class InterestStore extends Notifier<Map<String, double>> {
       final m = jsonDecode(raw) as Map<String, dynamic>;
       weights = {
         for (final e in m.entries)
-          if (e.key != '_ts') e.key: (e.value as num).toDouble()
+          if (e.key != '_ts') e.key: (e.value as num).toDouble(),
       };
       // Daily exponential decay since the last persist.
       final ts = (m['_ts'] as num?)?.toInt();
       if (ts != null) {
-        final days = DateTime.now()
+        final days =
+            DateTime.now()
                 .difference(DateTime.fromMillisecondsSinceEpoch(ts))
                 .inHours /
             24.0;
@@ -76,7 +87,7 @@ class InterestStore extends Notifier<Map<String, double>> {
           final f = math.pow(_decayPerDay, days).toDouble();
           weights = {
             for (final e in weights.entries)
-              if ((e.value * f).abs() >= 0.3) e.key: e.value * f
+              if ((e.value * f).abs() >= 0.3) e.key: e.value * f,
           };
           _persistMap(weights);
         }
@@ -95,6 +106,7 @@ class InterestStore extends Notifier<Map<String, double>> {
     final key = subreddit.toLowerCase();
     final next = ((state[key] ?? 0) + delta).clamp(-8.0, 40.0);
     state = {...state, key: next};
+    _captureWeights?.call(state);
     _writer?.schedule(); // coalesced; flush serializes current state
   }
 
@@ -112,21 +124,23 @@ class InterestStore extends Notifier<Map<String, double>> {
     final key = subreddit.toLowerCase();
     if (!state.containsKey(key)) return;
     state = {...state}..remove(key);
+    _writer?.cancel();
     _persistMap(state);
   }
 
   void clear() {
+    _writer?.cancel();
     state = {};
     ref.read(sharedPrefsProvider).remove(_key);
   }
 
-  Future<void> _persistMap([Map<String, double>? snapshot]) =>
-      _prefs.setString(
-          _key,
-          jsonEncode({
-            ...(snapshot ?? state),
-            '_ts': DateTime.now().millisecondsSinceEpoch
-          }));
+  Future<void> _persistMap([Map<String, double>? snapshot]) => _prefs.setString(
+    _key,
+    jsonEncode({
+      ...(snapshot ?? state),
+      '_ts': DateTime.now().millisecondsSinceEpoch,
+    }),
+  );
 }
 
 final interestStoreProvider =
@@ -155,22 +169,81 @@ class MutedSubsController extends Notifier<Set<String>> {
   }
 }
 
-final mutedSubsProvider =
-    NotifierProvider<MutedSubsController, Set<String>>(MutedSubsController.new);
+final mutedSubsProvider = NotifierProvider<MutedSubsController, Set<String>>(
+  MutedSubsController.new,
+);
 
 // ---------------------------------------------------------------------------
 // Keyword affinity — a tiny on-device content model over post titles.
 // ---------------------------------------------------------------------------
 
 const _stopwords = {
-  'this', 'that', 'with', 'from', 'have', 'what', 'when', 'where', 'will',
-  'just', 'like', 'your', 'about', 'they', 'them', 'their', 'there', 'been',
-  'were', 'after', 'before', 'into', 'over', 'under', 'than', 'then',
-  'because', 'would', 'could', 'should', 'these', 'those', 'only', 'some',
-  'most', 'more', 'very', 'much', 'many', 'made', 'make', 'makes', 'making',
-  'years', 'year', 'today', 'every', 'first', 'people', 'reddit', 'post',
-  'does', 'doesn', 'while', 'being', 'still', 'until', 'never', 'always',
-  'getting', 'here', 'looks', 'thing', 'things', 'someone', 'anyone',
+  'this',
+  'that',
+  'with',
+  'from',
+  'have',
+  'what',
+  'when',
+  'where',
+  'will',
+  'just',
+  'like',
+  'your',
+  'about',
+  'they',
+  'them',
+  'their',
+  'there',
+  'been',
+  'were',
+  'after',
+  'before',
+  'into',
+  'over',
+  'under',
+  'than',
+  'then',
+  'because',
+  'would',
+  'could',
+  'should',
+  'these',
+  'those',
+  'only',
+  'some',
+  'most',
+  'more',
+  'very',
+  'much',
+  'many',
+  'made',
+  'make',
+  'makes',
+  'making',
+  'years',
+  'year',
+  'today',
+  'every',
+  'first',
+  'people',
+  'reddit',
+  'post',
+  'does',
+  'doesn',
+  'while',
+  'being',
+  'still',
+  'until',
+  'never',
+  'always',
+  'getting',
+  'here',
+  'looks',
+  'thing',
+  'things',
+  'someone',
+  'anyone',
 };
 
 /// Tokenizes a post title into learnable keywords.
@@ -184,7 +257,7 @@ List<String> titleKeywords(String title) {
       if (w.length >= 4 &&
           !_stopwords.contains(w) &&
           !RegExp(r'^\d+$').hasMatch(w))
-        w
+        w,
   ].take(14).toList();
 }
 
@@ -205,11 +278,12 @@ class KeywordStore extends Notifier<Map<String, double>> {
       final m = jsonDecode(raw) as Map<String, dynamic>;
       var weights = {
         for (final e in m.entries)
-          if (e.key != '_ts') e.key: (e.value as num).toDouble()
+          if (e.key != '_ts') e.key: (e.value as num).toDouble(),
       };
       final ts = (m['_ts'] as num?)?.toInt();
       if (ts != null) {
-        final days = DateTime.now()
+        final days =
+            DateTime.now()
                 .difference(DateTime.fromMillisecondsSinceEpoch(ts))
                 .inHours /
             24.0;
@@ -217,7 +291,7 @@ class KeywordStore extends Notifier<Map<String, double>> {
           final f = math.pow(0.97, days).toDouble();
           weights = {
             for (final e in weights.entries)
-              if ((e.value * f).abs() >= 0.2) e.key: e.value * f
+              if ((e.value * f).abs() >= 0.2) e.key: e.value * f,
           };
           _persist(weights);
         }
@@ -278,9 +352,12 @@ class KeywordStore extends Notifier<Map<String, double>> {
     ref.read(sharedPrefsProvider).remove(_key);
   }
 
-  void _persist(Map<String, double> m) =>
-      ref.read(sharedPrefsProvider).setString(
-          _key, jsonEncode({...m, '_ts': DateTime.now().millisecondsSinceEpoch}));
+  void _persist(Map<String, double> m) => ref
+      .read(sharedPrefsProvider)
+      .setString(
+        _key,
+        jsonEncode({...m, '_ts': DateTime.now().millisecondsSinceEpoch}),
+      );
 }
 
 final keywordStoreProvider =
@@ -298,10 +375,25 @@ class ImpressionStore extends Notifier<Map<String, int>> {
   static const _cap = 600;
   late String _key;
   final _pending = <String>{};
-  bool _flushScheduled = false;
+  Timer? _timer;
+  bool _active = false;
+  int _generation = 0;
 
   @override
   Map<String, int> build() {
+    ref.watch(authSessionEpochProvider);
+    _timer?.cancel();
+    _timer = null;
+    _pending.clear();
+    _active = true;
+    _generation++;
+    ref.onDispose(() {
+      _active = false;
+      _generation++;
+      _timer?.cancel();
+      _timer = null;
+      _pending.clear();
+    });
     _key = userScopedPrefsKey(ref, _base);
     final raw = ref.read(sharedPrefsProvider).getString(_key);
     if (raw == null) return {};
@@ -313,18 +405,24 @@ class ImpressionStore extends Notifier<Map<String, int>> {
     }
   }
 
-  /// Records one impression. Batched + deduped per session, so it's cheap to
-  /// call from widget build methods.
+  /// Records a qualified visible exposure, batched and deduped per window.
   void record(String postId) {
-    if (postId.isEmpty || _pending.contains(postId)) return;
+    if (!_active ||
+        postId.isEmpty ||
+        _pending.contains(postId) ||
+        ref.read(authTransitionProvider)) {
+      return;
+    }
     _pending.add(postId);
-    if (_flushScheduled) return;
-    _flushScheduled = true;
-    Future<void>.delayed(const Duration(seconds: 2), _flush);
+    if (_timer != null) return;
+    final generation = _generation;
+    _timer = Timer(const Duration(seconds: 2), () {
+      if (_active && generation == _generation) _flush();
+    });
   }
 
   void _flush() {
-    _flushScheduled = false;
+    _timer = null;
     if (_pending.isEmpty) return;
     final next = {...state};
     for (final id in _pending) {
@@ -342,6 +440,10 @@ class ImpressionStore extends Notifier<Map<String, int>> {
   }
 
   void clear() {
+    _timer?.cancel();
+    _timer = null;
+    _pending.clear();
+    _generation++;
     state = {};
     ref.read(sharedPrefsProvider).remove(_key);
   }

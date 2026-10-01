@@ -53,7 +53,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     HapticFeedback.selectionClick();
     try {
       final picked = await _picker.pickImage(source: ImageSource.gallery);
-      if (picked != null) {
+      if (mounted && picked != null) {
         setState(() => _selectedImage = picked);
         widget.onImageSelected?.call(picked);
       }
@@ -86,9 +86,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
           bottom: MediaQuery.of(context).padding.bottom + 8,
         ),
         // Same elevated chrome surface as sheets and the floating nav dock.
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHigh,
-        ),
+        decoration: BoxDecoration(color: colorScheme.surfaceContainerHigh),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -108,8 +106,11 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                             color: colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(Icons.image_rounded,
-                              color: colorScheme.primary, size: 24),
+                          child: Icon(
+                            Icons.image_rounded,
+                            color: colorScheme.primary,
+                            size: 24,
+                          ),
                         ),
                         Positioned(
                           top: -4,
@@ -125,8 +126,11 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                                 color: colorScheme.error,
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(Icons.close_rounded,
-                                  size: 12, color: colorScheme.onError),
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 12,
+                                color: colorScheme.onError,
+                              ),
                             ),
                           ),
                         ),
@@ -153,8 +157,9 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                           child: TextField(
                             controller: _controller,
                             onSubmitted: (_) => _handleSend(),
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: colorScheme.onSurface),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurface,
+                            ),
                             decoration: InputDecoration(
                               hintText: widget.hintText,
                               hintStyle: theme.textTheme.bodyMedium?.copyWith(

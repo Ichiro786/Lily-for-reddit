@@ -70,17 +70,20 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         icon: const Icon(Icons.notifications_active_outlined),
         title: const Text('Get notified of replies?'),
         content: const Text(
-            'Lily for Reddit can check your Reddit inbox in the background (about every 15 '
-            'minutes) and notify you of replies, mentions and messages.\n\n'
-            'It uses simple polling — no Firebase or tracking. You can change '
-            'this anytime in Settings.'),
+          'Lily for Reddit can check your Reddit inbox in the background (about every 15 '
+          'minutes) and notify you of replies, mentions and messages.\n\n'
+          'It uses simple polling — no Firebase or tracking. You can change '
+          'this anytime in Settings.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Not now')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Not now'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Enable')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Enable'),
+          ),
         ],
       ),
     );
@@ -102,15 +105,20 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       builder: (ctx) => AlertDialog(
         title: Text('Update available — v${info.version}'),
         content: const Text(
-            'A newer version of Lily for Reddit is available on GitHub.'),
+          'A newer version of Lily for Reddit is available on GitHub.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Later')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Later'),
+          ),
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              launchUrl(Uri.parse(info.apkUrl ?? info.url),
-                  mode: LaunchMode.externalApplication);
+              launchUrl(
+                Uri.parse(info.apkUrl ?? info.url),
+                mode: LaunchMode.externalApplication,
+              );
             },
             child: const Text('Download'),
           ),
@@ -141,6 +149,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
+    final showNavLabels = ref.watch(
+      settingsControllerProvider.select((s) => s.navLabels),
+    );
     return Scaffold(
       // Pop variant: content flows under the detached floating nav.
       extendBody: true,
@@ -190,17 +201,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         builder: (_, visible, __) => M3EFloatingNavBar(
           currentIndex: _index,
           unreadCount: unread,
-          isMinimized: !visible,
+          isMinimized: !visible || !showNavLabels,
           onTap: (i) {
-          // Re-tapping the active tab scrolls it to top (Posts also refreshes).
-          if (i == _index) {
-            if (i == 0) {
-              ref.read(frontpageScrollSignalProvider.notifier).state++;
-            } else {
-              ref.read(tabReselectProvider(i).notifier).state++;
+            // Re-tapping the active tab scrolls it to top (Posts also refreshes).
+            if (i == _index) {
+              if (i == 0) {
+                ref.read(frontpageScrollSignalProvider.notifier).state++;
+              } else {
+                ref.read(tabReselectProvider(i).notifier).state++;
+              }
+              return;
             }
-            return;
-          }
             setState(() {
               if (i != 0) _tabWidgets[i] ??= _createTab(i);
               _index = i;
@@ -257,7 +268,8 @@ class _DisplayMenu extends ConsumerWidget {
           ctrl.setAutoplayMedia(!s.autoplayMedia);
         } else {
           ctrl.setPostDisplay(
-              PostDisplay.values.firstWhere((d) => d.name == v));
+            PostDisplay.values.firstWhere((d) => d.name == v),
+          );
         }
       },
       itemBuilder: (_) => [
@@ -323,7 +335,9 @@ class _FrontpageTab extends ConsumerWidget {
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                     child: Row(
                       children: [
-                        if (ref.watch(settingsControllerProvider).showApiUsage) ...[
+                        if (ref
+                            .watch(settingsControllerProvider)
+                            .showApiUsage) ...[
                           const _ApiUsagePill(),
                           const SizedBox(width: 8),
                         ],
@@ -334,7 +348,9 @@ class _FrontpageTab extends ConsumerWidget {
                               color: cs.surfaceContainerHigh,
                               borderRadius: ShapeTokens.full,
                               border: Border.all(
-                                color: cs.outlineVariant.withValues(alpha: 0.20),
+                                color: cs.outlineVariant.withValues(
+                                  alpha: 0.20,
+                                ),
                                 width: 1,
                               ),
                             ),
@@ -344,12 +360,15 @@ class _FrontpageTab extends ConsumerWidget {
                                 borderRadius: ShapeTokens.full,
                                 onTap: () => context.push('/search'),
                                 child: Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 16),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
                                   child: Row(
                                     children: [
-                                      Icon(Icons.search_rounded,
-                                          color: cs.onSurfaceVariant),
+                                      Icon(
+                                        Icons.search_rounded,
+                                        color: cs.onSurfaceVariant,
+                                      ),
                                       const SizedBox(width: 10),
                                       Text(
                                         'Search Reddit',
@@ -416,7 +435,10 @@ class _FrontpageTab extends ConsumerWidget {
 /// profile) in from the top as a dismissible overlay — it never displaces the
 /// feed.
 Future<void> _showFloatingToolbar(
-    BuildContext context, WidgetRef ref, String username) {
+  BuildContext context,
+  WidgetRef ref,
+  String username,
+) {
   final router = GoRouter.of(context);
   final cs = Theme.of(context).colorScheme;
   return showGeneralDialog(
@@ -448,15 +470,20 @@ Future<void> _showFloatingToolbar(
                         },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           child: Row(
                             children: [
-                              Icon(Icons.search_rounded,
-                                  color: cs.onSurfaceVariant),
+                              Icon(
+                                Icons.search_rounded,
+                                color: cs.onSurfaceVariant,
+                              ),
                               const SizedBox(width: 12),
-                              Text('Search Reddit',
-                                  style:
-                                      TextStyle(color: cs.onSurfaceVariant)),
+                              Text(
+                                'Search Reddit',
+                                style: TextStyle(color: cs.onSurfaceVariant),
+                              ),
                             ],
                           ),
                         ),
@@ -493,8 +520,9 @@ Future<void> _showFloatingToolbar(
                                 ? username[0].toUpperCase()
                                 : '?',
                             style: TextStyle(
-                                color: cs.onPrimaryContainer,
-                                fontWeight: FontWeight.bold),
+                              color: cs.onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -512,8 +540,10 @@ Future<void> _showFloatingToolbar(
       return FadeTransition(
         opacity: curved,
         child: SlideTransition(
-          position: Tween(begin: const Offset(0, -0.06), end: Offset.zero)
-              .animate(curved),
+          position: Tween(
+            begin: const Offset(0, -0.06),
+            end: Offset.zero,
+          ).animate(curved),
           child: child,
         ),
       );

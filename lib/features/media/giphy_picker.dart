@@ -5,36 +5,54 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_controller.dart';
 
+final giphyDioFactoryProvider = Provider<Dio Function()>(
+  (ref) =>
+      () => Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 15),
+        ),
+      ),
+);
+
 /// Opens a Giphy search sheet. Returns the chosen GIF URL, or null.
 /// Requires the optional Giphy API key entered at login.
 Future<String?> showGiphyPicker(BuildContext context, WidgetRef ref) async {
   final key = await ref.read(secureStoreProvider).giphyKey;
   if (!context.mounted) return null;
+  final createDio = ref.read(giphyDioFactoryProvider);
   if (key == null || key.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text(
-          'Add a Giphy API key (login screen) to use the GIF picker.'),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Add a Giphy API key (login screen) to use the GIF picker.',
+        ),
+      ),
+    );
     return null;
   }
+  final dio = createDio();
   return showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _GiphySheet(apiKey: key),
+    builder: (_) => _GiphySheet(apiKey: key, dio: dio),
   );
 }
 
 class _GiphySheet extends StatefulWidget {
-  const _GiphySheet({required this.apiKey});
+  const _GiphySheet({required this.apiKey, required this.dio});
   final String apiKey;
+  final Dio dio;
 
   @override
   State<_GiphySheet> createState() => _GiphySheetState();
 }
 
 class _GiphySheetState extends State<_GiphySheet> {
-  final _dio = Dio();
+  late final _dio = widget.dio;
+  CancelToken? _request;
+  int _revision = 0;
   final _query = TextEditingController();
   List<({String preview, String full})> _results = [];
   bool _loading = false;
@@ -47,36 +65,48 @@ class _GiphySheetState extends State<_GiphySheet> {
 
   @override
   void dispose() {
+    _revision++;
+    _request?.cancel();
+    _dio.close(force: true);
     _query.dispose();
     super.dispose();
   }
 
   Future<void> _load(String? q) async {
+    final revision = ++_revision;
+    _request?.cancel();
+    final cancel = _request = CancelToken();
     setState(() => _loading = true);
     final path = (q == null || q.isEmpty)
         ? 'https://api.giphy.com/v1/gifs/trending'
         : 'https://api.giphy.com/v1/gifs/search';
     try {
-      final res = await _dio.get(path, queryParameters: {
-        'api_key': widget.apiKey,
-        if (q != null && q.isNotEmpty) 'q': q,
-        'limit': 24,
-        'rating': 'pg-13',
-      });
+      final res = await _dio.get(
+        path,
+        cancelToken: cancel,
+        queryParameters: {
+          'api_key': widget.apiKey,
+          if (q != null && q.isNotEmpty) 'q': q,
+          'limit': 24,
+          'rating': 'pg-13',
+        },
+      );
+      if (!mounted || revision != _revision) return;
       final data = (res.data['data'] as List?) ?? const [];
       setState(() {
         _results = [
           for (final g in data)
             (
-              preview: (((g as Map)['images'] as Map)['fixed_width']
-                  as Map)['url'] as String,
+              preview:
+                  (((g as Map)['images'] as Map)['fixed_width'] as Map)['url']
+                      as String,
               full: ((g['images'] as Map)['original'] as Map)['url'] as String,
             ),
         ];
         _loading = false;
       });
     } catch (_) {
-      setState(() => _loading = false);
+      if (mounted && revision == _revision) setState(() => _loading = false);
     }
   }
 
@@ -106,10 +136,10 @@ class _GiphySheetState extends State<_GiphySheet> {
                   : GridView.builder(
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 6,
-                        mainAxisSpacing: 6,
-                      ),
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 6,
+                            mainAxisSpacing: 6,
+                          ),
                       itemCount: _results.length,
                       itemBuilder: (_, i) => GestureDetector(
                         onTap: () => Navigator.pop(context, _results[i].full),
@@ -127,8 +157,10 @@ class _GiphySheetState extends State<_GiphySheet> {
               alignment: Alignment.centerRight,
               child: Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text('Powered by GIPHY',
-                    style: Theme.of(context).textTheme.labelSmall),
+                child: Text(
+                  'Powered by GIPHY',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
               ),
             ),
           ],

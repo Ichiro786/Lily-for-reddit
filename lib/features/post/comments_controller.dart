@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,6 +47,9 @@ const commentSortLabels = {
   'qa': 'Q&A',
 };
 
+String moreNodeKey(Comment node) =>
+    jsonEncode([node.fullname, node.parentId, node.moreChildren]);
+
 class CommentsController
     extends AutoDisposeFamilyAsyncNotifier<PostThread, String> {
   String _subreddit = '';
@@ -53,9 +58,19 @@ class CommentsController
   String _sort = 'confidence';
   String get sort => _sort;
   bool get isFocused => _focusCommentId != null;
+  int _generation = 0;
+  bool _disposed = false;
+  bool _current(int generation) => !_disposed && generation == _generation;
 
   @override
   Future<PostThread> build(String arg) async {
+    ref.watch(redditRepositoryProvider);
+    _disposed = false;
+    ref.onDispose(() {
+      _disposed = true;
+      _generation++;
+    });
+    final generation = ++_generation;
     // Key: "subreddit/postId" or "subreddit/postId/focus_<commentId>".
     final parts = arg.split('/');
     _subreddit = parts[0];
@@ -63,25 +78,36 @@ class CommentsController
     _focusCommentId = (parts.length > 2 && parts[2].startsWith('focus_'))
         ? parts[2].substring(6)
         : null;
+    return _load(generation);
+  }
+
+  Future<PostThread> _load(int generation) async {
     final (post, comments) = await ref
-        .watch(redditRepositoryProvider)
+        .read(redditRepositoryProvider)
         .getComments(
           subreddit: _subreddit,
           postId: _postId,
           sort: _sort,
           focusCommentId: _focusCommentId,
         );
+    if (!_current(generation)) throw StateError('Superseded comments request');
     return PostThread(post: post, comments: comments);
+  }
+
+  Future<void> _reload({bool loading = false}) async {
+    final generation = ++_generation;
+    if (loading) state = const AsyncLoading();
+    final next = await AsyncValue.guard(() => _load(generation));
+    if (_current(generation)) state = next;
   }
 
   Future<void> changeSort(String sort) async {
     _sort = sort;
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() => build(arg));
+    await _reload(loading: true);
   }
 
   Future<void> refresh() async {
-    state = await AsyncValue.guard(() => build(arg));
+    await _reload();
   }
 
   void toggleCollapse(String commentId) {
@@ -146,9 +172,10 @@ class CommentsController
   Future<void> loadMore(Comment moreNode) async {
     final s = state.valueOrNull;
     if (s == null || moreNode.moreChildren.isEmpty) return;
-    state = AsyncData(
-      s.copyWith(loadingMore: {...s.loadingMore, moreNode.fullname}),
-    );
+    final key = moreNodeKey(moreNode);
+    if (s.loadingMore.contains(key)) return;
+    final generation = _generation;
+    state = AsyncData(s.copyWith(loadingMore: {...s.loadingMore, key}));
 
     try {
       final flat = await ref
@@ -157,57 +184,75 @@ class CommentsController
             linkFullname: s.post.fullname,
             childrenIds: moreNode.moreChildren,
             depth: moreNode.depth,
+            sort: _sort,
           );
+      if (!_current(generation)) return;
 
-      // Re-nest the flat list by parent_id.
+      final current = state.valueOrNull;
+      if (current == null) return;
+      // Existing nodes own their current body/replies. Add fetched children
+      // without duplicating those nodes or reviving locally removed parents.
+      final inserted = <String>{};
+      void collect(List<Comment> nodes) {
+        for (final n in nodes) {
+          inserted.add(n.isMore ? moreNodeKey(n) : n.fullname);
+          collect(n.replies);
+        }
+      }
+
+      collect(current.comments);
+      inserted.remove(key);
       final byParent = <String, List<Comment>>{};
+      final fetched = <String>{};
       for (final c in flat) {
-        byParent.putIfAbsent(c.parentId, () => []).add(c);
+        if (fetched.add(c.isMore ? moreNodeKey(c) : c.fullname)) {
+          byParent.putIfAbsent(c.parentId, () => []).add(c);
+        }
       }
-      Comment attach(Comment c) {
-        final kids = byParent[c.fullname] ?? const [];
-        return c.copyWith(
-          depth: c.depth,
-          replies: [for (final k in kids) attach(_withDepth(k, c.depth + 1))],
-        );
+      List<Comment> children(String parent, int depth) {
+        final out = <Comment>[];
+        for (final c in byParent[parent] ?? const <Comment>[]) {
+          if (!inserted.add(c.isMore ? moreNodeKey(c) : c.fullname)) continue;
+          out.add(
+            c.copyWith(depth: depth, replies: children(c.fullname, depth + 1)),
+          );
+        }
+        return out;
       }
-
-      final roots = (byParent[moreNode.parentId] ?? const [])
-          .map((c) => attach(_withDepth(c, moreNode.depth)))
-          .toList();
 
       List<Comment> replace(List<Comment> nodes) {
         final out = <Comment>[];
         for (final n in nodes) {
-          if (identical(n, moreNode)) {
-            out.addAll(roots);
-          } else if (n.replies.isNotEmpty) {
-            out.add(n.copyWith(replies: replace(n.replies)));
+          if (n.isMore && moreNodeKey(n) == key) {
+            out.addAll(children(moreNode.parentId, moreNode.depth));
           } else {
-            out.add(n);
+            out.add(
+              n.copyWith(
+                replies: [
+                  ...replace(n.replies),
+                  ...children(n.fullname, n.depth + 1),
+                ],
+              ),
+            );
           }
         }
         return out;
       }
 
-      final current = state.valueOrNull ?? s;
       state = AsyncData(
         current.copyWith(
           comments: replace(current.comments),
-          loadingMore: {...current.loadingMore}..remove(moreNode.fullname),
+          loadingMore: {...current.loadingMore}..remove(key),
         ),
       );
     } catch (_) {
+      if (!_current(generation)) return;
       final current = state.valueOrNull ?? s;
       state = AsyncData(
-        current.copyWith(
-          loadingMore: {...current.loadingMore}..remove(moreNode.fullname),
-        ),
+        current.copyWith(loadingMore: {...current.loadingMore}..remove(key)),
       );
     }
   }
-
-  Comment _withDepth(Comment c, int depth) => c.copyWith(depth: depth);
 }
 
 final commentsControllerProvider = AsyncNotifierProvider.autoDispose

@@ -16,10 +16,11 @@ import '../feed/post_card.dart';
 import '../post/post_actions.dart';
 import '../profile/profile_header.dart';
 
-final userAboutProvider =
-    FutureProvider.autoDispose.family<RedditUser, String>((ref, name) {
-  return ref.watch(redditRepositoryProvider).getUserAbout(name);
-});
+final userAboutProvider = FutureProvider.autoDispose.family<RedditUser, String>(
+  (ref, name) {
+    return ref.watch(redditRepositoryProvider).getUserAbout(name);
+  },
+);
 
 class UserScreen extends ConsumerWidget {
   const UserScreen({super.key, required this.username});
@@ -32,7 +33,7 @@ class UserScreen extends ConsumerWidget {
       authControllerProvider.select((auth) => auth.valueOrNull?.username),
     );
     final isSelf = me != null && me.toLowerCase() == username.toLowerCase();
-    final repo = ref.read(redditRepositoryProvider);
+    final repo = ref.watch(redditRepositoryProvider);
 
     final tabs = <Tab>[
       const Tab(text: 'Posts'),
@@ -71,10 +72,13 @@ class UserScreen extends ConsumerWidget {
           children: [
             about.when(
               loading: () => const SizedBox(
-                  height: 96, child: Center(child: CircularProgressIndicator())),
+                height: 96,
+                child: Center(child: CircularProgressIndicator()),
+              ),
               error: (e, _) => Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text('Could not load profile: $e')),
+                padding: const EdgeInsets.all(16),
+                child: Text('Could not load profile: $e'),
+              ),
               data: (u) => M3EProfileHeader(
                 username: u.name,
                 onSwitchAccount: () => context.push('/settings'),
@@ -84,22 +88,29 @@ class UserScreen extends ConsumerWidget {
                 details: 'Joined ${u.created.year}',
               ),
             ),
-            TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: tabs),
+            TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: tabs,
+            ),
             Expanded(
               child: TabBarView(
                 children: [
                   PagedList<Post>(
+                    requestKey: (username, repo, 'posts'),
                     fetch: (a) => repo.getUserPosts(username, after: a),
                     itemBuilder: (_, p) => PostCard(post: p),
                     emptyLabel: 'No posts yet',
                   ),
                   PagedList<Comment>(
+                    requestKey: (username, repo, 'comments'),
                     fetch: (a) => repo.getUserComments(username, after: a),
                     itemBuilder: (_, c) => _ProfileCommentCard(comment: c),
                     emptyLabel: 'No comments yet',
                   ),
                   if (isSelf)
                     PagedList<Object>(
+                      requestKey: (username, repo, 'saved'),
                       fetch: (a) => repo.getUserSaved(username, after: a),
                       itemBuilder: (_, item) => item is Post
                           ? PostCard(post: item)
@@ -108,8 +119,12 @@ class UserScreen extends ConsumerWidget {
                     ),
                   if (isSelf)
                     PagedList<Post>(
-                      fetch: (a) =>
-                          repo.getUserPosts(username, where: 'upvoted', after: a),
+                      requestKey: (username, repo, 'upvoted'),
+                      fetch: (a) => repo.getUserPosts(
+                        username,
+                        where: 'upvoted',
+                        after: a,
+                      ),
                       itemBuilder: (_, p) => PostCard(post: p),
                       emptyLabel: 'Nothing upvoted',
                     ),
@@ -137,7 +152,8 @@ class _ProfileCommentCard extends StatelessWidget {
           final route = comment.permalink.isEmpty
               ? null
               : routeForRedditUrl(
-                  Uri.parse('https://reddit.com${comment.permalink}'));
+                  Uri.parse('https://reddit.com${comment.permalink}'),
+                );
           if (route != null) context.push(route);
         },
         child: Padding(

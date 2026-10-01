@@ -6,6 +6,7 @@ import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/error_view.dart';
 import '../settings/settings_controller.dart';
+import '../auth/auth_controller.dart';
 import '../../models/post.dart';
 import '../../models/reddit_user.dart';
 import '../../models/subreddit.dart';
@@ -31,6 +32,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   List<Subreddit> _subs = [];
   List<RedditUser> _users = [];
   List<String> _recent = [];
+  int _revision = 0;
 
   static const _sorts = {
     'relevance': 'Relevance',
@@ -56,8 +58,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final q = widget.initialQuery?.trim() ?? '';
     if (q.isNotEmpty) {
       _controller.text = q;
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _search(q));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _search(q));
     }
   }
 
@@ -69,14 +70,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   void dispose() {
+    _revision++;
     _controller.dispose();
     super.dispose();
   }
 
   void _clear() {
+    _revision++;
     _controller.clear();
     setState(() {
       _query = '';
+      _loading = false;
       _error = null;
       _posts = [];
       _subs = [];
@@ -85,8 +89,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Future<void> _search(String q, {bool saveRecent = true}) async {
+    if (!mounted) return;
     q = q.trim();
     if (q.isEmpty) return;
+    final revision = ++_revision;
+    final epoch = ref.read(authSessionEpochProvider);
     if (_controller.text != q) _controller.text = q;
     FocusScope.of(context).unfocus();
     if (saveRecent) _saveRecent(q);
@@ -98,8 +105,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final repo = ref.read(redditRepositoryProvider);
     try {
       final results = await Future.wait([
-        repo.searchPosts(q,
-            subreddit: widget.initialSubreddit, sort: _sort, time: _time),
+        repo.searchPosts(
+          q,
+          subreddit: widget.initialSubreddit,
+          sort: _sort,
+          time: _time,
+        ),
         if (widget.initialSubreddit == null)
           repo.searchSubreddits(q)
         else
@@ -109,7 +120,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         else
           Future.value(<RedditUser>[]),
       ]);
-      if (!mounted) return;
+      if (!mounted ||
+          revision != _revision ||
+          epoch != ref.read(authSessionEpochProvider)) {
+        return;
+      }
       setState(() {
         _posts = (results[0] as dynamic).items as List<Post>;
         _subs = results[1] as List<Subreddit>;
@@ -117,7 +132,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          revision == _revision &&
+          epoch == ref.read(authSessionEpochProvider)) {
         setState(() {
           _loading = false;
           _error = e;
@@ -128,6 +145,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authSessionEpochProvider, (_, __) => _clear());
     final cs = Theme.of(context).colorScheme;
     final restricted = widget.initialSubreddit != null;
     return DefaultTabController(
@@ -172,25 +190,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
           bottom: restricted
               ? null
-              : const TabBar(tabs: [
-                  Tab(text: 'Posts'),
-                  Tab(text: 'Subreddits'),
-                  Tab(text: 'Users'),
-                ]),
+              : const TabBar(
+                  tabs: [
+                    Tab(text: 'Posts'),
+                    Tab(text: 'Subreddits'),
+                    Tab(text: 'Users'),
+                  ],
+                ),
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : _query.isEmpty
-                ? _empty(cs)
-                : _error != null
-                    ? ErrorView(message: _error, onRetry: () => _search(_query, saveRecent: false))
-                    : TabBarView(
-                    children: [
-                      _postsTab(),
-                      if (!restricted) _subsTab(),
-                      if (!restricted) _usersTab(),
-                    ],
-                  ),
+            ? _empty(cs)
+            : _error != null
+            ? ErrorView(
+                message: _error,
+                onRetry: () => _search(_query, saveRecent: false),
+              )
+            : TabBarView(
+                children: [
+                  _postsTab(),
+                  if (!restricted) _subsTab(),
+                  if (!restricted) _usersTab(),
+                ],
+              ),
       ),
     );
   }
@@ -203,8 +226,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           children: [
             Icon(Icons.search_rounded, size: 56, color: cs.onSurfaceVariant),
             const SizedBox(height: 12),
-            Text('Search posts, subreddits and users',
-                style: TextStyle(color: cs.onSurfaceVariant)),
+            Text(
+              'Search posts, subreddits and users',
+              style: TextStyle(color: cs.onSurfaceVariant),
+            ),
           ],
         ),
       );
@@ -216,9 +241,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
           child: Row(
             children: [
-              Text('Recent',
-                  style: TextStyle(
-                      color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+              Text(
+                'Recent',
+                style: TextStyle(
+                  color: cs.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
               TextButton(
                 onPressed: () {
@@ -288,54 +317,59 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _postsTab() => Column(
-        children: [
-          _filterBar(),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => _search(_query, saveRecent: false),
-              child: _posts.isEmpty
-                  ? ListView(children: const [
-                      SizedBox(height: 120),
-                      Center(child: Text('No posts found')),
-                    ])
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(10, 6, 10, 130),
-                      itemCount: _posts.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => PostCard(post: _posts[i]),
-                    ),
-            ),
-          ),
-        ],
-      );
+    children: [
+      _filterBar(),
+      Expanded(
+        child: RefreshIndicator(
+          onRefresh: () => _search(_query, saveRecent: false),
+          child: _posts.isEmpty
+              ? ListView(
+                  children: const [
+                    SizedBox(height: 120),
+                    Center(child: Text('No posts found')),
+                  ],
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 130),
+                  itemCount: _posts.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) => PostCard(post: _posts[i]),
+                ),
+        ),
+      ),
+    ],
+  );
 
   Widget _subsTab() {
     final cs = Theme.of(context).colorScheme;
     return RefreshIndicator(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _subs.isEmpty
-        ? ListView(children: const [
-            SizedBox(height: 120),
-            Center(child: Text('No subreddits found')),
-          ])
-        : ListView.builder(
-            padding: const EdgeInsets.only(bottom: 130),
-            itemCount: _subs.length,
-            itemBuilder: (_, i) {
-              final s = _subs[i];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: cs.secondaryContainer,
-                  foregroundColor: cs.onSecondaryContainer,
-                  child:
-                      Text(s.name.isNotEmpty ? s.name[0].toUpperCase() : '?'),
-                ),
-                title: Text(s.namePrefixed),
-                subtitle: Text('${compactNumber(s.subscribers)} members'),
-                onTap: () => context.push('/r/${s.name}'),
-              );
-            },
-          ),
+          ? ListView(
+              children: const [
+                SizedBox(height: 120),
+                Center(child: Text('No subreddits found')),
+              ],
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.only(bottom: 130),
+              itemCount: _subs.length,
+              itemBuilder: (_, i) {
+                final s = _subs[i];
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: cs.secondaryContainer,
+                    foregroundColor: cs.onSecondaryContainer,
+                    child: Text(
+                      s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
+                    ),
+                  ),
+                  title: Text(s.namePrefixed),
+                  subtitle: Text('${compactNumber(s.subscribers)} members'),
+                  onTap: () => context.push('/r/${s.name}'),
+                );
+              },
+            ),
     );
   }
 
@@ -344,28 +378,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return RefreshIndicator(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _users.isEmpty
-        ? ListView(children: const [
-            SizedBox(height: 120),
-            Center(child: Text('No users found')),
-          ])
-        : ListView.builder(
-            padding: const EdgeInsets.only(bottom: 130),
-            itemCount: _users.length,
-            itemBuilder: (_, i) {
-              final u = _users[i];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: cs.secondaryContainer,
-                  foregroundColor: cs.onSecondaryContainer,
-                  child:
-                      Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?'),
-                ),
-                title: Text('u/${u.name}'),
-                subtitle: Text('${compactNumber(u.linkKarma + u.commentKarma)} karma'),
-                onTap: () => context.push('/u/${u.name}'),
-              );
-            },
-          ),
+          ? ListView(
+              children: const [
+                SizedBox(height: 120),
+                Center(child: Text('No users found')),
+              ],
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.only(bottom: 130),
+              itemCount: _users.length,
+              itemBuilder: (_, i) {
+                final u = _users[i];
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: cs.secondaryContainer,
+                    foregroundColor: cs.onSecondaryContainer,
+                    child: Text(
+                      u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                    ),
+                  ),
+                  title: Text('u/${u.name}'),
+                  subtitle: Text(
+                    '${compactNumber(u.linkKarma + u.commentKarma)} karma',
+                  ),
+                  onTap: () => context.push('/u/${u.name}'),
+                );
+              },
+            ),
     );
   }
 }

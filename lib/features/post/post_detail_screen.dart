@@ -509,7 +509,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 opAuthor: thread.post.author,
                                 collapsed: thread.collapsed.contains(c.id),
                                 loadingMore:
-                                    thread.loadingMore.contains(c.fullname),
+                                    thread.loadingMore.contains(moreNodeKey(c)),
                                 onToggle: () => notifier.toggleCollapse(c.id),
                                 onLoadMore: () => notifier.loadMore(c),
                                 onOverflow: () => _showCommentOverflowMenu(

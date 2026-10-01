@@ -71,6 +71,7 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^5.0.0
+  video_player_platform_interface: ^6.2.3
   build_runner: ^2.4.13
   freezed: ^2.5.7
   json_serializable: ^6.9.0

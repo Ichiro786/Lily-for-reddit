@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/settings/settings_controller.dart'
     show sharedPrefsProvider;
+import '../../features/history/interest_store.dart' show userScopedPrefsKey;
 import 'deferred_pref_writer.dart';
 
 const interactionVaultMaxAge = Duration(days: 30);
@@ -45,13 +46,13 @@ class InteractionRecord {
   }
 
   Map<String, dynamic> toJson() => {
-        'upvoted': upvoted,
-        'saved': saved,
-        'commentOpened': commentOpened,
-        'downvoted': downvoted,
-        'dismissed': dismissed,
-        'timestamp': timestamp,
-      };
+    'upvoted': upvoted,
+    'saved': saved,
+    'commentOpened': commentOpened,
+    'downvoted': downvoted,
+    'dismissed': dismissed,
+    'timestamp': timestamp,
+  };
 
   factory InteractionRecord.fromJson(Map<String, dynamic> json) {
     return InteractionRecord(
@@ -107,23 +108,30 @@ class InteractionVault extends Notifier<InteractionVaultState> {
 
   @override
   InteractionVaultState build() {
-    _interactedKey = _interactedBaseKey;
-    _seenKey = _seenBaseKey;
+    _interactedKey = userScopedPrefsKey(ref, _interactedBaseKey);
+    _seenKey = userScopedPrefsKey(ref, _seenBaseKey);
+    final interactedKey = _interactedKey;
+    final seenKey = _seenKey;
     final prefs = ref.read(sharedPrefsProvider);
     final cutoff = _cutoff();
+    Map<String, InteractionRecord> interactedSnapshot = {};
+    Map<String, int> seenSnapshot = {};
+    _captureInteracted = (value) => interactedSnapshot = value;
+    _captureSeen = (value) => seenSnapshot = value;
 
     // Coalesced persistence: bursts of dwell/vote/save events collapse into a
     // single serialized write per key. Closures capture [prefs] directly so a
     // flush during disposal never reads through the dead container.
     final interactedWriter = DeferredPrefWriter(() async {
       final payload = {
-        for (final entry in state.interactedPosts.entries)
+        for (final entry in interactedSnapshot.entries)
           entry.key: entry.value.toJson(),
       };
-      await prefs.setString(_interactedKey, jsonEncode(payload));
+      await prefs.setString(interactedKey, jsonEncode(payload));
     });
     final seenWriter = DeferredPrefWriter(
-        () => prefs.setString(_seenKey, jsonEncode(state.seenPosts)));
+      () => prefs.setString(seenKey, jsonEncode(seenSnapshot)),
+    );
     _interactedWriter = interactedWriter;
     _seenWriter = seenWriter;
     ref.onDispose(() {
@@ -141,7 +149,8 @@ class InteractionVault extends Notifier<InteractionVaultState> {
     };
 
     if (seen.length != rawSeen.length) {
-      _scheduleSeenPersist();
+      seenSnapshot = seen;
+      seenWriter.schedule();
     }
     return InteractionVaultState(
       interactedPosts: Map.unmodifiable(interacted),
@@ -151,9 +160,18 @@ class InteractionVault extends Notifier<InteractionVaultState> {
 
   DeferredPrefWriter? _interactedWriter;
   DeferredPrefWriter? _seenWriter;
+  void Function(Map<String, InteractionRecord>)? _captureInteracted;
+  void Function(Map<String, int>)? _captureSeen;
 
-  void _scheduleInteractedPersist() => _interactedWriter?.schedule();
-  void _scheduleSeenPersist() => _seenWriter?.schedule();
+  void _scheduleInteractedPersist() {
+    _captureInteracted?.call(state.interactedPosts);
+    _interactedWriter?.schedule();
+  }
+
+  void _scheduleSeenPersist() {
+    _captureSeen?.call(state.seenPosts);
+    _seenWriter?.schedule();
+  }
 
   /// Makes any pending coalesced writes durable immediately (tests, dispose).
   Future<void> flushPersisted() async {
@@ -220,7 +238,8 @@ class InteractionVault extends Notifier<InteractionVaultState> {
         for (final entry in decoded.entries)
           if (entry.value is Map<String, dynamic>)
             entry.key: InteractionRecord.fromJson(
-                entry.value as Map<String, dynamic>),
+              entry.value as Map<String, dynamic>,
+            ),
       };
     } catch (_) {
       return {};
@@ -241,10 +260,11 @@ class InteractionVault extends Notifier<InteractionVaultState> {
   }
 
   int _cutoff() =>
-      DateTime.now().millisecondsSinceEpoch - interactionVaultMaxAge.inMilliseconds;
+      DateTime.now().millisecondsSinceEpoch -
+      interactionVaultMaxAge.inMilliseconds;
 }
 
 final interactionVaultProvider =
     NotifierProvider<InteractionVault, InteractionVaultState>(
-  InteractionVault.new,
-);
+      InteractionVault.new,
+    );
