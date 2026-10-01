@@ -2,6 +2,9 @@
 
 Baseline: main at `13564115bcbdda21dacdbb021b4873fd3c67b98d` (PR #80).
 
+This is the historical audit. B01–B05 have now been addressed; current status
+and regression evidence are in [the fix validation log](STABILITY_FIX_VALIDATION.md).
+
 The three requested fixes are implemented in this branch. The action row uses
 36 dp outlines, 20 dp frontpage icons, aligned vote/count/comment controls, and
 48 dp vertical interaction regions. It stays on one line; narrow viewports and
@@ -33,10 +36,12 @@ Validation: Flutter 3.47.5 / Dart 3.13.4; static analysis reports no issues;
 the full regression suite passes all 182 tests. Nine controlled diagnostic
 probes reproduce the faulty outcomes listed below. The layout also has a
 rendered geometry check using Roboto at normal phone widths.
-[Diagnostic probes](stability_audit_probes_test.dart) use controlled responses
+[Historical diagnostic probes](https://github.com/Ichiro786/Lily-for-reddit/blob/fd6b60a540d09a247a48c082b27e5397bb9fc287/docs/stability_audit_probes_test.dart) use controlled responses
 and in-memory storage. They assert the existing faulty outcomes to demonstrate
 the findings; they are deliberately outside the normal acceptance suite.
-Run them explicitly with `flutter test docs/stability_audit_probes_test.dart`.
+They belong to that baseline commit. Desired-behavior regression tests now live
+under `test/stability_*_test.dart`; the old fault assertions are not retained
+as tests of the repaired app.
 
 This audit combines executable reproductions and source-confirmed defects.
 Real Reddit credentials, Android/iOS device lifecycle, network outages on a

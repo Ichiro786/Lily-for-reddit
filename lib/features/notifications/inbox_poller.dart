@@ -96,7 +96,9 @@ Future<void> pollInbox({required bool notify}) async {
     ...seen.where((s) => items.every((i) => i.fullname != s)),
   ];
   await prefs.setStringList(
-      _kSeenIdsPref, updated.take(200).toList(growable: false));
+    _kSeenIdsPref,
+    updated.take(200).toList(growable: false),
+  );
 }
 
 /// Returns the current unread items, or null if we can't authenticate.
@@ -111,22 +113,27 @@ Future<List<_UnreadItem>?> _fetchUnread(SecureStore store) async {
     res = await dio.get(
       '${RedditConstants.webApiBase}/message/unread.json',
       queryParameters: {'limit': 25, 'raw_json': 1},
-      options: Options(headers: {
-        'cookie': cookie,
-        'User-Agent': RedditConstants.webUserAgent,
-      }),
+      options: Options(
+        headers: {'cookie': cookie, 'User-Agent': RedditConstants.webUserAgent},
+      ),
     );
   } else {
     // Mint a fresh access token from the stored refresh token + client id.
-    final token = await AuthRepository(store).refresh();
+    // The background isolate must not overwrite the foreground active slot.
+    final token = await AuthRepository(
+      store,
+      persistRefreshedToken: false,
+    ).refresh();
     if (token == null) return null;
     res = await dio.get(
       '${RedditConstants.oauthApiBase}/message/unread',
       queryParameters: {'limit': 25, 'raw_json': 1},
-      options: Options(headers: {
-        'Authorization': 'bearer $token',
-        'User-Agent': RedditConstants.userAgent(await store.username),
-      }),
+      options: Options(
+        headers: {
+          'Authorization': 'bearer $token',
+          'User-Agent': RedditConstants.userAgent(await store.username),
+        },
+      ),
     );
   }
 

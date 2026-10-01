@@ -10,11 +10,7 @@ import '../auth/auth_controller.dart';
 import '../settings/settings_controller.dart';
 
 class InboxState {
-  const InboxState({
-    required this.items,
-    this.after,
-    this.loadingMore = false,
-  });
+  const InboxState({required this.items, this.after, this.loadingMore = false});
   final List<InboxItem> items;
   final String? after;
   final bool loadingMore;
@@ -25,20 +21,20 @@ class InboxState {
     List<InboxItem>? items,
     String? after,
     bool? loadingMore,
-  }) =>
-      InboxState(
-        items: items ?? this.items,
-        after: after,
-        loadingMore: loadingMore ?? this.loadingMore,
-      );
+  }) => InboxState(
+    items: items ?? this.items,
+    after: after,
+    loadingMore: loadingMore ?? this.loadingMore,
+  );
 }
 
 /// arg = where (inbox | unread | messages | sent)
 class InboxController extends FamilyAsyncNotifier<InboxState, String> {
   @override
   Future<InboxState> build(String arg) async {
-    final listing =
-        await ref.read(redditRepositoryProvider).getInbox(where: arg);
+    final listing = await ref
+        .watch(redditRepositoryProvider)
+        .getInbox(where: arg);
     return InboxState(items: listing.items, after: listing.after);
   }
 
@@ -50,19 +46,24 @@ class InboxController extends FamilyAsyncNotifier<InboxState, String> {
   Future<void> loadMore() async {
     final current = state.valueOrNull;
     if (current == null || !current.hasMore || current.loadingMore) return;
-    state = AsyncData(current.copyWith(loadingMore: true, after: current.after));
+    state = AsyncData(
+      current.copyWith(loadingMore: true, after: current.after),
+    );
     try {
       final Listing<InboxItem> listing = await ref
           .read(redditRepositoryProvider)
           .getInbox(where: arg, after: current.after);
-      state = AsyncData(current.copyWith(
-        items: [...current.items, ...listing.items],
-        after: listing.after,
-        loadingMore: false,
-      ));
+      state = AsyncData(
+        current.copyWith(
+          items: [...current.items, ...listing.items],
+          after: listing.after,
+          loadingMore: false,
+        ),
+      );
     } catch (_) {
-      state =
-          AsyncData(current.copyWith(loadingMore: false, after: current.after));
+      state = AsyncData(
+        current.copyWith(loadingMore: false, after: current.after),
+      );
     }
   }
 
@@ -70,50 +71,73 @@ class InboxController extends FamilyAsyncNotifier<InboxState, String> {
   Future<void> markRead(String fullname) async {
     final current = state.valueOrNull;
     if (current != null) {
-      state = AsyncData(current.copyWith(items: [
-        for (final i in current.items)
-          i.fullname == fullname ? i.copyWith(isNew: false) : i,
-      ]));
+      state = AsyncData(
+        current.copyWith(
+          items: [
+            for (final i in current.items)
+              i.fullname == fullname ? i.copyWith(isNew: false) : i,
+          ],
+        ),
+      );
     }
     try {
       await ref.read(redditRepositoryProvider).markRead(fullname);
       ref.invalidate(unreadCountProvider);
-    } catch (_) {/* keep optimistic state */}
+    } catch (_) {
+      /* keep optimistic state */
+    }
   }
 
   /// Optimistically marks one item unread locally and on the server.
   Future<void> markUnread(String fullname) async {
     final current = state.valueOrNull;
     if (current != null) {
-      state = AsyncData(current.copyWith(items: [
-        for (final i in current.items)
-          i.fullname == fullname ? i.copyWith(isNew: true) : i,
-      ]));
+      state = AsyncData(
+        current.copyWith(
+          items: [
+            for (final i in current.items)
+              i.fullname == fullname ? i.copyWith(isNew: true) : i,
+          ],
+        ),
+      );
     }
     try {
       await ref.read(redditRepositoryProvider).markUnread(fullname);
       ref.invalidate(unreadCountProvider);
-    } catch (_) {/* keep optimistic state */}
+    } catch (_) {
+      /* keep optimistic state */
+    }
   }
 
   /// Deletes a private message (t4_). Optimistically removes it from the list.
   Future<void> deleteMessage(String fullname) async {
     final current = state.valueOrNull;
     if (current != null) {
-      state = AsyncData(current.copyWith(
-          items: [for (final i in current.items) if (i.fullname != fullname) i]));
+      state = AsyncData(
+        current.copyWith(
+          items: [
+            for (final i in current.items)
+              if (i.fullname != fullname) i,
+          ],
+        ),
+      );
     }
     try {
       await ref.read(redditRepositoryProvider).deleteMessage(fullname);
       ref.invalidate(unreadCountProvider);
-    } catch (_) {/* keep optimistic removal */}
+    } catch (_) {
+      /* keep optimistic removal */
+    }
   }
 
   Future<void> markAllRead() async {
     final current = state.valueOrNull;
     if (current != null) {
-      state = AsyncData(current.copyWith(
-          items: [for (final i in current.items) i.copyWith(isNew: false)]));
+      state = AsyncData(
+        current.copyWith(
+          items: [for (final i in current.items) i.copyWith(isNew: false)],
+        ),
+      );
     }
     await ref.read(redditRepositoryProvider).markAllRead();
     ref.invalidate(unreadCountProvider);
@@ -122,7 +146,8 @@ class InboxController extends FamilyAsyncNotifier<InboxState, String> {
 
 final inboxControllerProvider =
     AsyncNotifierProviderFamily<InboxController, InboxState, String>(
-        InboxController.new);
+      InboxController.new,
+    );
 
 /// SharedPreferences key for the last known unread badge value.
 const String kUnreadCountCachePref = 'unreadCountCache';
@@ -143,9 +168,7 @@ class UnreadCountController extends AutoDisposeAsyncNotifier<int> {
     final username = ref.watch(
       authControllerProvider.select((auth) => auth.valueOrNull?.username),
     );
-    final cached = ref
-        .read(sharedPrefsProvider)
-        .getInt(_cacheKey(username));
+    final cached = ref.read(sharedPrefsProvider).getInt(_cacheKey(username));
     _scheduleRefresh();
     return cached != null && cached >= 0 ? cached : 0;
   }
@@ -167,14 +190,11 @@ class UnreadCountController extends AutoDisposeAsyncNotifier<int> {
     if (_disposed || _refreshInFlight) return;
     _refreshInFlight = true;
     try {
-      final count =
-          await ref.read(redditRepositoryProvider).getUnreadCount();
+      final count = await ref.read(redditRepositoryProvider).getUnreadCount();
       if (_disposed) return;
       state = AsyncData(count);
       final username = ref.read(authControllerProvider).valueOrNull?.username;
-      await ref
-          .read(sharedPrefsProvider)
-          .setInt(_cacheKey(username), count);
+      await ref.read(sharedPrefsProvider).setInt(_cacheKey(username), count);
     } catch (_) {
       // Keep the cached/current value visible. The next invalidation or app
       // start will schedule another refresh without blocking the UI.
@@ -186,4 +206,5 @@ class UnreadCountController extends AutoDisposeAsyncNotifier<int> {
 
 final unreadCountProvider =
     AsyncNotifierProvider.autoDispose<UnreadCountController, int>(
-        UnreadCountController.new);
+      UnreadCountController.new,
+    );

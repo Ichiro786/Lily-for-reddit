@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/comment.dart';
+import '../auth/auth_controller.dart';
 
 /// The effective, user-visible interaction state of a comment that can change
 /// after it is fetched. Mirrors [PostOverride] for posts: the fetched
@@ -28,7 +29,11 @@ class CommentOverride {
 class CommentOverridesController
     extends Notifier<Map<String, CommentOverride>> {
   @override
-  Map<String, CommentOverride> build() => {};
+  Map<String, CommentOverride> build() {
+    ref.watch(authSessionEpochProvider);
+    ref.watch(authControllerProvider.select((s) => s.valueOrNull?.username));
+    return {};
+  }
 
   /// Effective state for [c]: an override when one exists, else derived from
   /// the comment's own server-provided values.
@@ -66,5 +71,5 @@ class CommentOverridesController
 
 final commentOverridesProvider =
     NotifierProvider<CommentOverridesController, Map<String, CommentOverride>>(
-  CommentOverridesController.new,
-);
+      CommentOverridesController.new,
+    );

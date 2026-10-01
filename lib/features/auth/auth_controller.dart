@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/storage/secure_store.dart';
+import '../../core/network/response_cache.dart';
 import '../settings/settings_controller.dart' show sharedPrefsProvider;
 import 'auth_repository.dart';
 
@@ -9,10 +10,18 @@ import 'auth_repository.dart';
 const kHasAccountPref = 'has_account';
 
 final secureStoreProvider = Provider<SecureStore>((ref) => SecureStore());
+final authSessionEpochProvider = StateProvider<int>((ref) => 0);
+final authTransitionProvider = StateProvider<bool>((ref) => false);
 
-final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => AuthRepository(ref.watch(secureStoreProvider)),
-);
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  ref.watch(authSessionEpochProvider);
+  var active = true;
+  ref.onDispose(() => active = false);
+  return AuthRepository(
+    ref.watch(secureStoreProvider),
+    sessionCurrent: () => active,
+  );
+});
 
 /// All stored accounts (usernames). Refreshes when the session changes.
 final accountsProvider = FutureProvider.autoDispose<List<String>>((ref) async {
@@ -33,6 +42,27 @@ class AuthSession {
 }
 
 class AuthController extends AsyncNotifier<AuthSession?> {
+  Future<void> _transitions = Future.value();
+
+  Future<T> _transition<T>(Future<T> Function() task) {
+    final result = _transitions.then((_) async {
+      ref.read(authTransitionProvider.notifier).state = true;
+      ref.read(authSessionEpochProvider.notifier).state++;
+      try {
+        return await task();
+      } finally {
+        ref.read(authTransitionProvider.notifier).state = false;
+      }
+    });
+    _transitions = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return result;
+  }
+
+  Future<T> runSessionChange<T>(Future<T> Function() task) => _transition(task);
+
   SecureStore get _store => ref.read(secureStoreProvider);
   AuthRepository get _repo => ref.read(authRepositoryProvider);
 
@@ -66,7 +96,11 @@ class AuthController extends AsyncNotifier<AuthSession?> {
       if (cookie == null) return null;
       final accounts = await _store.accounts;
       if (!accounts.contains(username)) {
-        await _store.upsertWebAccount(username, cookie, await _store.webModhash);
+        await _store.upsertWebAccount(
+          username,
+          cookie,
+          await _store.webModhash,
+        );
       }
       _setHasAccount(true);
       return AuthSession(username: username);
@@ -91,12 +125,12 @@ class AuthController extends AsyncNotifier<AuthSession?> {
   }
 
   /// Website-session login (no API key). [cookie] is captured by the WebView.
-  Future<void> loginWithWebSession(String cookie) async {
+  Future<void> loginWithWebSession(String cookie) => _transition(() async {
     final r = await _repo.completeWebLogin(cookie);
     await _store.upsertWebAccount(r.username, cookie, r.modhash);
     _setHasAccount(true);
     state = AsyncData(AuthSession(username: r.username));
-  }
+  });
 
   /// Runs the full interactive login (first account or an additional one) using
   /// the entered credentials, then records the account.
@@ -104,14 +138,17 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     required String clientId,
     required String redirectUri,
     bool ephemeral = false,
-  }) async {
+  }) => _transition(() async {
     final username = await _repo.login(
-        clientId: clientId, redirectUri: redirectUri, ephemeral: ephemeral);
+      clientId: clientId,
+      redirectUri: redirectUri,
+      ephemeral: ephemeral,
+    );
     final rt = await _store.refreshToken;
     if (rt != null) await _store.upsertAccount(username, rt);
     _setHasAccount(true);
     state = AsyncData(AuthSession(username: username));
-  }
+  });
 
   /// Adds another account, reusing the saved API credentials.
   Future<void> addAccount() async {
@@ -120,24 +157,24 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     if (clientId == null || redirectUri == null) {
       throw AuthException('No saved API credentials on this device.');
     }
-    await login(
-        clientId: clientId, redirectUri: redirectUri, ephemeral: true);
+    await login(clientId: clientId, redirectUri: redirectUri, ephemeral: true);
   }
 
   /// Switches the active account.
-  Future<void> switchAccount(String username) async {
+  Future<void> switchAccount(String username) => _transition(() async {
     if (username == state.valueOrNull?.username) return;
     final ok = await _store.activateAccount(username);
     if (!ok) return;
     state = AsyncData(AuthSession(username: username));
-  }
+  });
 
   /// Signs out one account; switches to another if any remain.
-  Future<void> removeAccount(String username) async {
+  Future<void> removeAccount(String username) => _transition(() async {
+    await ref.read(responseCacheProvider).clear();
     await _store.removeAccountEntry(username);
     final isCurrent = username == state.valueOrNull?.username;
     if (!isCurrent) {
-      ref.invalidateSelf(); // refresh accountsProvider
+      ref.invalidate(accountsProvider);
       return;
     }
     final remaining = await _store.accounts;
@@ -150,15 +187,16 @@ class AuthController extends AsyncNotifier<AuthSession?> {
       await _store.activateAccount(remaining.first);
       state = AsyncData(AuthSession(username: remaining.first));
     }
-  }
+  });
 
   /// Full sign-out of every account (used by Settings re-enter / clear-all).
-  Future<void> logout() async {
+  Future<void> logout() => _transition(() async {
+    await ref.read(responseCacheProvider).clear();
     await _store.clearSession();
     await _store.clearAccounts();
     _setHasAccount(false);
     state = const AsyncData(null);
-  }
+  });
 }
 
 final authControllerProvider =

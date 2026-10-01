@@ -51,11 +51,12 @@ class M3EPostActionBar extends StatelessWidget {
       downvoteColor: downvoteColor,
       onUpvote: () {
         HapticFeedback.selectionClick();
-        onVote?.call(voteState == 1 ? 0 : 1);
+        // The shared action layer resolves toggles from directional intents.
+        onVote?.call(1);
       },
       onDownvote: () {
         HapticFeedback.selectionClick();
-        onVote?.call(voteState == -1 ? 0 : -1);
+        onVote?.call(-1);
       },
     );
 

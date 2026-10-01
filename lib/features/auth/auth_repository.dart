@@ -10,8 +10,8 @@ import '../../core/storage/secure_store.dart';
 /// Reddit (exists + is an "installed app" type credential).
 class ConfigCheckResult {
   const ConfigCheckResult.ok()
-      : valid = true,
-        message = 'Client ID is valid and registered as an installed app.';
+    : valid = true,
+      message = 'Client ID is valid and registered as an installed app.';
   const ConfigCheckResult.failed(this.message) : valid = false;
 
   final bool valid;
@@ -27,10 +27,18 @@ class AuthException implements Exception {
 }
 
 class AuthRepository {
-  AuthRepository(this._store, [Dio? dio]) : _dio = dio ?? Dio();
+  AuthRepository(
+    this._store, {
+    Dio? dio,
+    bool Function()? sessionCurrent,
+    this.persistRefreshedToken = true,
+  }) : _dio = dio ?? Dio(),
+       _sessionCurrent = sessionCurrent ?? (() => true);
 
   final SecureStore _store;
   final Dio _dio;
+  final bool Function() _sessionCurrent;
+  final bool persistRefreshedToken;
 
   // A fixed, opaque CSRF state value checked on the redirect.
   static const _state = 'luli_oauth_state';
@@ -62,7 +70,9 @@ class AuthRepository {
           validateStatus: (_) => true,
         ),
       );
-      if (res.statusCode == 200 && res.data is Map && res.data['access_token'] != null) {
+      if (res.statusCode == 200 &&
+          res.data is Map &&
+          res.data['access_token'] != null) {
         return const ConfigCheckResult.ok();
       }
       if (res.statusCode == 401) {
@@ -191,7 +201,8 @@ class AuthRepository {
   /// a WebView; here we verify them by fetching the logged-in user's info (which
   /// also yields the `modhash` used for write actions) and persist the session.
   Future<({String username, String? modhash})> completeWebLogin(
-      String cookie) async {
+    String cookie,
+  ) async {
     Response res;
     try {
       res = await _dio.get(
@@ -218,10 +229,14 @@ class AuthRepository {
     final modhash = data is Map ? data['modhash'] as String? : null;
     if (username == null || username.isEmpty) {
       throw AuthException(
-          'Reddit login didn\'t complete. Please finish signing in and try again.');
+        'Reddit login didn\'t complete. Please finish signing in and try again.',
+      );
     }
     await _store.saveWebSession(
-        username: username, cookie: cookie, modhash: modhash);
+      username: username,
+      cookie: cookie,
+      modhash: modhash,
+    );
     return (username: username, modhash: modhash);
   }
 
@@ -229,10 +244,12 @@ class AuthRepository {
     try {
       final res = await _dio.get(
         '${RedditConstants.oauthApiBase}/api/v1/me',
-        options: Options(headers: {
-          'Authorization': 'bearer $accessToken',
-          'User-Agent': RedditConstants.userAgent(null),
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'bearer $accessToken',
+            'User-Agent': RedditConstants.userAgent(null),
+          },
+        ),
       );
       return (res.data as Map)['name'] as String?;
     } catch (_) {
@@ -247,13 +264,22 @@ class AuthRepository {
   /// Refreshes the access token using the stored refresh token. Returns the new
   /// access token, or null if refresh is not possible (caller should re-login).
   Future<String?> refresh() {
-    return _refreshing ??=
-        _doRefresh().whenComplete(() => _refreshing = null);
+    return _refreshing ??= _doRefresh().whenComplete(() => _refreshing = null);
   }
 
   Future<String?> _doRefresh() async {
-    final refreshToken = await _store.refreshToken;
-    final clientId = await _store.clientId;
+    if (!_sessionCurrent()) return null;
+    final snapshot = await _store.sessionTransaction(
+      () async => (
+        username: await _store.username,
+        refreshToken: await _store.refreshToken,
+        clientId: await _store.clientId,
+      ),
+    );
+    if (!_sessionCurrent()) return null;
+    final username = snapshot.username;
+    final refreshToken = snapshot.refreshToken;
+    final clientId = snapshot.clientId;
     if (refreshToken == null || clientId == null) return null;
     try {
       final res = await _dio.post(
@@ -266,7 +292,7 @@ class AuthRepository {
           contentType: Headers.formUrlEncodedContentType,
           headers: {
             'Authorization': _basicAuth(clientId),
-            'User-Agent': RedditConstants.userAgent(await _store.username),
+            'User-Agent': RedditConstants.userAgent(username),
           },
           validateStatus: (_) => true,
         ),
@@ -276,11 +302,16 @@ class AuthRepository {
       final accessToken = data['access_token'] as String?;
       final expiresIn = (data['expires_in'] as num?)?.toInt() ?? 3600;
       if (accessToken == null) return null;
-      await _store.saveTokens(
+      if (!_sessionCurrent()) return null;
+      if (!persistRefreshedToken) return accessToken;
+      final saved = await _store.saveTokensForSession(
+        username: username,
+        expectedRefreshToken: refreshToken,
+        current: _sessionCurrent,
         accessToken: accessToken,
         expiry: DateTime.now().add(Duration(seconds: expiresIn - 60)),
       );
-      return accessToken;
+      return saved ? accessToken : null;
     } catch (_) {
       return null;
     }

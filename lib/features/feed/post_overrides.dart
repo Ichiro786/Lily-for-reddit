@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/post.dart';
+import '../auth/auth_controller.dart';
 
 /// The current, user-visible state of a post that can change after it's fetched
 /// (vote, score, saved, comment count). Lives in a shared store keyed by post id
@@ -25,18 +26,21 @@ class PostOverride {
     int? score,
     int? numComments,
     bool? saved,
-  }) =>
-      PostOverride(
-        likes: clearLikes ? null : (likes ?? this.likes),
-        score: score ?? this.score,
-        numComments: numComments ?? this.numComments,
-        saved: saved ?? this.saved,
-      );
+  }) => PostOverride(
+    likes: clearLikes ? null : (likes ?? this.likes),
+    score: score ?? this.score,
+    numComments: numComments ?? this.numComments,
+    saved: saved ?? this.saved,
+  );
 }
 
 class PostOverridesController extends Notifier<Map<String, PostOverride>> {
   @override
-  Map<String, PostOverride> build() => {};
+  Map<String, PostOverride> build() {
+    ref.watch(authSessionEpochProvider);
+    ref.watch(authControllerProvider.select((s) => s.valueOrNull?.username));
+    return {};
+  }
 
   /// Effective state for [p] (an override if one exists, else the post's own).
   PostOverride effective(Post p) =>
@@ -70,9 +74,9 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
       _set(p.id, effective(p).copyWith(saved: saved));
 
   void bumpComments(Post p, int delta) => _set(
-        p.id,
-        effective(p).copyWith(numComments: effective(p).numComments + delta),
-      );
+    p.id,
+    effective(p).copyWith(numComments: effective(p).numComments + delta),
+  );
 
   /// Refresh from a freshly-fetched post (e.g. when the detail opens): always
   /// take the fresh comment count; seed vote/score/saved only if not already
@@ -93,5 +97,5 @@ class PostOverridesController extends Notifier<Map<String, PostOverride>> {
 
 final postOverridesProvider =
     NotifierProvider<PostOverridesController, Map<String, PostOverride>>(
-  PostOverridesController.new,
-);
+      PostOverridesController.new,
+    );

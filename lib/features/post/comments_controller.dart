@@ -26,13 +26,12 @@ class PostThread {
     List<Comment>? comments,
     Set<String>? collapsed,
     Set<String>? loadingMore,
-  }) =>
-      PostThread(
-        post: post ?? this.post,
-        comments: comments ?? this.comments,
-        collapsed: collapsed ?? this.collapsed,
-        loadingMore: loadingMore ?? this.loadingMore,
-      );
+  }) => PostThread(
+    post: post ?? this.post,
+    comments: comments ?? this.comments,
+    collapsed: collapsed ?? this.collapsed,
+    loadingMore: loadingMore ?? this.loadingMore,
+  );
 }
 
 /// arg = "subreddit/postId"
@@ -46,7 +45,8 @@ const commentSortLabels = {
   'qa': 'Q&A',
 };
 
-class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, String> {
+class CommentsController
+    extends AutoDisposeFamilyAsyncNotifier<PostThread, String> {
   String _subreddit = '';
   String _postId = '';
   String? _focusCommentId; // set when viewing a single comment thread
@@ -63,7 +63,9 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
     _focusCommentId = (parts.length > 2 && parts[2].startsWith('focus_'))
         ? parts[2].substring(6)
         : null;
-    final (post, comments) = await ref.read(redditRepositoryProvider).getComments(
+    final (post, comments) = await ref
+        .watch(redditRepositoryProvider)
+        .getComments(
           subreddit: _subreddit,
           postId: _postId,
           sort: _sort,
@@ -100,12 +102,17 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
       return;
     }
     List<Comment> walk(List<Comment> nodes) => [
-          for (final n in nodes)
-            if (n.fullname == parentFullname)
-              n.copyWith(replies: [reply.copyWith(depth: n.depth + 1), ...n.replies])
-            else
-              n.copyWith(replies: walk(n.replies)),
-        ];
+      for (final n in nodes)
+        if (n.fullname == parentFullname)
+          n.copyWith(
+            replies: [
+              reply.copyWith(depth: n.depth + 1),
+              ...n.replies,
+            ],
+          )
+        else
+          n.copyWith(replies: walk(n.replies)),
+    ];
     state = AsyncData(s.copyWith(comments: walk(s.comments)));
   }
 
@@ -117,12 +124,12 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
       return;
     }
     List<Comment> walk(List<Comment> nodes) => [
-          for (final n in nodes)
-            if (n.fullname == fullname)
-              n.copyWith(body: newBody, replies: walk(n.replies))
-            else
-              n.copyWith(replies: walk(n.replies)),
-        ];
+      for (final n in nodes)
+        if (n.fullname == fullname)
+          n.copyWith(body: newBody, replies: walk(n.replies))
+        else
+          n.copyWith(replies: walk(n.replies)),
+    ];
     state = AsyncData(s.copyWith(comments: walk(s.comments)));
   }
 
@@ -130,20 +137,23 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
     final s = state.valueOrNull;
     if (s == null) return;
     List<Comment> walk(List<Comment> nodes) => [
-          for (final n in nodes)
-            if (n.fullname != fullname) n.copyWith(replies: walk(n.replies)),
-        ];
+      for (final n in nodes)
+        if (n.fullname != fullname) n.copyWith(replies: walk(n.replies)),
+    ];
     state = AsyncData(s.copyWith(comments: walk(s.comments)));
   }
 
   Future<void> loadMore(Comment moreNode) async {
     final s = state.valueOrNull;
     if (s == null || moreNode.moreChildren.isEmpty) return;
-    state = AsyncData(s.copyWith(
-        loadingMore: {...s.loadingMore, moreNode.fullname}));
+    state = AsyncData(
+      s.copyWith(loadingMore: {...s.loadingMore, moreNode.fullname}),
+    );
 
     try {
-      final flat = await ref.read(redditRepositoryProvider).getMoreComments(
+      final flat = await ref
+          .read(redditRepositoryProvider)
+          .getMoreComments(
             linkFullname: s.post.fullname,
             childrenIds: moreNode.moreChildren,
             depth: moreNode.depth,
@@ -181,23 +191,27 @@ class CommentsController extends AutoDisposeFamilyAsyncNotifier<PostThread, Stri
       }
 
       final current = state.valueOrNull ?? s;
-      state = AsyncData(current.copyWith(
-        comments: replace(current.comments),
-        loadingMore: {...current.loadingMore}..remove(moreNode.fullname),
-      ));
+      state = AsyncData(
+        current.copyWith(
+          comments: replace(current.comments),
+          loadingMore: {...current.loadingMore}..remove(moreNode.fullname),
+        ),
+      );
     } catch (_) {
       final current = state.valueOrNull ?? s;
-      state = AsyncData(current.copyWith(
-          loadingMore: {...current.loadingMore}..remove(moreNode.fullname)));
+      state = AsyncData(
+        current.copyWith(
+          loadingMore: {...current.loadingMore}..remove(moreNode.fullname),
+        ),
+      );
     }
   }
 
   Comment _withDepth(Comment c, int depth) => c.copyWith(depth: depth);
 }
 
-final commentsControllerProvider =
-    AsyncNotifierProvider.autoDispose.family<CommentsController, PostThread, String>(
-        CommentsController.new);
+final commentsControllerProvider = AsyncNotifierProvider.autoDispose
+    .family<CommentsController, PostThread, String>(CommentsController.new);
 
 class FlattenedComment {
   const FlattenedComment({required this.comment, required this.markdownBody});
@@ -206,36 +220,35 @@ class FlattenedComment {
   final Widget? markdownBody;
 }
 
-final flattenedCommentPresentationProvider =
-    Provider.autoDispose.family<List<FlattenedComment>, (String, MarkdownStyleSheet)>(
-        (ref, args) {
-  final asyncThread = ref.watch(commentsControllerProvider(args.$1));
-  final thread = asyncThread.valueOrNull;
-  if (thread == null) return const [];
+final flattenedCommentPresentationProvider = Provider.autoDispose
+    .family<List<FlattenedComment>, (String, MarkdownStyleSheet)>((ref, args) {
+      final asyncThread = ref.watch(commentsControllerProvider(args.$1));
+      final thread = asyncThread.valueOrNull;
+      if (thread == null) return const [];
 
-  final out = <FlattenedComment>[];
-  void walk(Comment comment) {
-    final isCollapsed = thread.collapsed.contains(comment.id);
-    // Collapsed nodes hide their body entirely, so no Markdown is built for
-    // them; expanded nodes render through the shared spoiler-aware pipeline.
-    final body =
-        isCollapsed ? '' : commentTextWithoutMedia(comment.body);
-    out.add(
-      FlattenedComment(
-        comment: comment,
-        markdownBody:
-            body.isEmpty ? null : buildCommentMarkdownBody(body, args.$2),
-      ),
-    );
-    if (!comment.isMore && !isCollapsed) {
-      for (final reply in comment.replies) {
-        walk(reply);
+      final out = <FlattenedComment>[];
+      void walk(Comment comment) {
+        final isCollapsed = thread.collapsed.contains(comment.id);
+        // Collapsed nodes hide their body entirely, so no Markdown is built for
+        // them; expanded nodes render through the shared spoiler-aware pipeline.
+        final body = isCollapsed ? '' : commentTextWithoutMedia(comment.body);
+        out.add(
+          FlattenedComment(
+            comment: comment,
+            markdownBody: body.isEmpty
+                ? null
+                : buildCommentMarkdownBody(body, args.$2),
+          ),
+        );
+        if (!comment.isMore && !isCollapsed) {
+          for (final reply in comment.replies) {
+            walk(reply);
+          }
+        }
       }
-    }
-  }
 
-  for (final comment in thread.comments) {
-    walk(comment);
-  }
-  return out;
-});
+      for (final comment in thread.comments) {
+        walk(comment);
+      }
+      return out;
+    });

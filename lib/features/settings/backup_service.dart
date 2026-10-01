@@ -14,13 +14,13 @@ class BackupRestoreResult {
   const BackupRestoreResult._({required this.success, required this.message});
 
   const BackupRestoreResult.success()
-      : this._(
-          success: true,
-          message: 'Settings and API keys restored successfully',
-        );
+    : this._(
+        success: true,
+        message: 'Settings and API keys restored successfully',
+      );
 
   const BackupRestoreResult.failure(String message)
-      : this._(success: false, message: message);
+    : this._(success: false, message: message);
 
   final bool success;
   final String message;
@@ -34,10 +34,19 @@ class BackupExport {
 }
 
 class BackupService {
-  BackupService({required this.preferences, required this.secureStore});
+  BackupService({
+    required this.preferences,
+    required this.secureStore,
+    this.sessionChange,
+  });
 
   final SharedPreferences preferences;
   final SecureStore secureStore;
+  final Future<BackupRestoreResult> Function(
+    Future<BackupRestoreResult> Function(),
+  )?
+  sessionChange;
+  Future<void> _restores = Future.value();
 
   Future<BackupExport> exportBackup() async {
     final backup = await _buildBackup();
@@ -88,23 +97,63 @@ class BackupService {
         }
       }
       for (final entry in preferencesMap.entries) {
-        if (!_isJsonValue(entry.value)) {
+        if (entry.value == null || !_isJsonValue(entry.value)) {
           throw const FormatException('Invalid preference value in backup');
         }
+        _validatePreference(entry.key, entry.value);
       }
       _validateAuthData(authData);
 
-      await secureStore.restoreBackupData(apiKeys);
-      await secureStore.restoreAuthData(authData);
-      for (final entry in preferencesMap.entries) {
-        await _writePreference(entry.key, entry.value);
-      }
-      return const BackupRestoreResult.success();
+      final restore = _restores.then((_) async {
+        Future<BackupRestoreResult>
+        apply() => secureStore.sessionTransaction(() async {
+          final oldSecure = await secureStore.snapshot();
+          final oldPreferences = {
+            for (final key in preferences.getKeys()) key: preferences.get(key),
+          };
+          try {
+            await secureStore.restoreBackupData(apiKeys);
+            await secureStore.restoreAuthData(authData);
+            for (final entry in preferencesMap.entries) {
+              await _writePreference(entry.key, entry.value);
+            }
+            return const BackupRestoreResult.success();
+          } catch (_) {
+            try {
+              await secureStore.restoreSnapshot(oldSecure);
+              for (final key in preferences.getKeys().difference(
+                oldPreferences.keys.toSet(),
+              )) {
+                if (!await preferences.remove(key)) {
+                  throw StateError('Preference rollback failed');
+                }
+              }
+              for (final entry in oldPreferences.entries) {
+                await _writePreference(entry.key, entry.value);
+              }
+              return const BackupRestoreResult.failure(
+                'Restore failed. Your previous settings and credentials were restored.',
+              );
+            } catch (_) {
+              return const BackupRestoreResult.failure(
+                'Restore failed and previous values could not be fully restored. Please check your account and settings.',
+              );
+            }
+          }
+        });
+        return sessionChange == null ? apply() : sessionChange!(apply);
+      });
+      _restores = restore.then<void>(
+        (_) {},
+        onError: (Object _, StackTrace __) {},
+      );
+      return await restore;
     } on FormatException catch (error) {
       return BackupRestoreResult.failure(error.message);
     } on Object catch (_) {
       return const BackupRestoreResult.failure(
-          'The backup could not be restored. Check that it is valid JSON.');
+        'The backup could not be restored. Check that it is valid JSON.',
+      );
     }
   }
 
@@ -115,6 +164,7 @@ class BackupService {
   }
 
   void _validateAuthData(Map<String, dynamic> authData) {
+    SecureStore.validatedAuthBackup(authData);
     for (final key in [
       'auth_mode',
       'username',
@@ -136,18 +186,103 @@ class BackupService {
   }
 
   Future<void> _writePreference(String key, Object? value) async {
+    final bool success;
     if (value is bool) {
-      await preferences.setBool(key, value);
+      success = await preferences.setBool(key, value);
     } else if (value is int) {
-      await preferences.setInt(key, value);
+      success = await preferences.setInt(key, value);
     } else if (value is double) {
-      await preferences.setDouble(key, value);
+      success = await preferences.setDouble(key, value);
     } else if (value is String) {
-      await preferences.setString(key, value);
+      success = await preferences.setString(key, value);
     } else if (value is List && value.every((item) => item is String)) {
-      await preferences.setStringList(key, value.cast<String>());
+      success = await preferences.setStringList(key, value.cast<String>());
     } else {
       throw FormatException('Unsupported preference type for $key');
+    }
+    if (!success) throw StateError('Preference write failed');
+  }
+
+  void _validatePreference(String key, Object? value) {
+    const boolKeys = {
+      'amoled',
+      'useDynamicColor',
+      'blurNsfw',
+      'swipeActions',
+      'trackHistory',
+      'offlineCache',
+      'checkUpdates',
+      'forYouFeed',
+      'autoHideReadForYou',
+      'midResThumbnails',
+      'subsCacheEnabled',
+      'autoplayMedia',
+      'showApiUsage',
+      'notifyInbox',
+      'navLabels',
+      'has_account',
+      'notif_prompted',
+      'notifyInboxPrompted',
+    };
+    const intKeys = {
+      'themeMode',
+      'seedColor',
+      'defaultSort',
+      'postDisplay',
+      'subsCacheMinutes',
+      'topBarMode',
+    };
+    final current = preferences.get(key);
+    final listKey = [
+      'history',
+      'muted_subs',
+      'visited_subreddits_v1',
+      'recent_searches',
+      'notif_seen_ids',
+    ].any((prefix) => key == prefix || key.startsWith('${prefix}_'));
+    final stringKey = [
+      'interest_weights',
+      'keyword_weights',
+      'fy_impressions',
+      'interaction_vault_interacted_posts',
+      'interaction_vault_seen_posts',
+      'draft_',
+    ].any((prefix) => key.startsWith(prefix));
+    if ((listKey && (value is! List || !value.every((v) => v is String))) ||
+        (stringKey && value is! String) ||
+        (key.startsWith('unreadCountCache') && value is! int)) {
+      throw FormatException('Invalid stored-data preference type: $key');
+    }
+    final wrongCurrentType =
+        current != null &&
+        !((current is bool && value is bool) ||
+            (current is int && value is int) ||
+            (current is double && value is double) ||
+            (current is String && value is String) ||
+            (current is List<String> &&
+                value is List &&
+                value.every((v) => v is String)));
+    if ((boolKeys.contains(key) && value is! bool) ||
+        (intKeys.contains(key) && value is! int) ||
+        (key == 'textScale' && value is! double) ||
+        wrongCurrentType) {
+      throw FormatException('Invalid preference type: $key');
+    }
+    final upper = switch (key) {
+      'themeMode' => 2,
+      'defaultSort' => 4,
+      'postDisplay' => 2,
+      _ => null,
+    };
+    if (upper != null && (value is! int || value < 0 || value > upper)) {
+      throw FormatException('Invalid preference range: $key');
+    }
+    if (key == 'textScale' &&
+        (value is! double || !value.isFinite || value <= 0 || value > 4)) {
+      throw const FormatException('Invalid text scale');
+    }
+    if (key == 'subsCacheMinutes' && (value is! int || value < 0)) {
+      throw const FormatException('Invalid subscription cache duration');
     }
   }
 
@@ -164,6 +299,8 @@ final backupServiceProvider = Provider<BackupService>((ref) {
   return BackupService(
     preferences: ref.read(sharedPrefsProvider),
     secureStore: ref.read(secureStoreProvider),
+    sessionChange: (task) =>
+        ref.read(authControllerProvider.notifier).runSessionChange(task),
   );
 });
 
