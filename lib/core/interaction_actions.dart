@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/feed/post_overrides.dart';
+import '../features/auth/auth_controller.dart';
 import '../features/history/interest_store.dart';
 import '../features/post/comment_overrides.dart';
 import '../models/comment.dart';
@@ -16,20 +17,22 @@ import 'storage/interaction_vault.dart';
 /// Telemetry must never change the result of a Reddit mutation.
 final interactionReporterProvider =
     Provider<FutureOr<void> Function(String, String)>(
-  (ref) => (action, outcome) async {
-    debugPrint('Interaction $action: $outcome');
-    await Analytics.track(
-        'interaction', {'action': action, 'outcome': outcome});
-  },
-);
+      (ref) => (action, outcome) async {
+        debugPrint('Interaction $action: $outcome');
+        await Analytics.track('interaction', {
+          'action': action,
+          'outcome': outcome,
+        });
+      },
+    );
 
-final interactionActionsProvider = Provider<InteractionActions>(
-  (ref) {
-    final actions = InteractionActions(ref);
-    ref.onDispose(() => actions._active = false);
-    return actions;
-  },
-);
+final interactionActionsProvider = Provider<InteractionActions>((ref) {
+  ref.watch(authSessionEpochProvider);
+  ref.watch(authControllerProvider.select((s) => s.valueOrNull?.username));
+  final actions = InteractionActions(ref);
+  ref.onDispose(() => actions._active = false);
+  return actions;
+});
 
 /// The UI-facing vote/save boundary shared by feed, detail and comment tiles.
 /// Overrides contain optimistic presentation state; the vault contains durable
@@ -44,6 +47,7 @@ class InteractionActions {
   final _saves = <String, _ActionLane<bool>>{};
 
   Future<void> votePost(Post post, int direction) {
+    if (!_active || _ref.read(authTransitionProvider)) return Future.value();
     assert(direction == 1 || direction == -1);
     final overrides = _ref.read(postOverridesProvider.notifier);
     final repository = _ref.read(redditRepositoryProvider);
@@ -57,7 +61,9 @@ class InteractionActions {
       present: (target) => overrides.setVote(post, target),
       request: (target) => repository.vote(post.fullname, target),
       commit: (target) {
-        _ref.read(interactionVaultProvider.notifier).recordInteraction(
+        _ref
+            .read(interactionVaultProvider.notifier)
+            .recordInteraction(
               post.id,
               upvoted: target == 1,
               downvoted: target == -1,
@@ -76,6 +82,7 @@ class InteractionActions {
   }
 
   Future<void> toggleSavePost(Post post) {
+    if (!_active || _ref.read(authTransitionProvider)) return Future.value();
     final overrides = _ref.read(postOverridesProvider.notifier);
     final repository = _ref.read(redditRepositoryProvider);
     final previous = overrides.effective(post).saved;
@@ -102,6 +109,7 @@ class InteractionActions {
   }
 
   Future<void> voteComment(Comment comment, int direction) {
+    if (!_active || _ref.read(authTransitionProvider)) return Future.value();
     assert(direction == 1 || direction == -1);
     final overrides = _ref.read(commentOverridesProvider.notifier);
     final repository = _ref.read(redditRepositoryProvider);
@@ -119,6 +127,7 @@ class InteractionActions {
   }
 
   Future<void> toggleSaveComment(Comment comment) {
+    if (!_active || _ref.read(authTransitionProvider)) return Future.value();
     final overrides = _ref.read(commentOverridesProvider.notifier);
     final repository = _ref.read(redditRepositoryProvider);
     final previous = overrides.effective(comment).saved;
@@ -150,7 +159,12 @@ class InteractionActions {
       present: (value) {
         if (_active) present(value);
       },
-      request: request,
+      request: (value) {
+        if (!_active || _ref.read(authTransitionProvider)) {
+          throw StateError('Account changed before the queued action started.');
+        }
+        return request(value);
+      },
       commit: (value) {
         if (!_active) return;
         try {
@@ -168,9 +182,11 @@ class InteractionActions {
   void _report(String action, String outcome) {
     if (!_active) return;
     // Future.sync handles synchronous reporters and asynchronous SDK failures.
-    unawaited(Future<void>.sync(
-      () => _ref.read(interactionReporterProvider)(action, outcome),
-    ).catchError((Object _) {}));
+    unawaited(
+      Future<void>.sync(
+        () => _ref.read(interactionReporterProvider)(action, outcome),
+      ).catchError((Object _) {}),
+    );
   }
 }
 

@@ -6,15 +6,44 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// the user's Reddit API credentials (entered at login) and OAuth tokens.
 class SecureStore {
   SecureStore([FlutterSecureStorage? storage])
-      : _storage = storage ??
-            const FlutterSecureStorage(
-              aOptions: AndroidOptions(encryptedSharedPreferences: true),
-              iOptions: IOSOptions(
-                accessibility: KeychainAccessibility.first_unlock,
-              ),
-            );
+    : _storage =
+          storage ??
+          const FlutterSecureStorage(
+            aOptions: AndroidOptions(encryptedSharedPreferences: true),
+            iOptions: IOSOptions(
+              accessibility: KeychainAccessibility.first_unlock,
+            ),
+          );
 
   final FlutterSecureStorage _storage;
+  static Future<void> _sessionWrites = Future.value();
+
+  Future<T> sessionTransaction<T>(Future<T> Function() task) {
+    final result = _sessionWrites.then((_) => task());
+    _sessionWrites = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return result;
+  }
+
+  Future<bool> saveTokensForSession({
+    required String? username,
+    required String expectedRefreshToken,
+    required String accessToken,
+    required DateTime expiry,
+    required bool Function() current,
+  }) => sessionTransaction(() async {
+    if (!current() ||
+        await this.username != username ||
+        await refreshToken != expectedRefreshToken ||
+        await authMode != 'oauth') {
+      return false;
+    }
+    if (!current()) return false;
+    await saveTokens(accessToken: accessToken, expiry: expiry);
+    return true;
+  });
 
   // Keys
   static const _kClientId = 'client_id';
@@ -50,7 +79,10 @@ class SecureStore {
     await _write(_kClientId, clientId);
     await _write(_kClientSecret, clientSecret);
     await _write(_kRedirectUri, redirectUri);
-    await _write(_kGiphyKey, (giphyKey != null && giphyKey.isEmpty) ? null : giphyKey);
+    await _write(
+      _kGiphyKey,
+      (giphyKey != null && giphyKey.isEmpty) ? null : giphyKey,
+    );
   }
 
   // --- Tokens ---
@@ -87,7 +119,7 @@ class SecureStore {
     required String username,
     required String cookie,
     String? modhash,
-  }) async {
+  }) => sessionTransaction(() async {
     await _write(_kAuthMode, 'web');
     await _write(_kWebCookie, cookie);
     await _write(_kWebModhash, modhash);
@@ -96,7 +128,7 @@ class SecureStore {
     await _storage.delete(key: _kAccessToken);
     await _storage.delete(key: _kRefreshToken);
     await _storage.delete(key: _kTokenExpiry);
-  }
+  });
 
   // --- Multi-account ---
   // We persist {username: <account JSON>} where each value is either an OAuth
@@ -111,12 +143,14 @@ class SecureStore {
     if (raw == null || raw.isEmpty) return {};
     try {
       final m = jsonDecode(raw) as Map;
-      return m.map((k, v) => MapEntry(
-            k.toString(),
-            v is Map
-                ? v.cast<String, dynamic>()
-                : {'mode': 'oauth', 'rt': v.toString()}, // legacy migration
-          ));
+      return m.map(
+        (k, v) => MapEntry(
+          k.toString(),
+          v is Map
+              ? v.cast<String, dynamic>()
+              : {'mode': 'oauth', 'rt': v.toString()}, // legacy migration
+        ),
+      );
     } catch (_) {
       return {};
     }
@@ -125,7 +159,8 @@ class SecureStore {
   Future<void> _saveAccounts(Map<String, Map<String, dynamic>> m) =>
       _write(_kAccounts, jsonEncode(m));
 
-  Future<List<String>> get accounts async => (await _accountsMap()).keys.toList();
+  Future<List<String>> get accounts async =>
+      (await _accountsMap()).keys.toList();
 
   /// Mode ('oauth'|'web') of a stored account, or null if unknown.
   Future<String?> accountMode(String username) async =>
@@ -138,7 +173,10 @@ class SecureStore {
   }
 
   Future<void> upsertWebAccount(
-      String username, String cookie, String? modhash) async {
+    String username,
+    String cookie,
+    String? modhash,
+  ) async {
     final m = await _accountsMap();
     m[username] = {'mode': 'web', 'cookie': cookie, 'modhash': modhash};
     await _saveAccounts(m);
@@ -154,7 +192,7 @@ class SecureStore {
 
   /// Loads [username]'s stored credentials into the active slot (OAuth refresh
   /// token, or website cookie+modhash). Returns false if not stored.
-  Future<bool> activateAccount(String username) async {
+  Future<bool> activateAccount(String username) => sessionTransaction(() async {
     final acct = (await _accountsMap())[username];
     if (acct == null) return false;
     final mode = acct['mode'] as String? ?? 'oauth';
@@ -173,11 +211,11 @@ class SecureStore {
       await _storage.delete(key: _kWebModhash);
     }
     return true;
-  }
+  });
 
   /// Clears the active session (tokens, cookie, username, mode) but keeps API
   /// credentials so re-login is quick.
-  Future<void> clearSession() async {
+  Future<void> clearSession() => sessionTransaction(() async {
     await _storage.delete(key: _kAccessToken);
     await _storage.delete(key: _kRefreshToken);
     await _storage.delete(key: _kTokenExpiry);
@@ -185,7 +223,7 @@ class SecureStore {
     await _storage.delete(key: _kWebCookie);
     await _storage.delete(key: _kWebModhash);
     await _storage.delete(key: _kAuthMode);
-  }
+  });
 
   /// Full wipe — credentials and session.
   /// Returns the sensitive values needed for a portable backup. Callers should
@@ -221,35 +259,92 @@ class SecureStore {
   }
 
   Future<void> restoreAuthData(Map<String, dynamic> data) async {
-    await _write(_kAuthMode, data['auth_mode'] as String?);
-    await _write(_kUsername, data['username'] as String?);
-    await _write(_kAccessToken, data['access_token'] as String?);
-    await _write(_kRefreshToken, data['refresh_token'] as String?);
-    await _write(_kWebCookie, data['web_cookie'] as String?);
-    await _write(_kWebModhash, data['web_modhash'] as String?);
+    final values = validatedAuthBackup(data);
+    for (final entry in values.entries) {
+      await _write(entry.key, entry.value);
+    }
+  }
 
+  Future<Map<String, String>> snapshot() async => Map.of(await _storage.readAll());
+
+  Future<void> restoreSnapshot(Map<String, String> snapshot) async {
+    final current = await _storage.readAll();
+    for (final key in current.keys.where((key) => !snapshot.containsKey(key)).toList()) {
+      await _storage.delete(key: key);
+    }
+    for (final entry in snapshot.entries) {
+      await _write(entry.key, entry.value);
+    }
+  }
+
+  static Map<String, String?> validatedAuthBackup(Map<String, dynamic> data) {
+    final values = <String, String?>{};
+    for (final key in [
+      _kAuthMode,
+      _kUsername,
+      _kAccessToken,
+      _kRefreshToken,
+      _kWebCookie,
+      _kWebModhash,
+    ]) {
+      final value = data[key];
+      if (value != null && value is! String) {
+        throw FormatException('Invalid authentication field: $key');
+      }
+      values[key] = value as String?;
+    }
+    final mode = values[_kAuthMode];
+    if (mode != null && mode != 'oauth' && mode != 'web') {
+      throw const FormatException('Invalid authentication mode');
+    }
+    final user = values[_kUsername];
+    if (user != null && user.trim().isEmpty) {
+      throw const FormatException('Invalid username');
+    }
+    if (user != null && mode == 'web' && (values[_kWebCookie]?.isEmpty ?? true)) {
+      throw const FormatException('Missing website session');
+    }
+    if (user != null &&
+        (mode == null || mode == 'oauth') &&
+        (values[_kRefreshToken]?.isEmpty ?? true) &&
+        (values[_kAccessToken]?.isEmpty ?? true)) {
+      throw const FormatException('Missing OAuth session');
+    }
     final expiry = data['token_expiry'];
-    if (expiry == null) {
-      await _write(_kTokenExpiry, null);
-    } else if (expiry is String && DateTime.tryParse(expiry) != null) {
-      await _write(_kTokenExpiry,
-          DateTime.parse(expiry).millisecondsSinceEpoch.toString());
-    } else {
+    if (expiry != null &&
+        (expiry is! String || DateTime.tryParse(expiry) == null)) {
       throw const FormatException('Invalid token expiry in backup');
     }
-
+    values[_kTokenExpiry] = expiry == null
+        ? null
+        : DateTime.parse(expiry as String).millisecondsSinceEpoch.toString();
     final accounts = data['accounts'];
-    if (accounts is Map) {
-      final normalized = <String, Map<String, dynamic>>{};
-      for (final entry in accounts.entries) {
-        if (entry.value is! Map) {
-          throw const FormatException('Invalid account entry in backup');
-        }
-        normalized[entry.key.toString()] =
-            Map<String, dynamic>.from(entry.value as Map);
-      }
-      await _saveAccounts(normalized);
+    if (accounts != null && accounts is! Map) {
+      throw const FormatException('Invalid accounts section in backup');
     }
+    final normalized = <String, Map<String, dynamic>>{};
+    for (final entry in (accounts as Map? ?? {}).entries) {
+      if (entry.key is! String ||
+          (entry.key as String).trim().isEmpty ||
+          entry.value is! Map) {
+        throw const FormatException('Invalid account entry in backup');
+      }
+      final account = Map<String, dynamic>.from(entry.value as Map);
+      final mode = account['mode'] ?? 'oauth';
+      if (mode != 'web' && mode != 'oauth') {
+        throw const FormatException('Invalid saved account mode');
+      }
+      final secret = mode == 'web' ? account['cookie'] : account['rt'];
+      if (secret is! String || secret.isEmpty) {
+        throw const FormatException('Missing saved account credentials');
+      }
+      if (account['modhash'] != null && account['modhash'] is! String) {
+        throw const FormatException('Invalid saved account modhash');
+      }
+      normalized[entry.key as String] = account;
+    }
+    values[_kAccounts] = jsonEncode(normalized);
+    return values;
   }
 
   Future<void> clearAll() => _storage.deleteAll();

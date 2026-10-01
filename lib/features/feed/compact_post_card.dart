@@ -44,8 +44,8 @@ class CompactPostCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: ShapeTokens.large,
-          splashColor: colorScheme.onSurface.withValues(alpha: 0.08),
-          highlightColor: colorScheme.onSurface.withValues(alpha: 0.04),
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 12, 10),
             child: Row(

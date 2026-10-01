@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -133,20 +132,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     }
   }
 
-  bool _onScroll(UserScrollNotification n) {
-    if (n.depth != 0) return false;
-    final m = n.metrics;
-    // Near the top or overscrolling (iOS rubber-band) — keep chrome shown and
-    // don't toggle, so the bar doesn't bounce in/out as you scroll back up.
-    if (m.outOfRange || m.pixels <= m.minScrollExtent + 4) {
-      if (!_chrome.value) _chrome.value = true;
-      return false;
-    }
-    if (n.direction == ScrollDirection.reverse && _chrome.value) {
-      _chrome.value = false;
-    } else if (n.direction == ScrollDirection.forward && !_chrome.value) {
-      _chrome.value = true;
-    }
+  bool _onScroll(ScrollNotification n) {
+    final visible = scrollChromeVisible(n, _chrome.value);
+    if (visible != _chrome.value) _chrome.value = visible;
     return false;
   }
 
@@ -156,7 +144,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     return Scaffold(
       // Pop variant: content flows under the detached floating nav.
       extendBody: true,
-      body: NotificationListener<UserScrollNotification>(
+      body: NotificationListener<ScrollNotification>(
         onNotification: _onScroll,
         child: SafeArea(
           bottom: false,
