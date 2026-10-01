@@ -41,14 +41,14 @@ provide inline retries.
 
 ## Verification
 
-The regression suite adds 17 cases: rainbow contrast across five schemes;
+The regression suite adds 18 cases: rainbow contrast across five schemes;
 deep nesting/long names/200% text; intrinsic portrait geometry; intermediate
 expansion frames and collapse; reduced motion; metadata emotes; inline duplicate
 media and collapse; failed inline reply loading/retry; distant search; action
 order/directional callbacks/target sizes; mixed and empty galleries; animated GIF
 source selection; actual dropdown selection; skipping a long reply branch;
 spoiler reveal/hide; protected code/media-link captions; and stable search targets
-when preceding reply branches collapse.
+when preceding reply branches collapse; and light-theme media overlay contrast.
 
 The whole application suite and analysis are run before publication. Exact GitHub
 results and the arm64-v8a build are linked from the associated draft pull request.

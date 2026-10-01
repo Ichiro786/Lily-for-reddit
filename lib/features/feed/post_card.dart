@@ -1090,7 +1090,7 @@ class _PlayBadge extends StatelessWidget {
       ),
       child: Icon(
         Icons.play_arrow_rounded,
-        color: colorScheme.onSurface,
+        color: Colors.white,
         size: 36,
       ),
     );
@@ -1114,13 +1114,13 @@ class _Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: colorScheme.onSurface),
+            Icon(icon, size: 14, color: Colors.white),
             const SizedBox(width: 4),
           ],
           Text(
             label,
             style: TextStyle(
-              color: colorScheme.onSurface,
+              color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.bold,
             ),

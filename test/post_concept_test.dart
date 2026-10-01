@@ -6,6 +6,7 @@ import 'package:luli_for_reddit/core/providers.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
 import 'package:luli_for_reddit/core/theme/thread_colors.dart';
 import 'package:luli_for_reddit/features/feed/post_action_bar.dart';
+import 'package:luli_for_reddit/features/feed/post_card.dart';
 import 'package:luli_for_reddit/features/media/expandable_post_media.dart';
 import 'package:luli_for_reddit/features/media/gallery_carousel.dart';
 import 'package:luli_for_reddit/features/post/comment_card.dart';
@@ -18,6 +19,7 @@ import 'package:luli_for_reddit/features/settings/settings_controller.dart';
 import 'package:luli_for_reddit/models/comment.dart';
 import 'package:luli_for_reddit/models/post.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'support/interaction_fixture.dart';
 
 class _ThreadRepository extends InteractionRepository {
@@ -80,6 +82,52 @@ Future<void> _detail(
 }
 
 void main() {
+  testWidgets(
+    'feed video overlays remain readable on their scrim in light mode',
+    (tester) async {
+      final visibility = VisibilityDetectorController.instance;
+      final previousInterval = visibility.updateInterval;
+      visibility.updateInterval = Duration.zero;
+      addTearDown(() => visibility.updateInterval = previousInterval);
+      SharedPreferences.setMockInitialValues({
+        'autoplayMedia': false,
+        'trackHistory': false,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final container = interactionContainer(prefs: prefs);
+      addTearDown(container.dispose);
+      final post = interactionPost().copyWith(
+        type: PostType.video,
+        isSelf: false,
+        previewUrl: 'https://i.redd.it/poster.jpg',
+        previewWidth: 1600,
+        previewHeight: 900,
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.light(null),
+            home: Scaffold(
+              body: ListView(children: [PostCard(post: post)]),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.play_arrow_rounded)).color,
+        Colors.white,
+      );
+      expect(
+        tester.widget<Text>(find.text('VIDEO')).style?.color,
+        Colors.white,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'search remains attached to its comment after a preceding branch collapses',
     (tester) async {
