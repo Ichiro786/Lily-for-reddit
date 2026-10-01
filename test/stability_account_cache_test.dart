@@ -35,7 +35,7 @@ class _Adapter implements HttpClientAdapter {
 
 void main() {
   late Directory directory;
-  setUp(() => directory = Directory('.tools').createTempSync('account-cache-'));
+  setUp(() => directory = Directory.systemTemp.createTempSync('account-cache-'));
   tearDown(() {
     if (directory.existsSync()) directory.deleteSync(recursive: true);
   });
