@@ -24,6 +24,7 @@ not claim measured 120 Hz performance without a physical device trace.
 | Inactive tabs | Passive dwell could complete while a kept-alive tab was inactive | Ancestor TickerMode gates dwell eligibility and cancels pending exposure |
 | Seen storage | Retention cutoff recalculated for every entry | One cutoff per update |
 | Subreddit initialization | About and posts each displayed a morphing loader | One header indicator while either request is pending, static post skeletons below |
+| Android release packaging | Release lint found launch_background only in drawable-night-v21 with no default | Added a theme-aware default drawable; qualified dark and Android 12 splash resources continue to resolve normally |
 
 Formatting shortcuts include bold, italic, code and spoiler, with an explicit
 themed Markdown preview. No new UI dependency is introduced: the existing
