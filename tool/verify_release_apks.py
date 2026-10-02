@@ -21,9 +21,27 @@ def run(*args):
     return subprocess.check_output([str(arg) for arg in args], text=True).strip()
 
 
-def prepare(version, build_number, input_dir, output_dir, sdk):
+def signing_certificate(output, expected=None):
+    # Android's verifier prints either numbered signers or SDK-range signers.
+    # Parse certificates only; public-key and source-stamp hashes are unrelated.
+    digests = set(re.findall(
+        r"^Signer (?:#\d+|\([^\r\n]+\)) certificate SHA-256 digest:\s*([0-9a-fA-F]{64})\s*$",
+        output, re.MULTILINE,
+    ))
+    digests = {digest.lower() for digest in digests}
+    if len(digests) != 1:
+        raise ValueError(f"Expected one signing certificate; found {len(digests)}")
+    digest = digests.pop()
+    if expected is not None and digest != expected:
+        raise ValueError("APK certificate does not match the pinned production certificate")
+    return digest
+
+
+def prepare(version, build_number, input_dir, output_dir, sdk, expected_certificate):
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or build_number < 1:
         raise ValueError("Invalid release version/build number")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_certificate):
+        raise ValueError("Invalid production certificate fingerprint")
     analyzer = sdk / "cmdline-tools/latest/bin/apkanalyzer"
     signers = list((sdk / "build-tools").glob("*/apksigner"))
     if not analyzer.is_file() or not signers:
@@ -57,10 +75,7 @@ def prepare(version, build_number, input_dir, output_dir, sdk):
                 if f"lib/{abi}/{library}" not in names:
                     raise ValueError(f"Missing {library} in {apk.name}")
         signature = run(signer, "verify", "--verbose", "--print-certs", apk)
-        match = re.search(r"Signer #1 certificate SHA-256 digest: ([0-9a-fA-F]{64})", signature)
-        if not match:
-            raise ValueError(f"Missing signing certificate in {apk.name}")
-        digest = match.group(1).lower()
+        digest = signing_certificate(signature, expected_certificate)
         if certificate is not None and certificate != digest:
             raise ValueError("The two APKs use different signing certificates")
         certificate = digest
@@ -75,6 +90,7 @@ def prepare(version, build_number, input_dir, output_dir, sdk):
                       certificate_sha256=digest)
         records.append(record)
         print(f"Verified {filename}: {PACKAGE}, {version} ({version_code}), {abi}, signed, non-debuggable")
+    print(json.dumps(records, indent=2))
     (output_dir / "checksums-sha256.txt").write_text("".join(checksums), encoding="utf-8")
     (output_dir / "build-verification.json").write_text(json.dumps(records, indent=2) + "\n", encoding="utf-8")
 
@@ -85,11 +101,13 @@ def main():
     parser.add_argument("--build-number", type=int, required=True)
     parser.add_argument("--input-dir", type=Path, default=Path("build/app/outputs/flutter-apk"))
     parser.add_argument("--output-dir", type=Path, default=Path("build/release-downloads"))
+    parser.add_argument("--certificate-file", type=Path, default=Path("android/release-cert.sha256"))
     args = parser.parse_args()
     sdk_root = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
     if not sdk_root:
         raise RuntimeError("Android SDK environment is missing")
-    prepare(args.version, args.build_number, args.input_dir, args.output_dir, Path(sdk_root))
+    expected_certificate = args.certificate_file.read_text(encoding="utf-8").strip().lower()
+    prepare(args.version, args.build_number, args.input_dir, args.output_dir, Path(sdk_root), expected_certificate)
 
 
 if __name__ == "__main__":
