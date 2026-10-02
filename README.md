@@ -2,7 +2,11 @@
   <img src="assets/app_icon.png" width="120" alt="Lily app icon">
 </p>
 
-# Lily for reddit
+# Lily for Reddit
+
+[![Build](https://github.com/Ichiro786/Lily-for-reddit/actions/workflows/debug-apk.yml/badge.svg)](https://github.com/Ichiro786/Lily-for-reddit/actions)
+[![Latest release](https://img.shields.io/github/v/release/Ichiro786/Lily-for-reddit)](https://github.com/Ichiro786/Lily-for-reddit/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/Ichiro786/Lily-for-reddit)](LICENSE)
 
 A fast, modern Reddit client for Android, built with Flutter and a Material 3
 Expressive design. You bring your own Reddit API credentials. The app talks
@@ -26,13 +30,15 @@ directly to Reddit; the only other data it sends is anonymous usage analytics
 
 ## Screenshots
 
-<p>
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Home">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Discover">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Subreddit">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Inbox">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Settings">
-</p>
+<table>
+  <tr>
+    <td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Home"><br><sub>Home</sub></td>
+    <td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Discover"><br><sub>Discover</sub></td>
+    <td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Subreddit"><br><sub>Subreddit</sub></td>
+    <td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Inbox"><br><sub>Inbox</sub></td>
+    <td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Settings"><br><sub>Settings</sub></td>
+  </tr>
+</table>
 
 ## How the "For You" feed works
 
@@ -112,3 +118,12 @@ Flutter, Riverpod, Dio, go_router, Freezed. Reddit OAuth2 (installed-app flow),
 credentials stored in the device keychain.
 
 Not affiliated with Reddit, Inc.
+
+## Contributing
+
+Bug reports and pull requests are welcome. When filing a bug, please include
+your app version, Android version, and steps to reproduce.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
