@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -254,9 +256,7 @@ class _MessageThreadScreenState extends ConsumerState<MessageThreadScreen> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child: M3ELoadingIndicator.small(),
                               )
                             : const Icon(Icons.send_rounded),
                       ),

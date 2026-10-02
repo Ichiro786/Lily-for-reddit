@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/m3e_refresh_indicator.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 
 import '../../core/route_observer.dart';
 import '../../models/listing.dart';
@@ -143,9 +146,10 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: M3ELoadingIndicator());
     if (_error != null) {
       return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
           Padding(
             padding: const EdgeInsets.all(32),
@@ -161,9 +165,10 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
       );
     }
     if (_items.isEmpty) {
-      return RefreshIndicator(
+      return M3ERefreshIndicator(
         onRefresh: _load,
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
             const SizedBox(height: 120),
             Center(child: Text(widget.emptyLabel)),
@@ -171,9 +176,10 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
         ),
       );
     }
-    return RefreshIndicator(
+    return M3ERefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         controller: _scroll,
         padding: widget.padding,
         itemCount: _items.length + 1,
@@ -183,7 +189,7 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
             return _loadingMore
                 ? const Padding(
                     padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()),
+                    child: Center(child: M3ELoadingIndicator()),
                   )
                 : const SizedBox.shrink();
           }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/drafts.dart';
@@ -257,7 +259,7 @@ class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: M3ELoadingIndicator.small(),
                   )
                 : const Icon(Icons.send_rounded),
             label: Text(_busy ? 'Sending…' : widget.submitLabel),

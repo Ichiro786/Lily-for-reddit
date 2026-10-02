@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/m3e_refresh_indicator.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -505,7 +508,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   ),
                 );
 
-                return RefreshIndicator(
+                return M3ERefreshIndicator(
                   onRefresh: notifier.refresh,
                   child: ScrollablePositionedList.builder(
                     itemScrollController: _itemScrollController,
@@ -687,7 +690,7 @@ class _LoadingWithHeader extends StatelessWidget {
         if (post != null) _PostHeader(post: post!),
         const Padding(
           padding: EdgeInsets.all(40),
-          child: Center(child: CircularProgressIndicator()),
+          child: Center(child: M3ELoadingIndicator()),
         ),
       ],
     );
@@ -1210,7 +1213,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: M3ELoadingIndicator.small(),
                     )
                   : Row(
                       mainAxisSize: MainAxisSize.min,

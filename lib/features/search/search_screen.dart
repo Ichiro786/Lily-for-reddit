@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/m3e_refresh_indicator.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -199,7 +202,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: M3ELoadingIndicator())
             : _query.isEmpty
             ? _empty(cs)
             : _error != null
@@ -235,6 +238,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(top: 8, bottom: 130),
       children: [
         Padding(
@@ -320,16 +324,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     children: [
       _filterBar(),
       Expanded(
-        child: RefreshIndicator(
+        child: M3ERefreshIndicator(
           onRefresh: () => _search(_query, saveRecent: false),
           child: _posts.isEmpty
               ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   children: const [
                     SizedBox(height: 120),
                     Center(child: Text('No posts found')),
                   ],
                 )
               : ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(10, 6, 10, 130),
                   itemCount: _posts.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -342,16 +348,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _subsTab() {
     final cs = Theme.of(context).colorScheme;
-    return RefreshIndicator(
+    return M3ERefreshIndicator(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _subs.isEmpty
           ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: const [
                 SizedBox(height: 120),
                 Center(child: Text('No subreddits found')),
               ],
             )
           : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 130),
               itemCount: _subs.length,
               itemBuilder: (_, i) {
@@ -375,16 +383,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _usersTab() {
     final cs = Theme.of(context).colorScheme;
-    return RefreshIndicator(
+    return M3ERefreshIndicator(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _users.isEmpty
           ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: const [
                 SizedBox(height: 120),
                 Center(child: Text('No users found')),
               ],
             )
           : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 130),
               itemCount: _users.length,
               itemBuilder: (_, i) {

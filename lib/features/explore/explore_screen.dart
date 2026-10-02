@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/m3e_refresh_indicator.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -284,7 +287,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: RefreshIndicator(
+        child: M3ERefreshIndicator(
           onRefresh: () async {
             ref.read(redditRepositoryProvider).clearSubsCache();
             ref.invalidate(subscribedSubredditsProvider);
@@ -306,7 +309,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
                   child: Material(
-                    color: colorScheme.surfaceContainerLow,
+                    color: colorScheme.surfaceContainerHighest,
                     shape: const RoundedRectangleBorder(
                       borderRadius: ShapeTokens.extraLarge,
                     ),
@@ -322,6 +325,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                       },
                       textInputAction: TextInputAction.search,
                       decoration: InputDecoration(
+                        filled: false,
                         hintText: 'Search communities & posts',
                         prefixIcon: const Icon(Icons.search_rounded),
                         suffixIcon: _query.isEmpty
@@ -335,6 +339,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                                 icon: const Icon(Icons.close_rounded),
                               ),
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 15,
@@ -465,7 +474,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.all(40),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Center(child: M3ELoadingIndicator()),
                     ),
                   ),
                 ],
@@ -578,7 +587,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: M3ELoadingIndicator()),
             ),
           )
         else if (popularAsync.hasError && popular.isEmpty)

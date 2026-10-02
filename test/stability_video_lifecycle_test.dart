@@ -130,6 +130,35 @@ void main() {
     await settle(tester);
     expect(platform.calls.last, 'dispose:0');
   });
+  testWidgets('inactive kept-alive tab pauses native video immediately', (
+    tester,
+  ) async {
+    Widget tab(bool active) => MaterialApp(
+      navigatorObservers: [appRouteObserver],
+      home: Scaffold(
+        body: TickerMode(
+          enabled: active,
+          child: InlineVideo(
+            url: 'https://example.com/a.mp4',
+            height: 200,
+            onTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(tab(true));
+    await settle(tester);
+    expect(platform.calls.last, 'play:0');
+    await tester.pumpWidget(tab(false));
+    await settle(tester);
+    expect(platform.calls.last, 'pause:0');
+    await tester.pumpWidget(tab(true));
+    await settle(tester);
+    expect(platform.calls.last, 'play:0');
+    expect(platform.streams, hasLength(1));
+    await tester.pumpWidget(const SizedBox());
+    await settle(tester);
+  });
   testWidgets('B10 failed initialization can retry without remounting', (
     tester,
   ) async {

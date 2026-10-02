@@ -6,6 +6,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../../core/route_observer.dart';
 import '../../core/startup_metrics.dart';
 import '../../core/theme/shape_tokens.dart';
+import '../../core/theme/motion_tokens.dart';
 import '../../core/widgets/error_view.dart';
 import '../../core/widgets/m3e_loading_indicator.dart';
 import '../../core/widgets/m3e_refresh_indicator.dart';
@@ -48,8 +49,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   void initState() {
     super.initState();
     _scroll.addListener(() {
-      if (_scroll.position.pixels >=
-          _scroll.position.maxScrollExtent - 600) {
+      if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 600) {
         ref.read(feedControllerProvider(widget.feedKey).notifier).loadMore();
       }
     });
@@ -77,10 +77,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   }
 
   void _scrollToTopOrRefresh() {
-    if (!_scroll.hasClients) return;
-    if (_scroll.offset > 20) {
-      _scroll.animateTo(0,
-          duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
+    if (_scroll.hasClients && _scroll.offset > 20) {
+      _returnToTop();
     } else {
       HapticFeedback.mediumImpact();
       // Drive the RefreshIndicator so the user gets a visible spinner while the
@@ -89,16 +87,29 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
     }
   }
 
+  void _returnToTop() {
+    if (MotionTokens.reduced(context)) {
+      _scroll.jumpTo(0);
+    } else {
+      _scroll.animateTo(
+        0,
+        duration: MotionTokens.content(context),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Frontpage only: respond to the "tap active tab" signal.
     if (widget.feedKey.isEmpty) {
-      ref.listen<int>(frontpageScrollSignalProvider,
-          (_, __) => _scrollToTopOrRefresh());
+      ref.listen<int>(
+        frontpageScrollSignalProvider,
+        (_, __) => _scrollToTopOrRefresh(),
+      );
     }
     final async = ref.watch(feedControllerProvider(widget.feedKey));
-    final notifier =
-        ref.read(feedControllerProvider(widget.feedKey).notifier);
+    final notifier = ref.read(feedControllerProvider(widget.feedKey).notifier);
     final hasPending = async.valueOrNull?.hasPending ?? false;
 
     final listPadding = EdgeInsets.fromLTRB(
@@ -113,19 +124,29 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
       key: _refreshKey,
       onRefresh: notifier.refresh,
       child: async.when(
-        loading: () => ListView(
+        loading: () => ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: listPadding,
-          children: [
-            if (widget.header != null) widget.header!,
-            const SizedBox(height: 8),
-            for (var i = 0; i < 5; i++)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: PostSkeleton(),
-              ),
-          ],
+          itemCount: (widget.header != null ? 1 : 0) + 4,
+          itemBuilder: (context, index) {
+            if (widget.header != null && index == 0) return widget.header!;
+            final row = index - (widget.header != null ? 1 : 0);
+            if (row == 0) {
+              return const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(
+                  child: M3ELoadingIndicator(semanticLabel: 'Loading posts'),
+                ),
+              );
+            }
+            return const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: PostSkeleton(animate: false),
+            );
+          },
         ),
         error: (e, _) => ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: widget.frontpageStyle ? listPadding : null,
           children: [
             if (widget.header != null) widget.header!,
@@ -136,10 +157,12 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           ],
         ),
         data: (state) {
-          final forYouFeed =
-              ref.watch(settingsControllerProvider.select((s) => s.forYouFeed));
+          final forYouFeed = ref.watch(
+            settingsControllerProvider.select((s) => s.forYouFeed),
+          );
           final autoHideReadForYou = ref.watch(
-              settingsControllerProvider.select((s) => s.autoHideReadForYou));
+            settingsControllerProvider.select((s) => s.autoHideReadForYou),
+          );
           var posts = state.posts;
           // Auto-hide already-read items in the For You feed (live: rebuilds
           // when history changes).
@@ -147,12 +170,14 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
             ref.watch(historyControllerProvider);
             final history = ref.read(historyControllerProvider.notifier);
             posts = posts
-                .where((p) =>
-                    !(p.feedReason != null && history.containsId(p.id)))
+                .where(
+                  (p) => !(p.feedReason != null && history.containsId(p.id)),
+                )
                 .toList();
           }
           if (posts.isEmpty) {
             return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: listPadding,
               children: [
                 if (widget.header != null) widget.header!,
@@ -174,6 +199,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           final itemCount = (widget.showSortBar ? 1 : 0) + posts.length + 1;
           return ListView.builder(
             controller: _scroll,
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: listPadding,
             itemCount: (widget.header != null ? 1 : 0) + itemCount,
             addAutomaticKeepAlives: false,
@@ -224,12 +250,15 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                   child: state.loadingMore
                       ? const M3ELoadingIndicator.small()
                       : state.hasMore
-                          ? const SizedBox.shrink()
-                          : Text('— end —',
-                              style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant)),
+                      ? const SizedBox.shrink()
+                      : Text(
+                          '— end —',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                 ),
               );
             },
@@ -251,9 +280,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                 onTap: () {
                   notifier.applyPending();
                   if (_scroll.hasClients) {
-                    _scroll.animateTo(0,
-                        duration: const Duration(milliseconds: 320),
-                        curve: Curves.easeOut);
+                    _returnToTop();
                   }
                 },
               ),
@@ -280,10 +307,9 @@ class _EmptyFeed extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             'No posts yet',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 6),
           Text(
@@ -349,9 +375,13 @@ class _NewPostsPill extends StatelessWidget {
             children: [
               Icon(Icons.arrow_upward_rounded, size: 16, color: cs.onPrimary),
               const SizedBox(width: 6),
-              Text('New posts',
-                  style: TextStyle(
-                      color: cs.onPrimary, fontWeight: FontWeight.w700)),
+              Text(
+                'New posts',
+                style: TextStyle(
+                  color: cs.onPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
         ),
@@ -442,7 +472,11 @@ class _SortBar extends StatelessWidget {
             if (sort == PostSort.top && !forYou) ...[
               const SizedBox(width: 8),
               ActionChip(
-                avatar: Icon(Icons.schedule_rounded, size: 16, color: cs.primary),
+                avatar: Icon(
+                  Icons.schedule_rounded,
+                  size: 16,
+                  color: cs.primary,
+                ),
                 label: Text(time.label),
                 labelStyle: TextStyle(
                   color: cs.primary,
@@ -452,8 +486,12 @@ class _SortBar extends StatelessWidget {
                   HapticFeedback.selectionClick();
                   _showTimeSheet(context);
                 },
-                backgroundColor: cs.surfaceContainerHigh.withValues(alpha: 0.65),
-                side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.25)),
+                backgroundColor: cs.surfaceContainerHigh.withValues(
+                  alpha: 0.65,
+                ),
+                side: BorderSide(
+                  color: cs.outlineVariant.withValues(alpha: 0.25),
+                ),
                 shape: const StadiumBorder(),
               ),
             ],
@@ -557,9 +595,9 @@ class _SortBar extends StatelessWidget {
                   Text(
                     'Top posts from',
                     style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
                   ),
                 ],
               ),

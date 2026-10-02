@@ -38,8 +38,10 @@ class _InlineVideoState extends State<InlineVideo>
   int _generation = 0;
   bool _foreground = true;
   bool _routeActive = true;
+  bool _tabActive = true;
   bool _failed = false;
-  bool get _canPlay => mounted && _visible && _foreground && _routeActive;
+  bool get _canPlay =>
+      mounted && _visible && _foreground && _routeActive && _tabActive;
 
   @override
   void initState() {
@@ -53,6 +55,11 @@ class _InlineVideoState extends State<InlineVideo>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final tabActive = TickerMode.valuesOf(context).enabled;
+    if (_tabActive != tabActive) {
+      _tabActive = tabActive;
+      unawaited(_syncPlayback());
+    }
     final route = ModalRoute.of(context);
     if (route != null) {
       appRouteObserver.subscribe(this, route);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,10 +12,10 @@ import '../history/visited_subreddits_store.dart';
 import '../settings/settings_controller.dart';
 import 'subreddit_header.dart';
 
-final subredditAboutProvider =
-    FutureProvider.autoDispose.family<Subreddit, String>((ref, name) {
-  return ref.watch(redditRepositoryProvider).getSubredditAbout(name);
-});
+final subredditAboutProvider = FutureProvider.autoDispose
+    .family<Subreddit, String>((ref, name) {
+      return ref.watch(redditRepositoryProvider).getSubredditAbout(name);
+    });
 
 class SubredditScreen extends ConsumerStatefulWidget {
   const SubredditScreen({super.key, required this.name});
@@ -30,7 +31,10 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AsyncValue<Subreddit>>(subredditAboutProvider(widget.name), (_, next) {
+    ref.listen<AsyncValue<Subreddit>>(subredditAboutProvider(widget.name), (
+      _,
+      next,
+    ) {
       final sub = next.valueOrNull;
       if (sub != null) {
         ref.read(visitedCommunityStoreProvider.notifier).recordVisit(sub);
@@ -39,10 +43,12 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
 
     final about = ref.watch(subredditAboutProvider(widget.name));
     final feed = ref.watch(feedControllerProvider(widget.name));
-    final defaultSort =
-        ref.watch(settingsControllerProvider.select((s) => s.defaultSort));
-    final display =
-        ref.watch(settingsControllerProvider.select((s) => s.postDisplay));
+    final defaultSort = ref.watch(
+      settingsControllerProvider.select((s) => s.defaultSort),
+    );
+    final display = ref.watch(
+      settingsControllerProvider.select((s) => s.postDisplay),
+    );
     final selectedSort = feed.valueOrNull?.sort ?? defaultSort;
 
     return Scaffold(
@@ -72,8 +78,8 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
           children: [
             about.when(
               loading: () => const SizedBox(
-                height: 4,
-                child: LinearProgressIndicator(),
+                height: 48,
+                child: Center(child: M3ELoadingIndicator.small()),
               ),
               error: (_, __) => const SizedBox.shrink(),
               data: (s) => _header(context, s),

@@ -7,6 +7,9 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/shape_tokens.dart';
+import '../../core/theme/motion_tokens.dart';
+import '../../core/widgets/staged_navigation_motion.dart';
+import '../../core/widgets/m3e_press_bounce.dart';
 
 /// Detached navigation with the concept's icon-and-label active container.
 class M3EFloatingNavBar extends StatefulWidget {
@@ -17,6 +20,7 @@ class M3EFloatingNavBar extends StatefulWidget {
     this.isMinimized = false,
     this.unreadCount = 0,
     this.onSearch,
+    this.isVisible = true,
   });
 
   final int currentIndex;
@@ -24,6 +28,7 @@ class M3EFloatingNavBar extends StatefulWidget {
   final bool isMinimized;
   final int unreadCount;
   final VoidCallback? onSearch;
+  final bool isVisible;
 
   @override
   State<M3EFloatingNavBar> createState() => _M3EFloatingNavBarState();
@@ -54,12 +59,21 @@ class _M3EFloatingNavBarState extends State<M3EFloatingNavBar> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => StagedNavigationMotion(
+    visible: widget.isVisible,
+    builder: (context, icons, labels) => _buildDock(context, icons, labels),
+  );
+
+  Widget _buildDock(
+    BuildContext context,
+    Animation<double> icons,
+    bool labelsVisible,
+  ) {
     final currentIndex = widget.currentIndex;
-    final isMinimized = widget.isMinimized;
+    final isMinimized = widget.isMinimized || !labelsVisible;
     final unreadCount = widget.unreadCount;
     final cs = Theme.of(context).colorScheme;
-    final duration = MediaQuery.disableAnimationsOf(context)
+    final duration = MotionTokens.reduced(context)
         ? Duration.zero
         : Duration(milliseconds: isMinimized ? 120 : 200);
 
@@ -129,104 +143,114 @@ class _M3EFloatingNavBarState extends State<M3EFloatingNavBar> {
                             : label,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Material(
-                            color: currentIndex == index
-                                ? cs.primaryContainer
-                                : Colors.transparent,
-                            animationDuration: duration,
-                            borderRadius: ShapeTokens.medium,
-                            child: InkWell(
+                          child: M3EPressBounce(
+                            selected: currentIndex == index,
+                            child: Material(
+                              color: currentIndex == index
+                                  ? cs.primaryContainer
+                                  : Colors.transparent,
+                              animationDuration: duration,
                               borderRadius: ShapeTokens.medium,
-                              onTap: () => _select(index),
-                              onLongPress: index == 1 ? widget.onSearch : null,
-                              child: ClipRect(
-                                child: OverflowBox(
-                                  minHeight: 0,
-                                  maxHeight: math.max(64.0, 48 + labelHeight),
-                                  alignment: Alignment.center,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Stack(
-                                        clipBehavior: Clip.none,
-                                        children: [
-                                          Icon(
-                                            currentIndex == index
-                                                ? activeIcon
-                                                : icon,
-                                            size: 24,
-                                            color: currentIndex == index
-                                                ? cs.primary
-                                                : cs.onSurfaceVariant,
-                                          ),
-                                          if (index == 2 && unreadCount > 0)
-                                            Positioned(
-                                              right: -3,
-                                              top: -2,
-                                              child: Container(
-                                                width: 8,
-                                                height: 8,
-                                                decoration: BoxDecoration(
-                                                  color: cs.primary,
-                                                  shape: BoxShape.circle,
-                                                ),
+                              child: InkWell(
+                                borderRadius: ShapeTokens.medium,
+                                onTap: () => _select(index),
+                                onLongPress: index == 1
+                                    ? widget.onSearch
+                                    : null,
+                                child: ClipRect(
+                                  child: OverflowBox(
+                                    minHeight: 0,
+                                    maxHeight: math.max(64.0, 48 + labelHeight),
+                                    alignment: Alignment.center,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        FadeTransition(
+                                          opacity: icons,
+                                          child: Stack(
+                                            clipBehavior: Clip.none,
+                                            children: [
+                                              Icon(
+                                                currentIndex == index
+                                                    ? activeIcon
+                                                    : icon,
+                                                size: 24,
+                                                color: currentIndex == index
+                                                    ? cs.primary
+                                                    : cs.onSurfaceVariant,
                                               ),
-                                            ),
-                                        ],
-                                      ),
-                                      ClipRect(
-                                        child: AnimatedAlign(
-                                          duration: duration,
-                                          curve: Curves.easeOutCubic,
-                                          heightFactor: isMinimized ? 0 : 1,
-                                          alignment: Alignment.topCenter,
-                                          child: AnimatedOpacity(
-                                            opacity: isMinimized ? 0 : 1,
-                                            duration: duration,
-                                            curve: Curves.easeOutCubic,
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(
-                                                top: 2,
-                                              ),
-                                              child: Column(
-                                                children: [
-                                                  Text(
-                                                    label,
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .labelMedium
-                                                        ?.copyWith(
-                                                          letterSpacing: 0,
-                                                          color:
-                                                              currentIndex ==
-                                                                  index
-                                                              ? cs.onPrimaryContainer
-                                                              : cs.onSurfaceVariant,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Container(
-                                                    width: 24,
-                                                    height: 2,
+                                              if (index == 2 && unreadCount > 0)
+                                                Positioned(
+                                                  right: -3,
+                                                  top: -2,
+                                                  child: Container(
+                                                    width: 8,
+                                                    height: 8,
                                                     decoration: BoxDecoration(
-                                                      color:
-                                                          currentIndex == index
-                                                          ? cs.primary
-                                                          : Colors.transparent,
-                                                      borderRadius:
-                                                          ShapeTokens.full,
+                                                      color: cs.primary,
+                                                      shape: BoxShape.circle,
                                                     ),
                                                   ),
-                                                ],
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        ClipRect(
+                                          child: AnimatedAlign(
+                                            duration: duration,
+                                            curve: Curves.easeOutCubic,
+                                            heightFactor: isMinimized ? 0 : 1,
+                                            alignment: Alignment.topCenter,
+                                            child: AnimatedOpacity(
+                                              opacity: isMinimized ? 0 : 1,
+                                              duration: duration,
+                                              curve: Curves.easeOutCubic,
+                                              child: Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 2,
+                                                ),
+                                                child: Column(
+                                                  children: [
+                                                    Text(
+                                                      label,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .labelMedium
+                                                          ?.copyWith(
+                                                            letterSpacing: 0,
+                                                            color:
+                                                                currentIndex ==
+                                                                    index
+                                                                ? cs.onPrimaryContainer
+                                                                : cs.onSurfaceVariant,
+                                                          ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Container(
+                                                      width: 24,
+                                                      height: 2,
+                                                      decoration: BoxDecoration(
+                                                        color:
+                                                            currentIndex ==
+                                                                index
+                                                            ? cs.primary
+                                                            : Colors
+                                                                  .transparent,
+                                                        borderRadius:
+                                                            ShapeTokens.full,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),

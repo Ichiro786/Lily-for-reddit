@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +14,7 @@ import 'package:luli_for_reddit/data/reddit_repository.dart';
 import 'package:luli_for_reddit/features/auth/auth_controller.dart';
 import 'package:luli_for_reddit/features/explore/explore_screen.dart';
 import 'package:luli_for_reddit/features/feed/feed_controller.dart';
+import 'package:luli_for_reddit/features/feed/post_list_view.dart';
 import 'package:luli_for_reddit/features/home/home_shell.dart';
 import 'package:luli_for_reddit/features/history/visited_subreddits_store.dart';
 import 'package:luli_for_reddit/features/inbox/inbox_controller.dart';
@@ -42,6 +44,22 @@ class _Feed extends FeedController {
 class _Unread extends UnreadCountController {
   @override
   int build() => 0;
+}
+
+class _MotionFeed extends FeedController {
+  _MotionFeed(this.populated);
+  final bool populated;
+  int refreshes = 0;
+  @override
+  Future<FeedState> build(String arg) async => FeedState(
+    posts: populated ? [interactionPost()] : [],
+    sort: PostSort.hot,
+    time: TopTime.day,
+  );
+  @override
+  Future<void> refresh() async {
+    refreshes++;
+  }
 }
 
 class _Repo extends InteractionRepository {
@@ -111,7 +129,10 @@ class _Visits extends VisitedCommunityController {
   List<Subreddit> build() => [initial];
 }
 
-Future<ProviderContainer> _container(_Repo repo) async {
+Future<ProviderContainer> _container(
+  _Repo repo, {
+  FeedController Function()? feed,
+}) async {
   SharedPreferences.setMockInitialValues({
     'notifyInboxPrompted': true,
     'checkUpdates': false,
@@ -123,7 +144,7 @@ Future<ProviderContainer> _container(_Repo repo) async {
       ),
       redditRepositoryProvider.overrideWithValue(repo),
       authControllerProvider.overrideWith(_Auth.new),
-      feedControllerProvider.overrideWith(_Feed.new),
+      feedControllerProvider.overrideWith(feed ?? _Feed.new),
       unreadCountProvider.overrideWith(_Unread.new),
       inboxFailureProvider.overrideWithValue((_) {}),
       visitedCommunityStoreProvider.overrideWith(() => _Visits(repo.community)),
@@ -151,6 +172,145 @@ Widget _app(
 );
 
 void main() {
+  testWidgets('reselecting an empty feed still starts a visible refresh', (
+    tester,
+  ) async {
+    final container = await _container(_Repo(), feed: () => _MotionFeed(false));
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      _app(container, const Scaffold(body: PostListView(feedKey: ''))),
+    );
+    await tester.pumpAndSettle();
+    container.read(frontpageScrollSignalProvider.notifier).state++;
+    await tester.pumpAndSettle();
+    expect(
+      (container.read(feedControllerProvider('').notifier) as _MotionFeed)
+          .refreshes,
+      1,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'reduced-motion feed reselect jumps to top without animateTo assertion',
+    (tester) async {
+      final container = await _container(
+        _Repo(),
+        feed: () => _MotionFeed(true),
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        _app(
+          container,
+          const MediaQuery(
+            data: MediaQueryData(disableAnimations: true),
+            child: Scaffold(
+              body: PostListView(feedKey: '', header: SizedBox(height: 1200)),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final list = tester.widget<ListView>(find.byType(ListView));
+      list.controller!.jumpTo(200);
+      await tester.pump();
+      container.read(frontpageScrollSignalProvider.notifier).state++;
+      await tester.pump();
+      expect(list.controller!.offset, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final light in [false, true]) {
+    testWidgets(
+      'focused Discover search matches its pill in ${light ? 'light' : 'dark'} theme',
+      (tester) async {
+        final container = await _container(_Repo());
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          _app(container, const ExploreScreen(), light: light),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(TextField));
+        await tester.pumpAndSettle();
+        final decoration = tester.widget<InputDecorator>(
+          find.byType(InputDecorator),
+        );
+        expect(decoration.isFocused, isTrue);
+        expect(decoration.decoration.filled, isFalse);
+        expect(decoration.decoration.focusedBorder, InputBorder.none);
+        expect(decoration.decoration.enabledBorder, InputBorder.none);
+        final material = tester.widget<Material>(
+          find
+              .ancestor(
+                of: find.byType(TextField),
+                matching: find.byType(Material),
+              )
+              .first,
+        );
+        final scheme = Theme.of(
+          tester.element(find.byType(TextField)),
+        ).colorScheme;
+        expect(material.color, scheme.surfaceContainerHighest);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'shell briefly delays upward reveal and idle events preserve it',
+    (tester) async {
+      final container = await _container(_Repo());
+      addTearDown(container.dispose);
+      await tester.pumpWidget(_app(container, const HomeShell()));
+      await tester.pumpAndSettle();
+      final context = tester.element(find.byType(HomeShell));
+      final listener = tester.widget<NotificationListener<ScrollNotification>>(
+        find.byWidgetPredicate(
+          (w) =>
+              w is NotificationListener<ScrollNotification> &&
+              w.child is SafeArea,
+        ),
+      );
+      final metrics = FixedScrollMetrics(
+        minScrollExtent: 0,
+        maxScrollExtent: 1000,
+        pixels: 200,
+        viewportDimension: 600,
+        axisDirection: AxisDirection.down,
+        devicePixelRatio: 1,
+      );
+      void direction(ScrollDirection direction) => listener.onNotification!(
+        UserScrollNotification(
+          metrics: metrics,
+          context: context,
+          direction: direction,
+        ),
+      );
+      bool visible() => tester
+          .widget<M3EFloatingNavBar>(find.byType(M3EFloatingNavBar))
+          .isVisible;
+      direction(ScrollDirection.reverse);
+      await tester.pumpAndSettle();
+      expect(visible(), isFalse);
+      direction(ScrollDirection.forward);
+      await tester.pump(const Duration(milliseconds: 32));
+      expect(visible(), isFalse);
+      direction(ScrollDirection.idle);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(visible(), isTrue);
+      await tester.pumpAndSettle();
+      direction(ScrollDirection.reverse);
+      await tester.pumpAndSettle();
+      direction(ScrollDirection.forward);
+      await tester.pump(const Duration(milliseconds: 20));
+      direction(ScrollDirection.reverse);
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(visible(), isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Discover double tap opens focused global search and back keeps Discover selected',
     (tester) async {

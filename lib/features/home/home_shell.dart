@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/rate_limit.dart';
 import '../../core/theme/shape_tokens.dart';
+import '../../core/theme/motion_tokens.dart';
 import '../auth/auth_controller.dart';
 import '../explore/explore_screen.dart';
 import '../feed/post_list_view.dart';
@@ -38,9 +41,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   final List<Widget?> _tabWidgets = List<Widget?>.filled(4, null);
 
   final ValueNotifier<bool> _chrome = ValueNotifier<bool>(true);
+  Timer? _revealChromeTimer;
 
   @override
   void dispose() {
+    _revealChromeTimer?.cancel();
     _chrome.dispose();
     super.dispose();
   }
@@ -140,8 +145,28 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   bool _onScroll(ScrollNotification n) {
+    if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
+    if (scrollChromeVisible(n, true) && !scrollChromeVisible(n, false)) {
+      return false; // Idle/ballistic events must not cancel a pending reveal.
+    }
     final visible = scrollChromeVisible(n, _chrome.value);
-    if (visible != _chrome.value) _chrome.value = visible;
+    if (!visible) {
+      _revealChromeTimer?.cancel();
+      _revealChromeTimer = null;
+      _chrome.value = false;
+    } else if (!_chrome.value) {
+      if (n.metrics.pixels <= n.metrics.minScrollExtent ||
+          MotionTokens.reduced(context)) {
+        _revealChromeTimer?.cancel();
+        _revealChromeTimer = null;
+        _chrome.value = true;
+      } else {
+        _revealChromeTimer ??= Timer(const Duration(milliseconds: 64), () {
+          _revealChromeTimer = null;
+          if (mounted) _chrome.value = true;
+        });
+      }
+    }
     return false;
   }
 
@@ -161,11 +186,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           child: _LazyKeepAliveTabHost(
             index: _index,
             tabs: [
-              ValueListenableBuilder<bool>(
-                valueListenable: _chrome,
-                builder: (_, visible, __) =>
-                    _FrontpageTab(chromeVisible: visible),
-              ),
+              _FrontpageTab(chromeVisible: _chrome),
               _tabWidgets[1],
               _tabWidgets[2],
               _tabWidgets[3],
@@ -178,7 +199,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               valueListenable: _chrome,
               builder: (context, visible, child) => AnimatedScale(
                 scale: visible ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
+                duration: MotionTokens.feedback(context),
                 curve: Curves.fastOutSlowIn,
                 child: child!,
               ),
@@ -200,9 +221,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         builder: (_, visible, __) => M3EFloatingNavBar(
           currentIndex: _index,
           unreadCount: unread,
-          isMinimized: !visible || !showNavLabels,
+          isVisible: visible,
+          isMinimized: !showNavLabels,
           onSearch: () => context.push('/search'),
           onTap: (i) {
+            _revealChromeTimer?.cancel();
+            _revealChromeTimer = null;
+            _chrome.value = true;
             // Re-tapping the active tab scrolls it to top (Posts also refreshes).
             if (i == _index) {
               if (i == 0) {
@@ -227,24 +252,68 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 /// Keeps initialized tabs mounted while creating non-selected tabs on demand.
 /// Offstage preserves each tab's element/state tree; TickerMode avoids running
 /// animations for tabs that are not currently visible.
-class _LazyKeepAliveTabHost extends StatelessWidget {
+class _LazyKeepAliveTabHost extends StatefulWidget {
   const _LazyKeepAliveTabHost({required this.index, required this.tabs});
 
   final int index;
   final List<Widget?> tabs;
 
   @override
+  State<_LazyKeepAliveTabHost> createState() => _LazyKeepAliveTabHostState();
+}
+
+class _LazyKeepAliveTabHostState extends State<_LazyKeepAliveTabHost>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entry = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 180),
+    value: 1,
+  );
+  late final Animation<double> _opacity = _entry.drive(
+    CurveTween(curve: Curves.easeOutCubic),
+  );
+
+  @override
+  void didUpdateWidget(covariant _LazyKeepAliveTabHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) {
+      if (MotionTokens.reduced(context)) {
+        _entry.value = 1;
+      } else {
+        _entry.forward(from: 0);
+      }
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MotionTokens.reduced(context)) _entry.value = 1;
+  }
+
+  @override
+  void dispose() {
+    _entry.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
       children: [
-        for (var i = 0; i < tabs.length; i++)
+        for (var i = 0; i < widget.tabs.length; i++)
           Offstage(
             key: ValueKey<int>(i),
-            offstage: i != index,
+            offstage: i != widget.index,
             child: TickerMode(
-              enabled: i == index,
-              child: tabs[i] ?? const SizedBox.shrink(),
+              enabled: i == widget.index,
+              child: FadeTransition(
+                opacity: _opacity,
+                child: RepaintBoundary(
+                  child: widget.tabs[i] ?? const SizedBox.shrink(),
+                ),
+              ),
             ),
           ),
       ],
@@ -253,8 +322,8 @@ class _LazyKeepAliveTabHost extends StatelessWidget {
 }
 
 class _FrontpageTab extends ConsumerWidget {
-  const _FrontpageTab({this.chromeVisible = true});
-  final bool chromeVisible;
+  const _FrontpageTab({required this.chromeVisible});
+  final ValueListenable<bool> chromeVisible;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -271,91 +340,87 @@ class _FrontpageTab extends ConsumerWidget {
         // Full mode: Google-app style search bar with avatar — collapses on
         // scroll. Compact mode leaves just the feed title.
         if (showActionRow)
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.fastOutSlowIn,
-            alignment: Alignment.topCenter,
-            child: chromeVisible
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: Row(
-                      children: [
-                        if (ref
-                            .watch(settingsControllerProvider)
-                            .showApiUsage) ...[
-                          const _ApiUsagePill(),
-                          const SizedBox(width: 8),
-                        ],
-                        Expanded(
-                          child: Container(
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: cs.surfaceContainerHigh,
-                              borderRadius: ShapeTokens.full,
-                              border: Border.all(
-                                color: cs.outlineVariant.withValues(
-                                  alpha: 0.20,
+          ValueListenableBuilder<bool>(
+            valueListenable: chromeVisible,
+            builder: (context, visible, toolbar) => AnimatedSize(
+              duration: MotionTokens.feedback(context),
+              curve: Curves.fastOutSlowIn,
+              alignment: Alignment.topCenter,
+              child: visible
+                  ? toolbar!
+                  : const SizedBox(width: double.infinity, height: 0),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Row(
+                children: [
+                  if (ref.watch(settingsControllerProvider).showApiUsage) ...[
+                    const _ApiUsagePill(),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: Container(
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHigh,
+                        borderRadius: ShapeTokens.full,
+                        border: Border.all(
+                          color: cs.outlineVariant.withValues(alpha: 0.20),
+                          width: 1,
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: ShapeTokens.full,
+                          onTap: () => context.push('/search'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.search_rounded,
+                                  color: cs.onSurfaceVariant,
                                 ),
-                                width: 1,
-                              ),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: ShapeTokens.full,
-                                onTap: () => context.push('/search'),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.search_rounded,
-                                        color: cs.onSurfaceVariant,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        'Search Reddit',
-                                        style: TextStyle(
-                                          color: cs.onSurfaceVariant,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Search Reddit',
+                                  style: TextStyle(
+                                    color: cs.onSurfaceVariant,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        Semantics(
-                          button: true,
-                          label: 'Your profile',
-                          child: GestureDetector(
-                            onTap: () => context.push('/u/$username'),
-                            child: CircleAvatar(
-                              radius: 20,
-                              backgroundColor: cs.primaryContainer,
-                              child: Text(
-                                username.isNotEmpty
-                                    ? username[0].toUpperCase()
-                                    : '?',
-                                style: TextStyle(
-                                  color: cs.onPrimaryContainer,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  )
-                : const SizedBox(width: double.infinity, height: 0),
+                  ),
+                  const SizedBox(width: 4),
+                  Semantics(
+                    button: true,
+                    label: 'Your profile',
+                    child: GestureDetector(
+                      onTap: () => context.push('/u/$username'),
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: cs.primaryContainer,
+                        child: Text(
+                          username.isNotEmpty ? username[0].toUpperCase() : '?',
+                          style: TextStyle(
+                            color: cs.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         Expanded(
           child: PostListView(

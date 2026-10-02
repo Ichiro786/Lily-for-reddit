@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/m3e_refresh_indicator.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -142,10 +145,10 @@ class _InboxListState extends ConsumerState<_InboxList>
     final async = ref.watch(inboxControllerProvider(widget.where));
     final notifier = ref.read(inboxControllerProvider(widget.where).notifier);
 
-    final body = RefreshIndicator(
+    final body = M3ERefreshIndicator(
       onRefresh: notifier.refresh,
       child: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: M3ELoadingIndicator()),
         error: (error, _) {
           final auth = ref.watch(authControllerProvider).valueOrNull;
           if (auth == null) {
@@ -180,7 +183,7 @@ class _InboxListState extends ConsumerState<_InboxList>
                 return state.loadingMore
                     ? const Padding(
                         padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()),
+                        child: Center(child: M3ELoadingIndicator()),
                       )
                     : const SizedBox.shrink();
               }

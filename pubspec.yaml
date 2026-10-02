@@ -56,6 +56,7 @@ dependencies:
   aptabase_flutter: ^0.4.0
   visibility_detector: ^0.4.0+2
   scrollable_positioned_list: ^0.3.8
+  material3_expressive_loading_indicator: 0.1.2
 
   # Utils
   intl: ^0.20.1

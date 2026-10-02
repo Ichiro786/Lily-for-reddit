@@ -77,7 +77,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 40));
     final fades = tester.widgetList<FadeTransition>(
       find.descendant(
-        of: find.byType(M3EFloatingNavBar),
+        of: find.byType(AnimatedOpacity),
         matching: find.byType(FadeTransition),
       ),
     );
@@ -114,7 +114,7 @@ void main() {
     expect(tester.getSize(_dock()).height, 60);
     for (final fade in tester.widgetList<FadeTransition>(
       find.descendant(
-        of: find.byType(M3EFloatingNavBar),
+        of: find.byType(AnimatedOpacity),
         matching: find.byType(FadeTransition),
       ),
     )) {
@@ -151,10 +151,7 @@ void main() {
     var selected = -1;
     await tester.pumpWidget(
       _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          onTap: (index) => selected = index,
-        ),
+        M3EFloatingNavBar(currentIndex: 0, onTap: (index) => selected = index),
       ),
     );
 
@@ -168,37 +165,25 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          onTap: (_) {},
-        ),
-      ),
+      _harness(M3EFloatingNavBar(currentIndex: 0, onTap: (_) {})),
     );
     expect(tester.getSize(_dock()).height, 64);
 
     await tester.pumpWidget(
       _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          isMinimized: true,
-          onTap: (_) {},
-        ),
+        M3EFloatingNavBar(currentIndex: 0, isMinimized: true, onTap: (_) {}),
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.getSize(_dock()).height, 60);
   });
 
-  testWidgets('Inbox badge dot is visible when unread count is nonzero',
-      (tester) async {
+  testWidgets('Inbox badge dot is visible when unread count is nonzero', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          unreadCount: 7,
-          onTap: (_) {},
-        ),
+        M3EFloatingNavBar(currentIndex: 0, unreadCount: 7, onTap: (_) {}),
       ),
     );
 
@@ -207,51 +192,46 @@ void main() {
   });
 
   testWidgets(
-      'minimizing and expanding dock causes no layout overflows across all animation frames',
-      (tester) async {
-    await tester.pumpWidget(
-      _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          isMinimized: false,
-          onTap: (_) {},
+    'minimizing and expanding dock causes no layout overflows across all animation frames',
+    (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(currentIndex: 0, isMinimized: false, onTap: (_) {}),
         ),
-      ),
-    );
-    expect(tester.takeException(), isNull);
+      );
+      expect(tester.takeException(), isNull);
 
-    // Transition to minimized
-    await tester.pumpWidget(
-      _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          isMinimized: true,
-          onTap: (_) {},
+      // Transition to minimized
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(currentIndex: 0, isMinimized: true, onTap: (_) {}),
         ),
-      ),
-    );
+      );
 
-    for (final ms in [0, 40, 80, 120, 160, 220]) {
-      await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
-      expect(tester.takeException(), isNull,
-          reason: 'Overflow occurred while minimizing at ${ms}ms');
-    }
+      for (final ms in [0, 40, 80, 120, 160, 220]) {
+        await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'Overflow occurred while minimizing at ${ms}ms',
+        );
+      }
 
-    // Transition back to expanded
-    await tester.pumpWidget(
-      _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          isMinimized: false,
-          onTap: (_) {},
+      // Transition back to expanded
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(currentIndex: 0, isMinimized: false, onTap: (_) {}),
         ),
-      ),
-    );
+      );
 
-    for (final ms in [0, 40, 80, 120, 160, 220]) {
-      await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
-      expect(tester.takeException(), isNull,
-          reason: 'Overflow occurred while expanding at ${ms}ms');
-    }
-  });
+      for (final ms in [0, 40, 80, 120, 160, 220]) {
+        await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'Overflow occurred while expanding at ${ms}ms',
+        );
+      }
+    },
+  );
 }
