@@ -74,11 +74,22 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
       unawaited(writer.flush());
       writer.cancel();
     });
-    final raw = prefs.getStringList(_key) ?? const [];
-    final entries = [
-      for (final s in raw)
-        HistoryEntry.fromJson(jsonDecode(s) as Map<String, dynamic>),
-    ];
+    final raw = prefs.get(_key);
+    final entries = <HistoryEntry>[];
+    final ids = <String>{};
+    // A single corrupt row must not break the feed's read-state provider.
+    for (final row in raw is List ? raw : const []) {
+      if (row is! String) continue;
+      try {
+        final entry = HistoryEntry.fromJson(
+          jsonDecode(row) as Map<String, dynamic>,
+        );
+        if (entry.id.isNotEmpty && ids.add(entry.id)) entries.add(entry);
+        if (entries.length == _cap) break;
+      } catch (_) {
+        // Preserve valid history around a malformed or obsolete record.
+      }
+    }
     _rebuildIndex(entries);
     return entries;
   }

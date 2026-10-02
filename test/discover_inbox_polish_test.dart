@@ -312,7 +312,7 @@ void main() {
   );
 
   testWidgets(
-    'Discover double tap opens focused global search and back keeps Discover selected',
+    'Discover double tap focuses its own search from Home and already-selected Discover',
     (tester) async {
       final container = await _container(_Repo());
       addTearDown(container.dispose);
@@ -350,11 +350,31 @@ void main() {
       await tester.pump(const Duration(milliseconds: 80));
       await tester.tap(discover);
       await tester.pumpAndSettle();
-      expect(find.byType(SearchScreen), findsOneWidget);
-      expect(tester.testTextInput.isVisible, isTrue);
-      router.pop();
-      await tester.pumpAndSettle();
       expect(find.byType(SearchScreen), findsNothing);
+      final search = find.descendant(
+        of: find.byType(ExploreScreen),
+        matching: find.byType(TextField),
+      );
+      expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
+      expect(tester.testTextInput.isVisible, isTrue);
+      tester.widget<TextField>(search).focusNode!.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(discover);
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tap(discover);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
+      expect(tester.testTextInput.isVisible, isTrue);
+      expect(find.byType(SearchScreen), findsNothing);
+      // Android Back can dismiss the keyboard without unfocusing the field.
+      tester.testTextInput.hide();
+      await tester.pump();
+      expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
+      await tester.tap(discover);
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tap(discover);
+      await tester.pumpAndSettle();
+      expect(tester.testTextInput.isVisible, isTrue);
       expect(
         tester
             .widget<M3EFloatingNavBar>(find.byType(M3EFloatingNavBar))

@@ -52,6 +52,7 @@ class ExploreScreen extends ConsumerStatefulWidget {
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   final _scroll = ScrollController();
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
   String _query = '';
   String _filter = 'all';
   String _sort = 'default';
@@ -62,6 +63,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   void dispose() {
     _scroll.dispose();
     _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -284,6 +286,18 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       }
     });
 
+    ref.listen<int>(discoverSearchSignalProvider, (_, __) {
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+      // Re-focus also restores the keyboard if Android's Back key hid it
+      // while the search field retained focus.
+      _searchFocus.unfocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && TickerMode.valuesOf(context).enabled) {
+          _searchFocus.requestFocus();
+        }
+      });
+    });
+
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -316,6 +330,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     clipBehavior: Clip.antiAlias,
                     child: TextField(
                       controller: _search,
+                      focusNode: _searchFocus,
                       onChanged: (value) => setState(() => _query = value),
                       onSubmitted: (value) {
                         final q = value.trim();

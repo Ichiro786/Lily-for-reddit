@@ -42,6 +42,7 @@ import 'comments_controller.dart';
 import 'comment_card.dart';
 import 'comment_overrides.dart';
 import 'compose_sheet.dart';
+import 'reply_submission.dart';
 import 'comment_compose_bar.dart';
 import 'post_actions.dart';
 import 'interactive_spoiler.dart';
@@ -76,6 +77,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   // Owned here so a failed quick reply can restore the user's text.
   final TextEditingController _composeCtrl = TextEditingController();
   MediaAttachment? _pendingComposeAttachment;
+  bool _sendingQuickReply = false;
   MarkdownStyleSheet? _commentMarkdownStyle;
   ThemeData? _commentMarkdownTheme;
 
@@ -207,28 +209,33 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     String text,
     MediaAttachment? attachment,
   ) async {
+    if (_sendingQuickReply) return;
     final repo = ref.read(redditRepositoryProvider);
+    final epoch = ref.read(authSessionEpochProvider);
+    void requireSession() {
+      if (!mounted ||
+          epoch != ref.read(authSessionEpochProvider) ||
+          ref.read(authTransitionProvider)) {
+        throw StateError('Account changed');
+      }
+    }
+
+    setState(() => _sendingQuickReply = true);
     try {
-      final reply = attachment == null
-          ? await repo.reply(
-              parentFullname: thread.post.fullname,
-              text: text,
-              depth: 0,
-            )
-          : await repo.replyWithImage(
-              parentFullname: thread.post.fullname,
-              text: text,
-              bytes: attachment.bytes,
-              filename: attachment.filename,
-              mimeType: attachment.mimeType,
-              depth: 0,
-            );
+      final reply = await submitMediaReply(
+        repository: repo,
+        parentFullname: thread.post.fullname,
+        text: text,
+        depth: 0,
+        media: attachment,
+        requireSession: requireSession,
+      );
       notifier.insertReply(thread.post.fullname, reply);
       ref.read(postOverridesProvider.notifier).bumpComments(thread.post, 1);
       ref.read(interestStoreProvider.notifier).bump(thread.post.subreddit, 2.5);
       ref.read(keywordStoreProvider.notifier).bumpTitle(thread.post.title, 1);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || epoch != ref.read(authSessionEpochProvider)) return;
       // The compose bar already cleared the text; put it back so a transient
       // failure doesn't eat the user's comment.
       if (_composeCtrl.text.trim().isEmpty) _composeCtrl.text = text;
@@ -240,6 +247,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           content: Text("Couldn't post the comment: ${friendlyError(e)}"),
         ),
       );
+    } finally {
+      if (mounted) setState(() => _sendingQuickReply = false);
     }
   }
 
@@ -624,8 +633,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           ),
           CommentComposeBar(
             controller: _composeCtrl,
+            enabled:
+                thread != null &&
+                !_sendingQuickReply &&
+                !ref.watch(authTransitionProvider),
+            onPickGif: () => ref.read(replyGifPickerProvider)(context, ref),
             onSubmit: (text) {
-              if (thread == null) return;
+              if (thread == null || _sendingQuickReply) return;
               final attachment = _pendingComposeAttachment;
               _pendingComposeAttachment = null;
               _sendQuickReply(notifier, thread, text, attachment);

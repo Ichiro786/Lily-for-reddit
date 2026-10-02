@@ -241,6 +241,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), '**hello**');
+      await tester.tap(find.byTooltip('Add media'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('GIF'));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));

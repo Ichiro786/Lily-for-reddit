@@ -179,8 +179,15 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Hello M3E');
     await tester.testTextInput.receiveAction(TextInputAction.send);
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.add_photo_alternate_outlined));
-    await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded));
+    expect(find.byIcon(Icons.add_photo_alternate_outlined), findsNothing);
+    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsNothing);
+    await tester.tap(find.byTooltip('Add media'));
+    await tester.pumpAndSettle();
+    expect(find.text('Photo'), findsOneWidget);
+    expect(find.text('Video'), findsOneWidget);
+    expect(find.text('GIF'), findsOneWidget);
+    await tester.tap(find.text('Next comment thread'));
+    await tester.pumpAndSettle();
 
     expect(sent, 'Hello M3E');
     expect(selected, 0);

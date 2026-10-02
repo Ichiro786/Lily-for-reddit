@@ -12,6 +12,7 @@ import '../../core/drafts.dart';
 import '../../core/providers.dart';
 import '../../models/flair.dart';
 import '../media/giphy_picker.dart';
+import '../media/attachment.dart';
 
 enum _Kind { text, link, image, gallery, video }
 
@@ -153,6 +154,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   }
 
   Future<void> _pickImage() async {
+    if (_busy) return;
     final revision = ++_pickerRevision;
     try {
       final picked = await ref
@@ -170,6 +172,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   }
 
   Future<void> _pickGallery() async {
+    if (_busy) return;
     final revision = ++_pickerRevision;
     try {
       final picked = await ref.read(postMediaPickerProvider).pickMultiImage();
@@ -185,6 +188,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   }
 
   Future<void> _pickVideo() async {
+    if (_busy) return;
     final revision = ++_pickerRevision;
     try {
       final picked = await ref
@@ -202,6 +206,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   }
 
   Future<void> _insertGif() async {
+    if (_busy) return;
     final revision = ++_pickerRevision;
     try {
       final url = await ref.read(postGifPickerProvider)(context, ref);
@@ -213,6 +218,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
       }
       final sep = _body.text.isEmpty ? '' : '\n';
       setState(() => _body.text = '${_body.text}$sep$url');
+      _saveDraft();
     } catch (_) {
       _pickerError(revision);
     }
@@ -226,15 +232,8 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
     }
   }
 
-  String _mimeFor(String name) {
-    final n = name.toLowerCase();
-    if (n.endsWith('.png')) return 'image/png';
-    if (n.endsWith('.gif')) return 'image/gif';
-    if (n.endsWith('.webp')) return 'image/webp';
-    return 'image/jpeg';
-  }
-
   Future<void> _submit() async {
+    if (_busy) return;
     final sr = _subreddit.text.trim();
     final title = _title.text.trim();
     if (sr.isEmpty || title.isEmpty) {
@@ -293,7 +292,8 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
           final url = await repo.uploadImage(
             bytes: await _image!.readAsBytes(),
             filename: _image!.name,
-            mimeType: _image!.mimeType ?? _mimeFor(_image!.name),
+            mimeType:
+                _image!.mimeType ?? imageMimeTypeForFilename(_image!.name),
           );
           final id = await repo.submitPost(
             subreddit: sr,
@@ -312,7 +312,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
             final asset = await repo.uploadMediaAsset(
               bytes: await img.readAsBytes(),
               filename: img.name,
-              mimeType: img.mimeType ?? _mimeFor(img.name),
+              mimeType: img.mimeType ?? imageMimeTypeForFilename(img.name),
             );
             mediaIds.add(asset.assetId);
           }
@@ -523,6 +523,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
               ],
               selected: {_kind},
               onSelectionChanged: (s) {
+                if (_busy) return;
                 setState(() => _kind = s.first);
                 _saveDraft();
               },
@@ -633,7 +634,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
     required VoidCallback onTap,
   }) {
     return InkWell(
-      onTap: onTap,
+      onTap: _busy ? null : onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         height: 150,

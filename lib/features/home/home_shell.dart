@@ -1,15 +1,11 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/network/rate_limit.dart';
-import '../../core/theme/shape_tokens.dart';
 import '../../core/theme/motion_tokens.dart';
-import '../auth/auth_controller.dart';
 import '../explore/explore_screen.dart';
 import '../feed/post_list_view.dart';
 import '../inbox/inbox_controller.dart';
@@ -93,7 +89,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
     if (enable != true || !mounted) return;
     final granted = await NotificationService.instance.requestPermission();
-    if (!granted) return;
+    if (!granted || !mounted) return;
     ref.read(settingsControllerProvider.notifier).setNotifyInbox(true);
     await pollInbox(notify: false); // prime, don't notify for existing unread
     await registerInboxPolling();
@@ -186,7 +182,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           child: _LazyKeepAliveTabHost(
             index: _index,
             tabs: [
-              _FrontpageTab(chromeVisible: _chrome),
+              const _FrontpageTab(),
               _tabWidgets[1],
               _tabWidgets[2],
               _tabWidgets[3],
@@ -223,7 +219,24 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           unreadCount: unread,
           isVisible: visible,
           isMinimized: !showNavLabels,
-          onSearch: () => context.push('/search'),
+          onSearch: () {
+            _revealChromeTimer?.cancel();
+            _revealChromeTimer = null;
+            _chrome.value = true;
+            if (_index != 1) {
+              setState(() {
+                _tabWidgets[1] ??= _createTab(1);
+                _index = 1;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  ref.read(discoverSearchSignalProvider.notifier).state++;
+                }
+              });
+            } else {
+              ref.read(discoverSearchSignalProvider.notifier).state++;
+            }
+          },
           onTap: (i) {
             _revealChromeTimer?.cancel();
             _revealChromeTimer = null;
@@ -322,159 +335,14 @@ class _LazyKeepAliveTabHostState extends State<_LazyKeepAliveTabHost>
 }
 
 class _FrontpageTab extends ConsumerWidget {
-  const _FrontpageTab({required this.chromeVisible});
-  final ValueListenable<bool> chromeVisible;
+  const _FrontpageTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-    final username =
-        ref.watch(authControllerProvider).valueOrNull?.username ?? '';
-    final settings = ref.watch(settingsControllerProvider);
-    final forYou = settings.forYouFeed;
-    final mode = settings.topBarMode;
-    // Keep the saved mode value compatible; compact mode needs no toolbar.
-    final showActionRow = mode == TopBarMode.full;
-    return Column(
-      children: [
-        // Full mode: Google-app style search bar with avatar — collapses on
-        // scroll. Compact mode leaves just the feed title.
-        if (showActionRow)
-          ValueListenableBuilder<bool>(
-            valueListenable: chromeVisible,
-            builder: (context, visible, toolbar) => AnimatedSize(
-              duration: MotionTokens.feedback(context),
-              curve: Curves.fastOutSlowIn,
-              alignment: Alignment.topCenter,
-              child: visible
-                  ? toolbar!
-                  : const SizedBox(width: double.infinity, height: 0),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Row(
-                children: [
-                  if (ref.watch(settingsControllerProvider).showApiUsage) ...[
-                    const _ApiUsagePill(),
-                    const SizedBox(width: 8),
-                  ],
-                  Expanded(
-                    child: Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHigh,
-                        borderRadius: ShapeTokens.full,
-                        border: Border.all(
-                          color: cs.outlineVariant.withValues(alpha: 0.20),
-                          width: 1,
-                        ),
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: ShapeTokens.full,
-                          onTap: () => context.push('/search'),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.search_rounded,
-                                  color: cs.onSurfaceVariant,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'Search Reddit',
-                                  style: TextStyle(
-                                    color: cs.onSurfaceVariant,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Semantics(
-                    button: true,
-                    label: 'Your profile',
-                    child: GestureDetector(
-                      onTap: () => context.push('/u/$username'),
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: cs.primaryContainer,
-                        child: Text(
-                          username.isNotEmpty ? username[0].toUpperCase() : '?',
-                          style: TextStyle(
-                            color: cs.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        Expanded(
-          child: PostListView(
-            feedKey: '',
-            frontpageStyle: true,
-            header: FrontpageHeader(forYou: forYou),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Shows live Reddit API rate-limit usage alongside the search bar
-/// (power-user setting). Reddit allows ~100 requests/minute per OAuth client.
-class _ApiUsagePill extends ConsumerWidget {
-  const _ApiUsagePill();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-    final rl = ref.watch(rateLimitProvider);
-    final String label;
-    if (rl == null) {
-      label = 'API: 0/100';
-    } else {
-      label = 'API: ${rl.used}/${rl.total}';
-    }
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHigh,
-        borderRadius: ShapeTokens.full,
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: 0.20),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.speed_rounded, size: 16, color: cs.primary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: cs.onSurfaceVariant,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context, WidgetRef ref) => PostListView(
+    feedKey: '',
+    frontpageStyle: true,
+    header: FrontpageHeader(
+      forYou: ref.watch(settingsControllerProvider.select((s) => s.forYouFeed)),
+    ),
+  );
 }

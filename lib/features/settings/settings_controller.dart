@@ -10,36 +10,20 @@ final sharedPrefsProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('sharedPrefsProvider not initialized'),
 );
 
-/// Where the Posts-screen actions (search, new post, profile) live.
-enum TopBarMode { full, expandable }
-
-extension TopBarModeLabel on TopBarMode {
-  String get label => switch (this) {
-        TopBarMode.full => 'Full top bar',
-        TopBarMode.expandable => 'Compact',
-      };
-  String get description => switch (this) {
-        TopBarMode.full =>
-          'Show search and your profile above the feed',
-        TopBarMode.expandable =>
-          'Keep the title clean; double-tap Discover to search',
-      };
-}
-
 /// How posts are laid out in feeds.
 enum PostDisplay { large, card, mini }
 
 extension PostDisplayLabel on PostDisplay {
   String get label => switch (this) {
-        PostDisplay.large => 'Default',
-        PostDisplay.card => 'Cards',
-        PostDisplay.mini => 'Mini cards',
-      };
+    PostDisplay.large => 'Default',
+    PostDisplay.card => 'Cards',
+    PostDisplay.mini => 'Mini cards',
+  };
   IconData get icon => switch (this) {
-        PostDisplay.large => Icons.view_agenda_outlined,
-        PostDisplay.card => Icons.calendar_view_day_rounded,
-        PostDisplay.mini => Icons.view_list_rounded,
-      };
+    PostDisplay.large => Icons.view_agenda_outlined,
+    PostDisplay.card => Icons.calendar_view_day_rounded,
+    PostDisplay.mini => Icons.view_list_rounded,
+  };
 }
 
 class Settings {
@@ -62,9 +46,7 @@ class Settings {
     required this.subsCacheMinutes,
     required this.textScale,
     required this.autoplayMedia,
-    required this.showApiUsage,
     required this.notifyInbox,
-    required this.topBarMode,
     required this.navLabels,
   });
 
@@ -86,9 +68,7 @@ class Settings {
   final int subsCacheMinutes; // how long to keep the subs cache
   final double textScale; // global text size multiplier (0.8–1.4)
   final bool autoplayMedia; // autoplay videos/GIFs in feeds
-  final bool showApiUsage; // show API usage instead of search on Posts screen
   final bool notifyInbox; // background-poll the inbox + local notifications
-  final TopBarMode topBarMode; // Posts-screen action layout
   final bool navLabels; // show text labels on the bottom nav bar
 
   Settings copyWith({
@@ -110,35 +90,30 @@ class Settings {
     int? subsCacheMinutes,
     double? textScale,
     bool? autoplayMedia,
-    bool? showApiUsage,
     bool? notifyInbox,
-    TopBarMode? topBarMode,
     bool? navLabels,
-  }) =>
-      Settings(
-        themeMode: themeMode ?? this.themeMode,
-        amoled: amoled ?? this.amoled,
-        useDynamicColor: useDynamicColor ?? this.useDynamicColor,
-        seedColor: seedColor ?? this.seedColor,
-        blurNsfw: blurNsfw ?? this.blurNsfw,
-        defaultSort: defaultSort ?? this.defaultSort,
-        postDisplay: postDisplay ?? this.postDisplay,
-        swipeActions: swipeActions ?? this.swipeActions,
-        trackHistory: trackHistory ?? this.trackHistory,
-        offlineCache: offlineCache ?? this.offlineCache,
-        checkUpdates: checkUpdates ?? this.checkUpdates,
-        forYouFeed: forYouFeed ?? this.forYouFeed,
-        autoHideReadForYou: autoHideReadForYou ?? this.autoHideReadForYou,
-        midResThumbnails: midResThumbnails ?? this.midResThumbnails,
-        subsCacheEnabled: subsCacheEnabled ?? this.subsCacheEnabled,
-        subsCacheMinutes: subsCacheMinutes ?? this.subsCacheMinutes,
-        textScale: textScale ?? this.textScale,
-        autoplayMedia: autoplayMedia ?? this.autoplayMedia,
-        showApiUsage: showApiUsage ?? this.showApiUsage,
-        notifyInbox: notifyInbox ?? this.notifyInbox,
-        topBarMode: topBarMode ?? this.topBarMode,
-        navLabels: navLabels ?? this.navLabels,
-      );
+  }) => Settings(
+    themeMode: themeMode ?? this.themeMode,
+    amoled: amoled ?? this.amoled,
+    useDynamicColor: useDynamicColor ?? this.useDynamicColor,
+    seedColor: seedColor ?? this.seedColor,
+    blurNsfw: blurNsfw ?? this.blurNsfw,
+    defaultSort: defaultSort ?? this.defaultSort,
+    postDisplay: postDisplay ?? this.postDisplay,
+    swipeActions: swipeActions ?? this.swipeActions,
+    trackHistory: trackHistory ?? this.trackHistory,
+    offlineCache: offlineCache ?? this.offlineCache,
+    checkUpdates: checkUpdates ?? this.checkUpdates,
+    forYouFeed: forYouFeed ?? this.forYouFeed,
+    autoHideReadForYou: autoHideReadForYou ?? this.autoHideReadForYou,
+    midResThumbnails: midResThumbnails ?? this.midResThumbnails,
+    subsCacheEnabled: subsCacheEnabled ?? this.subsCacheEnabled,
+    subsCacheMinutes: subsCacheMinutes ?? this.subsCacheMinutes,
+    textScale: textScale ?? this.textScale,
+    autoplayMedia: autoplayMedia ?? this.autoplayMedia,
+    notifyInbox: notifyInbox ?? this.notifyInbox,
+    navLabels: navLabels ?? this.navLabels,
+  );
 }
 
 class SettingsController extends Notifier<Settings> {
@@ -147,17 +122,29 @@ class SettingsController extends Notifier<Settings> {
   @override
   Settings build() {
     final p = _prefs;
+    T enumValue<T>(String key, List<T> values, T fallback) {
+      final index = p.get(key);
+      return index is int && index >= 0 && index < values.length
+          ? values[index]
+          : fallback;
+    }
+
+    final scale = p.get('textScale');
+    final minutes = p.get('subsCacheMinutes');
     return Settings(
-      themeMode: ThemeMode.values[p.getInt('themeMode') ?? 0],
+      themeMode: enumValue('themeMode', ThemeMode.values, ThemeMode.system),
       amoled: p.getBool('amoled') ?? false,
       // Default off so the Bloom palette shows out of the box; users can opt
       // into wallpaper-based dynamic color.
       useDynamicColor: p.getBool('useDynamicColor') ?? false,
       seedColor: p.getInt('seedColor') ?? AppTheme.seed.toARGB32(),
       blurNsfw: p.getBool('blurNsfw') ?? true,
-      defaultSort: PostSort.values[p.getInt('defaultSort') ?? PostSort.hot.index],
-      postDisplay:
-          PostDisplay.values[p.getInt('postDisplay') ?? PostDisplay.large.index],
+      defaultSort: enumValue('defaultSort', PostSort.values, PostSort.hot),
+      postDisplay: enumValue(
+        'postDisplay',
+        PostDisplay.values,
+        PostDisplay.large,
+      ),
       swipeActions: p.getBool('swipeActions') ?? true,
       trackHistory: p.getBool('trackHistory') ?? true,
       offlineCache: p.getBool('offlineCache') ?? true,
@@ -166,17 +153,12 @@ class SettingsController extends Notifier<Settings> {
       autoHideReadForYou: p.getBool('autoHideReadForYou') ?? false,
       midResThumbnails: p.getBool('midResThumbnails') ?? true,
       subsCacheEnabled: p.getBool('subsCacheEnabled') ?? true,
-      subsCacheMinutes: p.getInt('subsCacheMinutes') ?? 10,
-      textScale: p.getDouble('textScale') ?? 1.0,
+      subsCacheMinutes: minutes is int ? minutes.clamp(1, 1440) : 10,
+      textScale: scale is num && scale.isFinite
+          ? scale.toDouble().clamp(0.8, 1.4)
+          : 1.0,
       autoplayMedia: p.getBool('autoplayMedia') ?? true,
-      showApiUsage: p.getBool('showApiUsage') ?? false,
       notifyInbox: p.getBool('notifyInbox') ?? false,
-      // Default to Expandable. Old installs may have stored the removed
-      // "compact" (1) or the old expandable index (2); clamp maps both safely.
-      topBarMode: p.getInt('topBarMode') == null
-          ? TopBarMode.expandable
-          : TopBarMode.values[
-              p.getInt('topBarMode')!.clamp(0, TopBarMode.values.length - 1)],
       navLabels: p.getBool('navLabels') ?? true,
     );
   }
@@ -271,19 +253,9 @@ class SettingsController extends Notifier<Settings> {
     state = state.copyWith(autoplayMedia: v);
   }
 
-  void setShowApiUsage(bool v) {
-    _prefs.setBool('showApiUsage', v);
-    state = state.copyWith(showApiUsage: v);
-  }
-
   void setNotifyInbox(bool v) {
     _prefs.setBool('notifyInbox', v);
     state = state.copyWith(notifyInbox: v);
-  }
-
-  void setTopBarMode(TopBarMode v) {
-    _prefs.setInt('topBarMode', v.index);
-    state = state.copyWith(topBarMode: v);
   }
 
   void setNavLabels(bool v) {

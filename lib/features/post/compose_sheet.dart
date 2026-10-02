@@ -11,7 +11,7 @@ import '../auth/auth_controller.dart';
 import 'comment_content.dart';
 import 'interactive_spoiler.dart';
 import 'reply_editor.dart';
-import '../../core/network/catbox.dart';
+import 'reply_submission.dart';
 import '../../core/providers.dart';
 import '../../models/comment.dart';
 import '../media/attachment.dart';
@@ -56,37 +56,14 @@ Future<Comment?> showReplySheet(
       submitLabel: 'Reply',
       allowAttachments: true,
       draftKey: 'reply_$parentFullname',
-      onSubmitMedia: (text, media) async {
-        requireSession();
-        if (media == null) {
-          return repo.reply(
-            parentFullname: parentFullname,
-            text: text,
-            depth: parentDepth + 1,
-          );
-        }
-        if (media.isVideo) {
-          final url = await uploadToCatbox(
-            bytes: media.bytes,
-            filename: media.filename,
-          );
-          requireSession();
-          final body = text.isEmpty ? url : '$text\n\n$url';
-          return repo.reply(
-            parentFullname: parentFullname,
-            text: body,
-            depth: parentDepth + 1,
-          );
-        }
-        return repo.replyWithImage(
-          parentFullname: parentFullname,
-          text: text,
-          bytes: media.bytes,
-          filename: media.filename,
-          mimeType: media.mimeType,
-          depth: parentDepth + 1,
-        );
-      },
+      onSubmitMedia: (text, media) => submitMediaReply(
+        repository: repo,
+        parentFullname: parentFullname,
+        text: text,
+        depth: parentDepth + 1,
+        media: media,
+        requireSession: requireSession,
+      ),
     ),
   );
 }
@@ -431,6 +408,8 @@ class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
                 if (widget.allowAttachments)
                   AttachmentControls(
                     media: _media,
+                    compactMenu: true,
+                    onGif: _insertGif,
                     enabled: !_busy && !_pickingGif && !_readingKeyboard,
                     onBusyChanged: (busy) => setState(() => _attaching = busy),
                     onChanged: (media) => setState(() {
@@ -438,13 +417,6 @@ class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
                       _error = null;
                     }),
                     onError: (message) => setState(() => _error = message),
-                    leading: [
-                      TextButton.icon(
-                        onPressed: enabled ? _insertGif : null,
-                        icon: const Icon(Icons.gif_box_outlined),
-                        label: const Text('GIF'),
-                      ),
-                    ],
                   )
                 else
                   Align(

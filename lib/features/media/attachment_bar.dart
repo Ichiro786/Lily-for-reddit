@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../core/widgets/m3e_loading_indicator.dart';
 
 import 'attachment.dart';
+import 'composer_media_menu.dart';
 
 /// Reusable composer attachment UI: a pending-attachment preview plus a row of
 /// pick-image / pick-video / paste buttons. The parent owns the
@@ -20,6 +21,8 @@ class AttachmentControls extends StatefulWidget {
     this.imagePicker = pickImageAttachment,
     this.videoPicker = pickVideoAttachment,
     this.imagePaster = pasteImageAttachment,
+    this.onGif,
+    this.compactMenu = false,
   });
 
   final MediaAttachment? media;
@@ -38,6 +41,8 @@ class AttachmentControls extends StatefulWidget {
   final Future<MediaAttachment?> Function() imagePicker;
   final Future<MediaAttachment?> Function() videoPicker;
   final Future<MediaAttachment?> Function() imagePaster;
+  final VoidCallback? onGif;
+  final bool compactMenu;
   @override
   State<AttachmentControls> createState() => _AttachmentControlsState();
 }
@@ -120,25 +125,52 @@ class _AttachmentControlsState extends State<AttachmentControls> {
           ),
           const SizedBox(height: 4),
         ],
-        Wrap(
-          spacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            ...widget.leading,
-            _button('Attach image', Icons.image_outlined, widget.imagePicker),
-            _button(
-              'Attach video',
-              Icons.videocam_outlined,
-              widget.videoPicker,
+        if (widget.compactMenu)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ComposerMediaMenuButton(
+              enabled: widget.enabled && _pending == null,
+              includePaste: true,
+              onSelected: (action) {
+                switch (action) {
+                  case ComposerMediaAction.photo:
+                    _pick('Attach image', widget.imagePicker);
+                  case ComposerMediaAction.video:
+                    _pick('Attach video', widget.videoPicker);
+                  case ComposerMediaAction.gif:
+                    widget.onGif?.call();
+                  case ComposerMediaAction.paste:
+                    _pick(
+                      'Paste image',
+                      widget.imagePaster,
+                      emptyMsg: 'No image on the clipboard.',
+                    );
+                  case ComposerMediaAction.nextThread:
+                    break;
+                }
+              },
             ),
-            _button(
-              'Paste image',
-              Icons.content_paste_rounded,
-              widget.imagePaster,
-              emptyMsg: 'No image on the clipboard.',
-            ),
-          ],
-        ),
+          )
+        else
+          Wrap(
+            spacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              ...widget.leading,
+              _button('Attach image', Icons.image_outlined, widget.imagePicker),
+              _button(
+                'Attach video',
+                Icons.videocam_outlined,
+                widget.videoPicker,
+              ),
+              _button(
+                'Paste image',
+                Icons.content_paste_rounded,
+                widget.imagePaster,
+                emptyMsg: 'No image on the clipboard.',
+              ),
+            ],
+          ),
         if (widget.media != null)
           Text(
             _noteFor(widget.media!),

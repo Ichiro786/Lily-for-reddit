@@ -217,7 +217,6 @@ class BackupService {
       'midResThumbnails',
       'subsCacheEnabled',
       'autoplayMedia',
-      'showApiUsage',
       'notifyInbox',
       'navLabels',
       'has_account',
@@ -230,7 +229,6 @@ class BackupService {
       'defaultSort',
       'postDisplay',
       'subsCacheMinutes',
-      'topBarMode',
     };
     final current = preferences.get(key);
     final listKey = [

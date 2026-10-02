@@ -178,8 +178,7 @@ void main() {
     final dock = find.byWidgetPredicate(
       (widget) =>
           widget is Container &&
-          widget.decoration is BoxDecoration &&
-          (widget.decoration! as BoxDecoration).color == cs.surface,
+          widget.color == cs.surface,
     );
     expect(dock, findsOneWidget);
   });
