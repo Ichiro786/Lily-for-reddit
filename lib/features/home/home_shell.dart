@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/rate_limit.dart';
 import '../../core/theme/shape_tokens.dart';
-import '../../core/widgets/glass_surface.dart';
 import '../auth/auth_controller.dart';
 import '../explore/explore_screen.dart';
 import '../feed/post_list_view.dart';
@@ -202,6 +201,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           currentIndex: _index,
           unreadCount: unread,
           isMinimized: !visible || !showNavLabels,
+          onSearch: () => context.push('/search'),
           onTap: (i) {
             // Re-tapping the active tab scrolls it to top (Posts also refreshes).
             if (i == _index) {
@@ -252,60 +252,6 @@ class _LazyKeepAliveTabHost extends StatelessWidget {
   }
 }
 
-/// Three-dot menu to switch the feed's post display type.
-class _DisplayMenu extends ConsumerWidget {
-  const _DisplayMenu();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsControllerProvider);
-    final ctrl = ref.read(settingsControllerProvider.notifier);
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert_rounded),
-      tooltip: 'Display',
-      onSelected: (v) {
-        if (v == 'autoplay') {
-          ctrl.setAutoplayMedia(!s.autoplayMedia);
-        } else {
-          ctrl.setPostDisplay(
-            PostDisplay.values.firstWhere((d) => d.name == v),
-          );
-        }
-      },
-      itemBuilder: (_) => [
-        for (final d in PostDisplay.values)
-          PopupMenuItem(
-            value: d.name,
-            child: Row(
-              children: [
-                Icon(d.icon, size: 20),
-                const SizedBox(width: 12),
-                Text(d.label),
-                if (d == s.postDisplay) ...[
-                  const Spacer(),
-                  const Icon(Icons.check_rounded, size: 18),
-                ],
-              ],
-            ),
-          ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'autoplay',
-          child: Row(
-            children: [
-              const Icon(Icons.play_circle_outline_rounded, size: 20),
-              const SizedBox(width: 12),
-              const Text('Autoplay media'),
-              const Spacer(),
-              if (s.autoplayMedia) const Icon(Icons.check_rounded, size: 18),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _FrontpageTab extends ConsumerWidget {
   const _FrontpageTab({this.chromeVisible = true});
   final bool chromeVisible;
@@ -318,13 +264,12 @@ class _FrontpageTab extends ConsumerWidget {
     final settings = ref.watch(settingsControllerProvider);
     final forYou = settings.forYouFeed;
     final mode = settings.topBarMode;
-    final expandable = mode == TopBarMode.expandable;
-    // Full mode pins the action row; Expandable floats it in on demand.
+    // Keep the saved mode value compatible; compact mode needs no toolbar.
     final showActionRow = mode == TopBarMode.full;
     return Column(
       children: [
         // Full mode: Google-app style search bar with avatar — collapses on
-        // scroll. Compact mode hides it; Expandable shows it on demand.
+        // scroll. Compact mode leaves just the feed title.
         if (showActionRow)
           AnimatedSize(
             duration: const Duration(milliseconds: 220),
@@ -386,8 +331,6 @@ class _FrontpageTab extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const _DisplayMenu(),
-                        const SizedBox(width: 4),
                         Semantics(
                           button: true,
                           label: 'Your profile',
@@ -418,137 +361,12 @@ class _FrontpageTab extends ConsumerWidget {
           child: PostListView(
             feedKey: '',
             frontpageStyle: true,
-            header: FrontpageHeader(
-              forYou: forYou,
-              onToolbar: expandable
-                  ? () => _showFloatingToolbar(context, ref, username)
-                  : null,
-            ),
+            header: FrontpageHeader(forYou: forYou),
           ),
         ),
       ],
     );
   }
-}
-
-/// Expandable top-bar mode: floats the full toolbar (search, new post, display,
-/// profile) in from the top as a dismissible overlay — it never displaces the
-/// feed.
-Future<void> _showFloatingToolbar(
-  BuildContext context,
-  WidgetRef ref,
-  String username,
-) {
-  final router = GoRouter.of(context);
-  final cs = Theme.of(context).colorScheme;
-  return showGeneralDialog(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: 'Toolbar',
-    barrierColor: Colors.black.withValues(alpha: 0.30),
-    transitionDuration: const Duration(milliseconds: 200),
-    pageBuilder: (ctx, _, __) {
-      void close() => Navigator.of(ctx).pop();
-      return SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: GlassSurface(
-              borderRadius: BorderRadius.circular(28),
-              tintOpacity: 1.0,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
-                        onTap: () {
-                          close();
-                          router.push('/search');
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.search_rounded,
-                                color: cs.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                'Search Reddit',
-                                style: TextStyle(color: cs.onSurfaceVariant),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton.filled(
-                      tooltip: 'New post',
-                      icon: const Icon(Icons.edit_square, size: 22),
-                      style: IconButton.styleFrom(
-                        backgroundColor: cs.primary,
-                        foregroundColor: cs.onPrimary,
-                      ),
-                      onPressed: () {
-                        close();
-                        router.push('/submit');
-                      },
-                    ),
-                    const _DisplayMenu(),
-                    const SizedBox(width: 4),
-                    Semantics(
-                      button: true,
-                      label: 'Your profile',
-                      child: GestureDetector(
-                        onTap: () {
-                          close();
-                          router.push('/u/$username');
-                        },
-                        child: CircleAvatar(
-                          radius: 20,
-                          backgroundColor: cs.primaryContainer,
-                          child: Text(
-                            username.isNotEmpty
-                                ? username[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              color: cs.onPrimaryContainer,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween(
-            begin: const Offset(0, -0.06),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        ),
-      );
-    },
-  );
 }
 
 /// Shows live Reddit API rate-limit usage alongside the search bar

@@ -21,96 +21,59 @@ class M3EPopularCommunityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final joined = subreddit.userIsSubscriber == true;
-    return Container(
-      width: 220,
-      margin: const EdgeInsets.only(right: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: ShapeTokens.medium,
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: ShapeTokens.medium,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _CommunityAvatar(subreddit: subreddit, size: 40),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
+    return SizedBox(
+      width: 144,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(end: 8),
+        child: Material(
+          color: colorScheme.surfaceContainer,
+          borderRadius: ShapeTokens.medium,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  _CommunityAvatar(subreddit: subreddit, size: 44),
+                  const SizedBox(height: 8),
+                  Text(
                     subreddit.namePrefixed,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${compactNumber(subreddit.subscribers)} members',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-            ),
-            if (subreddit.accountsActive != null &&
-                subreddit.accountsActive! > 0) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.circle,
-                    size: 6,
-                    color: Color(0xFF34C759),
-                  ),
-                  const SizedBox(width: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    '${compactNumber(subreddit.accountsActive!)} online',
+                    '${compactNumber(subreddit.subscribers)} members',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: const Color(0xFF34C759),
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const Spacer(),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.tonal(
+                      onPressed: onJoin,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(48, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: Text(
+                        joined ? 'Joined' : 'Join',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ],
-            const Spacer(),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Material(
-                color: joined
-                    ? colorScheme.surfaceContainerHighest
-                    : colorScheme.primaryContainer,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: ShapeTokens.full,
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: onJoin,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    child: Text(
-                      joined ? 'Joined' : 'Join',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: joined
-                                ? colorScheme.onSurfaceVariant
-                                : colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
-                  ),
-                ),
-              ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -124,68 +87,57 @@ class M3ERecentCommunityTile extends StatelessWidget {
     required this.onTap,
     required this.onFavorite,
     required this.onMore,
+    this.isFirst = true,
+    this.isLast = true,
   });
 
   final Subreddit subreddit;
   final VoidCallback onTap;
   final VoidCallback onFavorite;
   final VoidCallback onMore;
+  final bool isFirst;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final hasActive =
         subreddit.accountsActive != null && subreddit.accountsActive! > 0;
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: isFirst ? const Radius.circular(24) : Radius.zero,
+        bottom: isLast ? const Radius.circular(24) : Radius.zero,
+      ),
+    );
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Material(
         color: colorScheme.surfaceContainer,
-        shape: const RoundedRectangleBorder(
-          borderRadius: ShapeTokens.small,
-        ),
+        shape: shape,
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           onTap: onTap,
-          shape: const RoundedRectangleBorder(
-            borderRadius: ShapeTokens.small,
-          ),
+          shape: shape,
+          dense: true,
+          minVerticalPadding: 10,
+          horizontalTitleGap: 12,
+          contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 0, 4, 0),
           leading: _CommunityAvatar(subreddit: subreddit, size: 40),
           title: Text(
             subreddit.namePrefixed,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
-          subtitle: Row(
-            children: [
-              Flexible(
-                child: Text(
-                  '${compactNumber(subreddit.subscribers)} members',
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.circle,
-                size: 7,
-                color: hasActive
-                    ? const Color(0xFF34C759)
-                    : colorScheme.outlineVariant,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                hasActive
-                    ? '${compactNumber(subreddit.accountsActive!)} online'
-                    : 'Live unavailable',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: hasActive
-                          ? const Color(0xFF34C759)
-                          : colorScheme.onSurfaceVariant,
-                      fontWeight:
-                          hasActive ? FontWeight.w600 : FontWeight.normal,
-                    ),
-              ),
-            ],
+          subtitle: Text(
+            '${compactNumber(subreddit.subscribers)} members${hasActive ? ' · ${compactNumber(subreddit.accountsActive!)} online' : ''}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -236,9 +188,9 @@ class _CommunityAvatar extends StatelessWidget {
       child: subreddit.iconUrl == null
           ? Text(
               subreddit.name.isEmpty ? '?' : subreddit.name[0].toUpperCase(),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             )
           : null,
     );

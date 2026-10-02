@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/shape_tokens.dart';
+import '../../core/widgets/error_view.dart';
 import '../../models/inbox_item.dart';
 import '../auth/auth_controller.dart';
 import '../home/tab_signals.dart';
@@ -12,13 +13,7 @@ import 'm3e_inbox_widgets.dart';
 class InboxScreen extends ConsumerWidget {
   const InboxScreen({super.key});
 
-  static const _tabs = [
-    ('All', 'inbox'),
-    ('Unread', 'unread'),
-    ('Messages', 'messages'),
-    ('Mentions', 'mentions'),
-    ('Sent', 'sent'),
-  ];
+  static const _tabs = M3EInboxCategoryTabs.categories;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,7 +48,9 @@ class InboxScreen extends ConsumerWidget {
                   switch (value) {
                     case 'refresh':
                       ref
-                          .read(inboxControllerProvider(_tabs[index].$2).notifier)
+                          .read(
+                            inboxControllerProvider(_tabs[index].$2).notifier,
+                          )
                           .refresh();
                       break;
                     case 'sent':
@@ -65,14 +62,8 @@ class InboxScreen extends ConsumerWidget {
                   }
                 },
                 itemBuilder: (context) => const [
-                  PopupMenuItem(
-                    value: 'refresh',
-                    child: Text('Refresh'),
-                  ),
-                  PopupMenuItem(
-                    value: 'sent',
-                    child: Text('Sent messages'),
-                  ),
+                  PopupMenuItem(value: 'refresh', child: Text('Refresh')),
+                  PopupMenuItem(value: 'sent', child: Text('Sent messages')),
                   PopupMenuItem(
                     value: 'settings',
                     child: Text('Notification settings'),
@@ -83,13 +74,18 @@ class InboxScreen extends ConsumerWidget {
           ],
           bottom: const M3EInboxCategoryTabs(),
         ),
-        floatingActionButton: FloatingActionButton(
-          shape: const CircleBorder(),
-          backgroundColor: colorScheme.primary,
-          foregroundColor: colorScheme.onPrimary,
-          tooltip: 'New message',
-          onPressed: () => context.push('/compose_message'),
-          child: const Icon(Icons.edit_rounded, size: 24),
+        floatingActionButton: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.paddingOf(context).bottom,
+          ),
+          child: FloatingActionButton(
+            shape: const CircleBorder(),
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+            tooltip: 'New message',
+            onPressed: () => context.push('/compose_message'),
+            child: const Icon(Icons.edit_rounded, size: 24),
+          ),
         ),
         body: TabBarView(
           children: [for (final tab in _tabs) _InboxList(where: tab.$2)],
@@ -111,30 +107,9 @@ class _InboxList extends ConsumerStatefulWidget {
 class _InboxListState extends ConsumerState<_InboxList>
     with AutomaticKeepAliveClientMixin {
   final _scroll = ScrollController();
-  String _kindFilter = 'all';
 
   @override
   bool get wantKeepAlive => true;
-
-  List<InboxItem> _applyFilter(List<InboxItem> items) {
-    if ((widget.where != 'inbox' && widget.where != 'unread') ||
-        _kindFilter == 'all') {
-      return items;
-    }
-    return items.where((item) {
-      switch (_kindFilter) {
-        case 'replies':
-          return item.kind == InboxKind.commentReply ||
-              item.kind == InboxKind.postReply;
-        case 'mentions':
-          return item.kind == InboxKind.mention;
-        case 'messages':
-          return item.kind == InboxKind.message;
-        default:
-          return true;
-      }
-    }).toList();
-  }
 
   @override
   void initState() {
@@ -150,67 +125,6 @@ class _InboxListState extends ConsumerState<_InboxList>
   void dispose() {
     _scroll.dispose();
     super.dispose();
-  }
-
-  Widget _filterBar(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    const options = [
-      ('all', 'All'),
-      ('replies', 'Replies'),
-      ('mentions', 'Mentions'),
-      ('messages', 'Messages'),
-    ];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: Row(
-        children: [
-          ActionChip(
-            avatar: Icon(
-              Icons.tune_rounded,
-              size: 16,
-              color: colorScheme.onSurfaceVariant,
-            ),
-            label: const Text('Filter'),
-            shape: const RoundedRectangleBorder(
-              borderRadius: ShapeTokens.full,
-            ),
-            side: BorderSide(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-            onPressed: () {
-              setState(() => _kindFilter = 'all');
-            },
-          ),
-          const SizedBox(width: 8),
-          for (final option in options) ...[
-            FilterChip(
-              showCheckmark: _kindFilter == option.$1,
-              label: Text(option.$2),
-              selected: _kindFilter == option.$1,
-              onSelected: (_) => setState(() => _kindFilter = option.$1),
-              shape: const RoundedRectangleBorder(
-                borderRadius: ShapeTokens.full,
-              ),
-              selectedColor: colorScheme.primaryContainer,
-              checkmarkColor: colorScheme.onPrimaryContainer,
-              labelStyle: TextStyle(
-                color: _kindFilter == option.$1
-                    ? colorScheme.onPrimaryContainer
-                    : colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
-              side: BorderSide(
-                color: _kindFilter == option.$1
-                    ? Colors.transparent
-                    : colorScheme.outlineVariant.withValues(alpha: 0.5),
-              ),
-            ),
-            const SizedBox(width: 6),
-          ],
-        ],
-      ),
-    );
   }
 
   @override
@@ -238,21 +152,26 @@ class _InboxListState extends ConsumerState<_InboxList>
             return const M3EInboxGuestView();
           }
           return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             children: [
               Padding(
                 padding: const EdgeInsets.all(32),
-                child: Center(child: Text('Could not load inbox.\n$error')),
+                child: ErrorView(
+                  message: 'Could not load your inbox. Please try again.',
+                  onRetry: notifier.refresh,
+                ),
               ),
             ],
           );
         },
         data: (state) {
-          final items = _applyFilter(state.items);
+          final items = state.items;
           if (items.isEmpty) {
             return const M3EInboxEmptyState();
           }
           return ListView.separated(
             controller: _scroll,
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 130),
             itemCount: items.length + 1,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -290,11 +209,13 @@ class _InboxListState extends ConsumerState<_InboxList>
                     builder: (ctx) => AlertDialog(
                       title: const Text('Delete message?'),
                       content: const Text(
-                          'This permanently deletes the message from your inbox.'),
+                        'This permanently deletes the message from your inbox.',
+                      ),
                       actions: [
                         TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Cancel')),
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
                         FilledButton(
                           onPressed: () => Navigator.pop(ctx, true),
                           child: const Text('Delete'),
@@ -304,7 +225,9 @@ class _InboxListState extends ConsumerState<_InboxList>
                   );
                   if (ok != true) return false;
                   notifier.deleteMessage(item.fullname);
-                  return true;
+                  // The controller owns removal and can restore failed deletes.
+                  // Do not leave a dismissed widget mounted after rollback.
+                  return false;
                 },
                 child: M3EInboxMessageCard(
                   item: item,
@@ -317,13 +240,7 @@ class _InboxListState extends ConsumerState<_InboxList>
       ),
     );
 
-    if (widget.where != 'inbox' && widget.where != 'unread') return body;
-    return Column(
-      children: [
-        _filterBar(context),
-        Expanded(child: body),
-      ],
-    );
+    return body;
   }
 
   Widget _swipeBackground(
@@ -336,7 +253,7 @@ class _InboxListState extends ConsumerState<_InboxList>
       return Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 24),
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         decoration: BoxDecoration(
           color: colorScheme.tertiary,
           borderRadius: ShapeTokens.medium,
@@ -365,7 +282,7 @@ class _InboxListState extends ConsumerState<_InboxList>
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      alignment: Alignment.centerRight,
+      alignment: AlignmentDirectional.centerEnd,
       decoration: BoxDecoration(
         color: colorScheme.error,
         borderRadius: ShapeTokens.medium,
@@ -389,7 +306,9 @@ class _InboxListState extends ConsumerState<_InboxList>
 
   void _open(BuildContext context, WidgetRef ref, InboxItem item) {
     if (item.isNew) {
-      ref.read(inboxControllerProvider(widget.where).notifier).markRead(item.fullname);
+      ref
+          .read(inboxControllerProvider(widget.where).notifier)
+          .markRead(item.fullname);
     }
     if (item.isMessage) {
       context.push('/message', extra: item);
@@ -401,8 +320,6 @@ class _InboxListState extends ConsumerState<_InboxList>
         ? item.fullname.substring(3)
         : null;
     final suffix = commentId == null ? '' : '?comment=$commentId';
-    context.push(
-      '/comments/${reference.subreddit}/${reference.postId}$suffix',
-    );
+    context.push('/comments/${reference.subreddit}/${reference.postId}$suffix');
   }
 }

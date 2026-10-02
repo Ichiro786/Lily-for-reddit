@@ -1,35 +1,67 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/shape_tokens.dart';
 
 /// Detached navigation with the concept's icon-and-label active container.
-class M3EFloatingNavBar extends StatelessWidget {
+class M3EFloatingNavBar extends StatefulWidget {
   const M3EFloatingNavBar({
     super.key,
     required this.currentIndex,
     required this.onTap,
     this.isMinimized = false,
     this.unreadCount = 0,
+    this.onSearch,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
   final bool isMinimized;
   final int unreadCount;
+  final VoidCallback? onSearch;
+
+  @override
+  State<M3EFloatingNavBar> createState() => _M3EFloatingNavBarState();
+}
+
+class _M3EFloatingNavBarState extends State<M3EFloatingNavBar> {
+  Timer? _discoverTap;
+
+  @override
+  void dispose() {
+    _discoverTap?.cancel();
+    super.dispose();
+  }
+
+  void _select(int index) {
+    final doubleTap = index == 1 && _discoverTap?.isActive == true;
+    _discoverTap?.cancel();
+    _discoverTap = null;
+    HapticFeedback.selectionClick();
+    if (doubleTap && widget.onSearch != null) {
+      widget.onSearch!();
+      return;
+    }
+    if (index == 1 && widget.onSearch != null) {
+      _discoverTap = Timer(kDoubleTapTimeout, () {});
+    }
+    widget.onTap(index);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = widget.currentIndex;
+    final isMinimized = widget.isMinimized;
+    final unreadCount = widget.unreadCount;
     final cs = Theme.of(context).colorScheme;
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : Duration(milliseconds: isMinimized ? 120 : 200);
-    void select(int index) {
-      HapticFeedback.selectionClick();
-      onTap(index);
-    }
 
     final labelHeight = MediaQuery.textScalerOf(context).scale(12) * 4 / 3;
     final height = isMinimized ? 60.0 : math.max(64.0, 48 + labelHeight);
@@ -78,13 +110,23 @@ class M3EFloatingNavBar extends StatelessWidget {
                     child: Semantics(
                       button: true,
                       selected: currentIndex == index,
-                      onTap: () => select(index),
+                      onTap: () => widget.onTap(index),
+                      customSemanticsActions:
+                          index == 1 && widget.onSearch != null
+                          ? {
+                              const CustomSemanticsAction(
+                                label: 'Search Reddit',
+                              ): widget.onSearch!,
+                            }
+                          : null,
                       label: index == 2 && unreadCount > 0
                           ? '$label, $unreadCount unread'
                           : label,
                       excludeSemantics: true,
                       child: Tooltip(
-                        message: label,
+                        message: index == 1 && widget.onSearch != null
+                            ? 'Discover · double-tap to search'
+                            : label,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Material(
@@ -95,7 +137,8 @@ class M3EFloatingNavBar extends StatelessWidget {
                             borderRadius: ShapeTokens.medium,
                             child: InkWell(
                               borderRadius: ShapeTokens.medium,
-                              onTap: () => select(index),
+                              onTap: () => _select(index),
+                              onLongPress: index == 1 ? widget.onSearch : null,
                               child: ClipRect(
                                 child: OverflowBox(
                                   minHeight: 0,

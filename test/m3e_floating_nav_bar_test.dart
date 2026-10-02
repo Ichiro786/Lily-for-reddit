@@ -18,6 +18,53 @@ Finder _dock() => find
     .first;
 
 void main() {
+  testWidgets(
+    'Discover single taps stay immediate and spaced taps do not search',
+    (tester) async {
+      final selections = <int>[];
+      var searches = 0;
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(
+            currentIndex: 0,
+            onTap: selections.add,
+            onSearch: () => searches++,
+          ),
+        ),
+      );
+      await tester.tap(find.text('Discover'));
+      expect(selections, [1]);
+      expect(searches, 0);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Discover'));
+      expect(selections, [1, 1]);
+      expect(searches, 0);
+      await tester.tap(find.text('Home'));
+      await tester.tap(find.text('Discover'));
+      expect(searches, 0);
+      await tester.pump(const Duration(milliseconds: 400));
+    },
+  );
+
+  testWidgets(
+    'Discover search is available by long press when labels are hidden',
+    (tester) async {
+      var searches = 0;
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(
+            currentIndex: 1,
+            isMinimized: true,
+            onTap: (_) {},
+            onSearch: () => searches++,
+          ),
+        ),
+      );
+      await tester.longPress(find.byTooltip('Discover · double-tap to search'));
+      expect(searches, 1);
+    },
+  );
+
   testWidgets('labels fade immediately and finish hiding within 120ms', (
     tester,
   ) async {

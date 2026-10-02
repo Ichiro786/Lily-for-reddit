@@ -9,7 +9,14 @@ class M3EInboxCategoryTabs extends StatelessWidget
     implements PreferredSizeWidget {
   const M3EInboxCategoryTabs({super.key, this.onChanged});
 
-  static const labels = ['All', 'Unread', 'Messages', 'Mentions', 'Sent'];
+  static const categories = [
+    ('All', 'inbox'),
+    ('Unread', 'unread'),
+    ('Mentions', 'mentions'),
+    ('Messages', 'messages'),
+    ('Sent', 'sent'),
+  ];
+  static final labels = categories.map((category) => category.$1).toList();
   final ValueChanged<int>? onChanged;
 
   @override
@@ -24,23 +31,18 @@ class M3EInboxCategoryTabs extends StatelessWidget
       tabAlignment: TabAlignment.start,
       indicatorSize: TabBarIndicatorSize.label,
       indicator: UnderlineTabIndicator(
-        borderSide: BorderSide(
-          width: 3.0,
-          color: colorScheme.primary,
-        ),
+        borderSide: BorderSide(width: 3.0, color: colorScheme.primary),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
       ),
       labelColor: colorScheme.primary,
       unselectedLabelColor: colorScheme.onSurfaceVariant,
-      labelStyle: textTheme.titleSmall?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
+      labelStyle: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
       unselectedLabelStyle: textTheme.titleSmall?.copyWith(
         fontWeight: FontWeight.normal,
       ),
       dividerColor: Colors.transparent,
       onTap: onChanged,
-      tabs: [for (final label in labels) Tab(text: label)],
+      tabs: [for (final category in categories) Tab(text: category.$1)],
     );
   }
 }
@@ -59,7 +61,7 @@ class M3EInboxMessageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final (icon, kindLabel) = switch (item.kind) {
+    final (_, kindLabel) = switch (item.kind) {
       InboxKind.message => (Icons.mail_outline_rounded, 'Message'),
       InboxKind.commentReply => (Icons.reply_rounded, 'Reply'),
       InboxKind.postReply => (Icons.forum_outlined, 'Post reply'),
@@ -70,11 +72,11 @@ class M3EInboxMessageCard extends StatelessWidget {
         : (item.linkTitle?.isEmpty ?? true ? kindLabel : item.linkTitle!);
     final author = item.author.isEmpty ? '[deleted]' : item.author;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: ShapeTokens.medium,
-        border: Border.all(
+    return Material(
+      color: colorScheme.surfaceContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: ShapeTokens.extraLarge,
+        side: BorderSide(
           color: colorScheme.outlineVariant.withValues(alpha: 0.18),
         ),
       ),
@@ -106,8 +108,6 @@ class M3EInboxMessageCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(icon, size: 15, color: colorScheme.primary),
-                        const SizedBox(width: 5),
                         Flexible(
                           child: Text(
                             'u/$author',
@@ -178,7 +178,8 @@ class M3EInboxEmptyState extends StatelessWidget {
   const M3EInboxEmptyState({
     super.key,
     this.title = 'No messages',
-    this.subtitle = 'When you receive messages or replies, they will appear here.',
+    this.subtitle =
+        'When you receive messages or replies, they will appear here.',
   });
 
   final String title;

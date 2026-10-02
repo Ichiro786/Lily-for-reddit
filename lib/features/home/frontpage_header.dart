@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Scrolling homepage title and the existing expandable-toolbar entry point.
+/// Scrolling homepage title.
 class FrontpageHeader extends StatelessWidget {
-  const FrontpageHeader({super.key, required this.forYou, this.onToolbar});
+  const FrontpageHeader({super.key, required this.forYou});
 
   final bool forYou;
-  final VoidCallback? onToolbar;
 
   @override
   Widget build(BuildContext context) {
@@ -39,17 +38,6 @@ class FrontpageHeader extends StatelessWidget {
               ],
             ),
           ),
-          if (onToolbar != null)
-            IconButton.filledTonal(
-              tooltip: 'Toolbar',
-              onPressed: onToolbar,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(48, 48),
-                backgroundColor: cs.surfaceContainerLow,
-                foregroundColor: cs.onSurface,
-              ),
-              icon: const Icon(Icons.more_vert_rounded),
-            ),
         ],
       ),
     );

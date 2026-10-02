@@ -16,13 +16,13 @@ enum TopBarMode { full, expandable }
 extension TopBarModeLabel on TopBarMode {
   String get label => switch (this) {
         TopBarMode.full => 'Full top bar',
-        TopBarMode.expandable => 'Expandable',
+        TopBarMode.expandable => 'Compact',
       };
   String get description => switch (this) {
         TopBarMode.full =>
-          'Search, new post and profile across the top (current)',
+          'Show search and your profile above the feed',
         TopBarMode.expandable =>
-          'Just a title with one button that floats the full top bar in on demand',
+          'Keep the title clean; double-tap Discover to search',
       };
 }
 
