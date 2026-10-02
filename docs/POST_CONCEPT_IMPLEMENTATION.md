@@ -13,7 +13,8 @@ existing appearance settings remain authoritative.
   Galleries animate to the current item's ratio and handle changing/empty lists.
 - Detail actions retain directional vote intents and shared optimistic state.
   Their glyphs align in one row; narrow widths/large text can scroll horizontally.
-  Comment actions wrap at large text sizes, with 48dp targets and bounded scores.
+  Comment Save stays pinned on the action row; the other controls can scroll
+  at large text sizes, with 48dp targets and bounded scores.
 - Reply rails fill the full card height without intrinsic layout passes.
   Seven rainbow accents are harmonized with the active primary and generated
   at the active brightness; text and surfaces use the device's ColorScheme.
@@ -21,7 +22,9 @@ existing appearance settings remain authoritative.
   Reduced motion bypasses size animation, including the zero-duration layout
   assertion discovered by testing. Sort dropdowns use themed rounded menus.
 - Comment search and next-thread navigation scroll to list indices instead of
-  guessed pixel distances. Search remains editable while the list scrolls.
+  guessed pixel distances. Double-tap the title to search in a themed dialog;
+  the Post options menu retains an accessible entry. Selecting a result resolves
+  its identity against the current tree before scrolling. Snippets hide spoilers.
   Reply placeholders fetch inline, deduplicate existing requests/results and
   retain a retry with visible feedback when fetching fails.
 
@@ -54,6 +57,10 @@ The whole application suite and analysis are run before publication. Exact GitHu
 results and the arm64-v8a build are linked from the associated draft pull request.
 Existing vote/save, request ordering, account ownership, composer, media lifecycle
 and backup regressions remain in the suite.
+
+The additional Markdown, bookmark and Explore lifecycle audit is recorded in
+[the October 2 polish report](POST_POLISH_AUDIT_2026-10-02.md), including 18
+further regressions and six remaining source-confirmed follow-ups.
 
 Local visual inspection renders dark, light and portrait screens with real
 Roboto/MaterialIcons and a generated image fixture. These are layout previews,

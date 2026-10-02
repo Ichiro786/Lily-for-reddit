@@ -83,6 +83,35 @@ Future<void> _detail(
 
 void main() {
   testWidgets(
+    'search is absent from the top bar and remains available through post options',
+    (tester) async {
+      await _detail(tester, _ThreadRepository([interactionComment()]));
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byIcon(Icons.search_rounded),
+        ),
+        findsNothing,
+      );
+      await tester.tap(find.byTooltip('Post options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Search comments'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsOneWidget);
+      final field = find.descendant(
+        of: find.byType(Dialog),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'no results');
+      await tester.pumpAndSettle();
+      expect(find.text('No matching comments'), findsOneWidget);
+      await tester.tap(find.byTooltip('Close search'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'feed video overlays remain readable on their scrim in light mode',
     (tester) async {
       final visibility = VisibilityDetectorController.instance;
@@ -154,9 +183,17 @@ void main() {
           ),
         ]),
       );
-      await tester.tap(find.byTooltip('Search comments'));
+      await tester.tap(find.byTooltip('Double-tap to search comments'));
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tap(find.byTooltip('Double-tap to search comments'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).first, 'needle');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(TextField),
+        ),
+        'needle',
+      );
       await tester.pumpAndSettle();
       final container = ProviderScope.containerOf(
         tester.element(find.byType(PostDetailScreen)),
@@ -165,9 +202,8 @@ void main() {
           .read(commentsControllerProvider('flutter/p1').notifier)
           .toggleCollapse('c1');
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Next'));
+      await tester.tap(find.widgetWithText(ListTile, 'u/target'));
       await tester.pumpAndSettle();
-      expect(find.text('1/1'), findsOneWidget);
       expect(find.text('u/target'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
@@ -556,32 +592,41 @@ void main() {
     expect(find.text('View 2 more replies'), findsNothing);
   });
 
-  testWidgets(
-    'comment search scrolls to the exact distant item and stays editable',
-    (tester) async {
-      final comments = [
-        for (var i = 0; i < 45; i++)
-          interactionComment().copyWith(
-            id: 'c$i',
-            fullname: 't1_c$i',
-            author: 'author$i',
-            body: i == 42 ? 'needle in thread' : 'Comment $i',
-          ),
-      ];
-      await _detail(tester, _ThreadRepository(comments));
-      await tester.tap(find.byTooltip('Search comments'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).first, 'needle');
-      await tester.pumpAndSettle();
-      expect(
-        find.textContaining('needle in thread', findRichText: true),
-        findsOneWidget,
-      );
-      expect(tester.getTopLeft(find.text('u/author42')).dy, lessThan(200));
-      expect(find.byType(TextField), findsNWidgets(2));
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('comment search dialog selects the exact distant item', (
+    tester,
+  ) async {
+    final comments = [
+      for (var i = 0; i < 45; i++)
+        interactionComment().copyWith(
+          id: 'c$i',
+          fullname: 't1_c$i',
+          author: 'author$i',
+          body: i == 42 ? 'needle in thread' : 'Comment $i',
+        ),
+    ];
+    await _detail(tester, _ThreadRepository(comments));
+    await tester.tap(find.byTooltip('Double-tap to search comments'));
+    await tester.pump(const Duration(milliseconds: 80));
+    await tester.tap(find.byTooltip('Double-tap to search comments'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.byType(TextField),
+      ),
+      'needle',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'u/author42'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('needle in thread', findRichText: true),
+      findsOneWidget,
+    );
+    expect(tester.getTopLeft(find.text('u/author42')).dy, lessThan(200));
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('detail action order and callbacks match the reference', (
     tester,

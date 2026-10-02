@@ -13,7 +13,9 @@ import '../../models/post.dart';
 import '../history/interest_store.dart';
 
 /// Bottom sheet of secondary actions for a post: hide, report, crosspost, open.
-void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
+void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post, {
+  VoidCallback? onSearchComments,
+}) {
   showModalBottomSheet(
     context: context,
     showDragHandle: true,
@@ -25,6 +27,15 @@ void showPostActionsSheet(BuildContext context, WidgetRef ref, Post post) {
         child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (onSearchComments != null)
+            ListTile(
+              leading: const Icon(Icons.search_rounded),
+              title: const Text('Search comments'),
+              onTap: () {
+                Navigator.pop(ctx);
+                onSearchComments();
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.share_outlined),
             title: const Text('Share'),

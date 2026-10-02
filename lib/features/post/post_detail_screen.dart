@@ -11,6 +11,7 @@ import '../media/post_media_image.dart';
 import '../feed/inline_video.dart';
 import 'comment_media_helper.dart';
 import 'comment_content.dart';
+import 'comment_search_dialog.dart';
 
 import '../history/interest_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -69,11 +70,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
   // In-post comment search.
   bool _searchOpen = false;
-  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
   // Owned here so a failed quick reply can restore the user's text.
   final TextEditingController _composeCtrl = TextEditingController();
-  List<int> _matchIndices = []; // list indices (ci + 1) of matching comments
-  int _matchPos = 0;
   MediaAttachment? _pendingComposeAttachment;
   MarkdownStyleSheet? _commentMarkdownStyle;
   ThemeData? _commentMarkdownTheme;
@@ -146,35 +145,45 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     _composeCtrl.dispose();
     super.dispose();
   }
 
-  void _toggleSearch() {
-    setState(() {
-      _searchOpen = !_searchOpen;
-      if (!_searchOpen) {
-        _searchCtrl.clear();
-        _matchIndices = [];
+  Future<void> _openCommentSearch() async {
+    if (_searchOpen) return;
+    _searchOpen = true;
+    final key = widget.focusCommentId != null
+        ? '${widget.subreddit}/${widget.postId}/focus_${widget.focusCommentId}'
+        : '${widget.subreddit}/${widget.postId}';
+    try {
+      final fullname = await showDialog<String>(
+        context: context,
+        animationStyle: AnimationStyle(
+          duration: MotionTokens.feedback(context),
+          reverseDuration: MotionTokens.feedback(context),
+          curve: MotionTokens.emphasized,
+        ),
+        builder: (_) => CommentSearchDialog(
+          threadKey: key,
+          initialQuery: _searchQuery,
+          onQueryChanged: (query) {
+            if (mounted) _searchQuery = query;
+          },
+        ),
+      );
+      if (!mounted || fullname == null) return;
+      final thread = ref.read(commentsControllerProvider(key)).valueOrNull;
+      if (thread == null) return;
+      final index = visibleComments(
+        thread,
+      ).indexWhere((c) => c.fullname == fullname);
+      if (index >= 0) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        _scrollToIndex(index + 1);
       }
-    });
-  }
-
-  void _runSearch(String raw) {
-    final q = raw.trim().toLowerCase();
-    final m = <int>[];
-    if (q.isNotEmpty) {
-      for (var ci = 0; ci < _flat.length; ci++) {
-        final c = _flat[ci];
-        if (!c.isMore && c.body.toLowerCase().contains(q)) m.add(ci + 1);
-      }
+    } finally {
+      _searchOpen = false;
     }
-    setState(() {
-      _matchIndices = m;
-      _matchPos = 0;
-    });
-    if (m.isNotEmpty) _scrollToMatch();
   }
 
   void _scrollToIndex(int index) {
@@ -188,19 +197,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         curve: MotionTokens.emphasized,
       );
     }
-  }
-
-  void _scrollToMatch() {
-    if (_matchIndices.isNotEmpty) _scrollToIndex(_matchIndices[_matchPos]);
-  }
-
-  void _stepMatch(int delta) {
-    if (_matchIndices.isEmpty) return;
-    setState(
-      () => _matchPos =
-          (_matchPos + delta + _matchIndices.length) % _matchIndices.length,
-    );
-    _scrollToMatch();
   }
 
   Future<void> _sendQuickReply(
@@ -288,31 +284,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         ? '${widget.subreddit}/${widget.postId}/focus_${widget.focusCommentId}'
         : '${widget.subreddit}/${widget.postId}';
     final async = ref.watch(commentsControllerProvider(key));
-    ref.listen(commentsControllerProvider(key), (previous, next) {
-      final updated = next.valueOrNull;
-      if (!_searchOpen || updated == null) return;
-      final selected = _matchIndices.isEmpty
-          ? null
-          : _flat[_matchIndices[_matchPos] - 1].fullname;
-      final flat = visibleComments(updated);
-      final query = _searchCtrl.text.trim().toLowerCase();
-      final matches = <int>[
-        if (query.isNotEmpty)
-          for (var i = 0; i < flat.length; i++)
-            if (!flat[i].isMore && flat[i].body.toLowerCase().contains(query))
-              i + 1,
-      ];
-      final selectedPosition = matches.indexWhere(
-        (i) => flat[i - 1].fullname == selected,
-      );
-      _flat = flat;
-      _matchIndices = matches;
-      _matchPos = selectedPosition >= 0
-          ? selectedPosition
-          : matches.isEmpty
-          ? 0
-          : _matchPos.clamp(0, matches.length - 1);
-    });
     final notifier = ref.read(commentsControllerProvider(key).notifier);
     final username =
         ref.watch(
@@ -323,23 +294,34 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                thread?.post.subredditPrefixed ??
-                    (widget.subreddit == '_'
-                        ? 'Post'
-                        : 'r/${widget.subreddit}'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        title: Tooltip(
+          message: 'Double-tap to search comments',
+          child: Semantics(
+            button: thread != null,
+            onTap: thread == null ? null : _openCommentSearch,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onDoubleTap: thread == null ? null : _openCommentSearch,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      thread?.post.subredditPrefixed ??
+                          (widget.subreddit == '_'
+                              ? 'Post'
+                              : 'r/${widget.subreddit}'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
         actions: [
           if (thread != null)
@@ -363,18 +345,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               ],
             ),
           if (thread != null)
-            IconButton(
-              tooltip: 'Search comments',
-              icon: Icon(
-                _searchOpen ? Icons.search_off_rounded : Icons.search_rounded,
-              ),
-              onPressed: _toggleSearch,
-            ),
-          if (thread != null)
             IconButton.filledTonal(
               icon: const Icon(Icons.more_vert_rounded),
               tooltip: 'Post options',
-              onPressed: () => showPostActionsSheet(context, ref, thread.post),
+              onPressed: () => showPostActionsSheet(
+                context,
+                ref,
+                thread.post,
+                onSearchComments: _openCommentSearch,
+              ),
             ),
           if (thread != null && thread.post.author == username)
             PopupMenuButton<String>(
@@ -410,11 +389,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       ),
       body: Column(
         children: [
-          if (_searchOpen)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-              child: _buildSearchBar(context),
-            ),
           Expanded(
             child: async.when(
               loading: () => _LoadingWithHeader(post: widget.initialPost),
@@ -677,64 +651,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 : _jumpNextTopLevel,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSearchBar(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final total = _matchIndices.length;
-    final has = _searchCtrl.text.trim().isNotEmpty;
-    return Material(
-      elevation: 4,
-      borderRadius: ShapeTokens.extraLarge,
-      color: cs.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          children: [
-            const SizedBox(width: 6),
-            Icon(Icons.search_rounded, size: 20, color: cs.onSurfaceVariant),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                autofocus: true,
-                textInputAction: TextInputAction.search,
-                onChanged: _runSearch,
-                onSubmitted: (_) => _stepMatch(1),
-                decoration: const InputDecoration(
-                  hintText: 'Search comments',
-                  border: InputBorder.none,
-                  isDense: true,
-                ),
-              ),
-            ),
-            if (has)
-              Text(
-                total == 0 ? '0/0' : '${_matchPos + 1}/$total',
-                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-              ),
-            IconButton(
-              tooltip: 'Previous',
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.keyboard_arrow_up_rounded),
-              onPressed: total == 0 ? null : () => _stepMatch(-1),
-            ),
-            IconButton(
-              tooltip: 'Next',
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded),
-              onPressed: total == 0 ? null : () => _stepMatch(1),
-            ),
-            IconButton(
-              tooltip: 'Close',
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.close_rounded),
-              onPressed: _toggleSearch,
-            ),
-          ],
-        ),
       ),
     );
   }

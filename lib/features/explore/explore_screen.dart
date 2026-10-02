@@ -6,19 +6,36 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
 import '../../core/root_messenger.dart';
 import '../../core/theme/shape_tokens.dart';
+import '../../core/widgets/error_view.dart';
 import '../../models/subreddit.dart';
 import '../history/history_store.dart';
 import '../history/visited_subreddits_store.dart';
 import '../home/tab_signals.dart';
+import '../auth/auth_controller.dart';
 import 'm3e_explore_widgets.dart';
 
 final subscribedSubredditsProvider =
     FutureProvider.autoDispose<List<Subreddit>>((ref) async {
-  return ref.watch(redditRepositoryProvider).getSubscribedSubreddits();
-});
+      final authReady = ref.watch(authControllerProvider.future);
+      final transitioning = ref.watch(authTransitionProvider);
+      var active = true;
+      ref.onDispose(() => active = false);
+      if (transitioning) return const [];
+      final session = await authReady;
+      if (!active || session == null) return const [];
+      return ref.watch(redditRepositoryProvider).getSubscribedSubreddits();
+    });
 
-final popularSubredditsProvider =
-    FutureProvider.autoDispose<List<Subreddit>>((ref) async {
+final popularSubredditsProvider = FutureProvider.autoDispose<List<Subreddit>>((
+  ref,
+) async {
+  final authReady = ref.watch(authControllerProvider.future);
+  final transitioning = ref.watch(authTransitionProvider);
+  var active = true;
+  ref.onDispose(() => active = false);
+  if (transitioning) return const [];
+  await authReady;
+  if (!active) return const [];
   return ref.watch(redditRepositoryProvider).getPopularSubreddits();
 });
 
@@ -141,7 +158,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   setState(() => _filter = f.$1);
                   if (f.$1 == 'posts') {
                     if (_query.trim().isNotEmpty) {
-                      context.push('/search?q=${Uri.encodeComponent(_query.trim())}');
+                      context.push(
+                        '/search?q=${Uri.encodeComponent(_query.trim())}',
+                      );
                     } else {
                       context.push('/search');
                     }
@@ -172,7 +191,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final communities = ref.watch(subscribedSubredditsProvider);
+    final loadingSession = ref.watch(authTransitionProvider);
+    final subscribed = ref.watch(subscribedSubredditsProvider);
+    final communities = loadingSession
+        ? const AsyncLoading<List<Subreddit>>()
+        : subscribed;
     final popularAsync = ref.watch(popularSubredditsProvider);
     final visitedCommunities = ref.watch(visitedCommunityStoreProvider);
 
@@ -204,9 +227,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   child: Text(
                     'Explore',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
-                        ),
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ),
               ),
@@ -339,7 +362,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        trailing: const Icon(Icons.arrow_forward_rounded, size: 18),
+                        trailing: const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 18,
+                        ),
                         onTap: () => context.push(
                           '/search?q=${Uri.encodeComponent(_query.trim())}',
                         ),
@@ -362,8 +388,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
-                      child: Center(
-                        child: Text('Could not load communities: $error'),
+                      child: ErrorView(
+                        message:
+                            'Could not load communities. Please try again.',
+                        onRetry: () =>
+                            ref.invalidate(subscribedSubredditsProvider),
                       ),
                     ),
                   ),
@@ -376,7 +405,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   final apiPopular = popularAsync.valueOrNull ?? const [];
                   final rawPopular = apiPopular.isNotEmpty
                       ? apiPopular
-                      : ([...raw]..sort((a, b) => b.subscribers.compareTo(a.subscribers)));
+                      : ([...raw]..sort(
+                          (a, b) => b.subscribers.compareTo(a.subscribers),
+                        ));
                   final popular = _filtered(rawPopular);
 
                   // Determine recently visited: prefer VisitedCommunityStore,
@@ -401,7 +432,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   }
 
                   final recentNames = {
-                    for (final s in recent) s.name.toLowerCase()
+                    for (final s in recent) s.name.toLowerCase(),
                   };
                   final rest = list
                       .where(
@@ -474,7 +505,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     // Section 3: "All communities" list
                     SliverToBoxAdapter(
                       child: _SectionTitle(
-                        title: recent.isEmpty ? 'Communities' : 'All communities',
+                        title: recent.isEmpty
+                            ? 'Communities'
+                            : 'All communities',
                         icon: Icons.groups_rounded,
                       ),
                     ),
@@ -535,9 +568,9 @@ class _SectionTitle extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
           ),
           if (actionText != null)
@@ -552,9 +585,9 @@ class _SectionTitle extends StatelessWidget {
                     Text(
                       actionText!,
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(width: 2),
                     Icon(

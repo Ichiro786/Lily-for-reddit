@@ -18,7 +18,10 @@ final redditClientProvider = Provider<RedditClient>((ref) {
     sessionReady: () => active && !ref.read(authTransitionProvider),
   );
   // Re-read auth mode (OAuth vs website session) on any login / account switch.
-  ref.listen(authControllerProvider, (_, __) => client.invalidateAuthConfig());
+  ref.listen(
+    authControllerProvider.select((state) => state.valueOrNull?.username),
+    (_, __) => client.invalidateAuthConfig(),
+  );
   ref.listen(
     authSessionEpochProvider,
     (_, __) => client.invalidateAuthConfig(),
@@ -32,6 +35,9 @@ final redditClientProvider = Provider<RedditClient>((ref) {
 
 final redditRepositoryProvider = Provider<RedditRepository>((ref) {
   ref.watch(authSessionEpochProvider);
+  // A transition invalidates requests at its start. Rebuild once credentials
+  // are ready as well, including same-account changes and aborted logins.
+  ref.watch(authTransitionProvider);
   ref.watch(authControllerProvider.select((s) => s.valueOrNull?.username));
   final repo = RedditRepository(ref.watch(redditClientProvider));
   void apply(Settings s) {

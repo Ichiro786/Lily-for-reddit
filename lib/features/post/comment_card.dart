@@ -204,82 +204,99 @@ class M3ECommentCard extends StatelessWidget {
                                 ),
                               ),
                           const SizedBox(height: 4),
-                          Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: 2,
+                          Row(
                             children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(18),
-                                  color: cs.surfaceContainerHigh.withValues(
-                                    alpha: 0.35,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    action(
-                                      'Upvote',
-                                      Icons.arrow_upward_rounded,
-                                      onVote == null
-                                          ? null
-                                          : () {
-                                              HapticFeedback.selectionClick();
-                                              onVote!(1);
-                                            },
-                                      color: voteState == 1 ? up : null,
-                                      selected: voteState == 1,
-                                    ),
-                                    ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 64,
-                                      ),
-                                      child: Text(
-                                        '$score',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.labelLarge
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w700,
-                                              color: voteState == 1
-                                                  ? up
-                                                  : voteState == -1
-                                                  ? down
-                                                  : cs.onSurfaceVariant,
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            18,
+                                          ),
+                                          color: cs.surfaceContainerHigh
+                                              .withValues(alpha: 0.35),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            action(
+                                              'Upvote',
+                                              Icons.arrow_upward_rounded,
+                                              onVote == null
+                                                  ? null
+                                                  : () {
+                                                      HapticFeedback.selectionClick();
+                                                      onVote!(1);
+                                                    },
+                                              color: voteState == 1 ? up : null,
+                                              selected: voteState == 1,
                                             ),
+                                            ConstrainedBox(
+                                              constraints: const BoxConstraints(
+                                                maxWidth: 64,
+                                              ),
+                                              child: Text(
+                                                '$score',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: theme
+                                                    .textTheme
+                                                    .labelLarge
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: voteState == 1
+                                                          ? up
+                                                          : voteState == -1
+                                                          ? down
+                                                          : cs.onSurfaceVariant,
+                                                    ),
+                                              ),
+                                            ),
+                                            action(
+                                              'Downvote',
+                                              Icons.arrow_downward_rounded,
+                                              onVote == null
+                                                  ? null
+                                                  : () {
+                                                      HapticFeedback.selectionClick();
+                                                      onVote!(-1);
+                                                    },
+                                              color: voteState == -1
+                                                  ? down
+                                                  : null,
+                                              selected: voteState == -1,
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                    action(
-                                      'Downvote',
-                                      Icons.arrow_downward_rounded,
-                                      onVote == null
-                                          ? null
-                                          : () {
-                                              HapticFeedback.selectionClick();
-                                              onVote!(-1);
-                                            },
-                                      color: voteState == -1 ? down : null,
-                                      selected: voteState == -1,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              TextButton.icon(
-                                onPressed: onReply,
-                                icon: const Icon(Icons.reply_rounded, size: 22),
-                                label: const Text('Reply'),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: cs.onSurfaceVariant,
-                                  minimumSize: const Size(0, 48),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
+                                      TextButton.icon(
+                                        onPressed: onReply,
+                                        icon: const Icon(
+                                          Icons.reply_rounded,
+                                          size: 22,
+                                        ),
+                                        label: const Text('Reply'),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: cs.onSurfaceVariant,
+                                          minimumSize: const Size(0, 48),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                        ),
+                                      ),
+                                      action(
+                                        'More comment options',
+                                        Icons.more_horiz_rounded,
+                                        onOverflow,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                              action(
-                                'More comment options',
-                                Icons.more_horiz_rounded,
-                                onOverflow,
                               ),
                               action(
                                 isSaved ? 'Unsave comment' : 'Save comment',

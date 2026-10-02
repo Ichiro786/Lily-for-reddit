@@ -23,8 +23,9 @@ class CommentContent extends StatelessWidget {
   final MarkdownStyleSheet styleSheet;
   @override
   Widget build(BuildContext context) {
-    final text = commentTextWithoutMedia(body);
-    final media = extractCommentMedia(body);
+    final content = parseCommentContent(body);
+    final text = content.text;
+    final media = content.media;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
