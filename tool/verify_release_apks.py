@@ -1,6 +1,7 @@
 """Verify the two signed Android release APKs before preparing downloads."""
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -22,19 +23,41 @@ def run(*args):
 
 
 def signing_certificate(output, expected=None):
-    # Android's verifier prints either numbered signers or SDK-range signers.
-    # Parse certificates only; public-key and source-stamp hashes are unrelated.
-    digests = set(re.findall(
-        r"^Signer (?:#\d+|\([^\r\n]+\)) certificate SHA-256 digest:\s*([0-9a-fA-F]{64})\s*$",
-        output, re.MULTILINE,
-    ))
-    digests = {digest.lower() for digest in digests}
+    # Prefer the certificate bytes over SDK-specific human-readable labels.
+    pem_certificates = re.findall(
+        r"-----BEGIN CERTIFICATE-----\s*(.*?)\s*-----END CERTIFICATE-----",
+        output, re.DOTALL,
+    )
+    if pem_certificates:
+        digests = {
+            hashlib.sha256(base64.b64decode(re.sub(r"\s+", "", pem), validate=True)).hexdigest()
+            for pem in pem_certificates
+        }
+    elif "-----BEGIN CERTIFICATE-----" in output:
+        raise ValueError("Incomplete signing certificate PEM")
+    else:
+        digests = text_certificate_digests(output)
     if len(digests) != 1:
-        raise ValueError(f"Expected one signing certificate; found {len(digests)}")
+        # Verification prints public certificate information only. Retain the
+        # output on failure so a new SDK format can be diagnosed without guessing.
+        raise ValueError(f"Expected one signing certificate; found {len(digests)}. Verifier output:\n{output[:4000]}")
     digest = digests.pop()
     if expected is not None and digest != expected:
         raise ValueError("APK certificate does not match the pinned production certificate")
     return digest
+
+
+def text_certificate_digests(output):
+    # Android's verifier prints either numbered signers or SDK-range signers.
+    # Parse certificates only; public-key and source-stamp hashes are unrelated.
+    matches = re.findall(
+        r"^[ \t]*Signer[^\r\n]*? certificate SHA-256 digest:[ \t]*([0-9a-fA-F:]+)[ \t\r]*$",
+        output, re.MULTILINE,
+    )
+    digests = {digest.replace(":", "").lower() for digest in matches}
+    if any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in digests):
+        raise ValueError("Malformed signing certificate fingerprint")
+    return digests
 
 
 def prepare(version, build_number, input_dir, output_dir, sdk, expected_certificate):
@@ -74,7 +97,7 @@ def prepare(version, build_number, input_dir, output_dir, sdk, expected_certific
             for library in ("libapp.so", "libflutter.so"):
                 if f"lib/{abi}/{library}" not in names:
                     raise ValueError(f"Missing {library} in {apk.name}")
-        signature = run(signer, "verify", "--verbose", "--print-certs", apk)
+        signature = run(signer, "verify", "--verbose", "--print-certs", "--print-certs-pem", apk)
         digest = signing_certificate(signature, expected_certificate)
         if certificate is not None and certificate != digest:
             raise ValueError("The two APKs use different signing certificates")
