@@ -84,3 +84,25 @@ jobs:
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      # AOT and Android shrinking, signed with the development certificate so
+      # testers can update the debug app without clearing its data.
+      - name: Prepare optimized test signing config
+        run: |
+          cat > android/key.properties <<EOF
+          storeFile=app/debug.keystore
+          storePassword=android
+          keyAlias=androiddebugkey
+          keyPassword=android
+          EOF
+
+      - name: Build optimized arm64 test APK
+        run: flutter build apk --release --target-platform android-arm64 --build-name "${{ steps.app_version.outputs.version }}-performance.${{ github.run_number }}"
+
+      - name: Upload optimized arm64 test APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lily-for-reddit-optimized-arm64
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

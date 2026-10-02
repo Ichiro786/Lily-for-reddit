@@ -54,6 +54,8 @@ class _PostCardState extends ConsumerState<PostCard>
   bool _visible = false;
   bool _foreground = true;
   bool _routeActive = true;
+  bool _tabActive = true;
+  final _mediaOnscreen = ValueNotifier<bool>(true);
   bool _exposureRecorded = false;
 
   @override
@@ -68,11 +70,13 @@ class _PostCardState extends ConsumerState<PostCard>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _tabActive = TickerMode.valuesOf(context).enabled;
     final route = ModalRoute.of(context);
     if (route != null) {
       appRouteObserver.subscribe(this, route);
       _routeActive = route.isCurrent;
     }
+    _syncExposure();
   }
 
   @override
@@ -113,6 +117,7 @@ class _PostCardState extends ConsumerState<PostCard>
     if (!_visible ||
         !_foreground ||
         !_routeActive ||
+        !_tabActive ||
         !enabled ||
         _exposureRecorded) {
       _dwellTimer?.cancel();
@@ -128,6 +133,7 @@ class _PostCardState extends ConsumerState<PostCard>
           !_visible ||
           !_foreground ||
           !_routeActive ||
+          !_tabActive ||
           !ref.read(settingsControllerProvider).trackHistory ||
           ref.read(authTransitionProvider) ||
           epoch != ref.read(authSessionEpochProvider) ||
@@ -147,6 +153,7 @@ class _PostCardState extends ConsumerState<PostCard>
 
   @override
   void dispose() {
+    _mediaOnscreen.dispose();
     _dwellTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     appRouteObserver.unsubscribe(this);
@@ -340,19 +347,26 @@ class _PostCardState extends ConsumerState<PostCard>
     return VisibilityDetector(
       key: ValueKey<String>('dwell-${widget.post.id}'),
       onVisibilityChanged: (info) {
+        if (!mounted) return;
+        _mediaOnscreen.value = info.visibleFraction > 0;
         _visible = info.visibleFraction >= 0.6;
         if (!_visible) _exposureRecorded = false;
         _syncExposure();
       },
-      child: GestureDetector(
-        onLongPress: widget.post.feedReason != null
-            ? _showTuneSheet
-            : _showPostMenu,
-        child: SwipeActions(
-          enabled: swipeActions,
-          onRight: () => _vote(1),
-          onLeft: () => _vote(-1),
-          child: card,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: _mediaOnscreen,
+        builder: (_, onscreen, child) =>
+            TickerMode(enabled: onscreen, child: child!),
+        child: GestureDetector(
+          onLongPress: widget.post.feedReason != null
+              ? _showTuneSheet
+              : _showPostMenu,
+          child: SwipeActions(
+            enabled: swipeActions,
+            onRight: () => _vote(1),
+            onLeft: () => _vote(-1),
+            child: card,
+          ),
         ),
       ),
     );
@@ -1088,11 +1102,7 @@ class _PlayBadge extends StatelessWidget {
         color: colorScheme.scrim.withValues(alpha: 0.54),
         shape: BoxShape.circle,
       ),
-      child: Icon(
-        Icons.play_arrow_rounded,
-        color: Colors.white,
-        size: 36,
-      ),
+      child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
     );
   }
 }

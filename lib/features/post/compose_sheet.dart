@@ -1,9 +1,16 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/drafts.dart';
+import '../../core/theme/motion_tokens.dart';
+import '../auth/auth_controller.dart';
+import 'comment_content.dart';
+import 'interactive_spoiler.dart';
+import 'reply_editor.dart';
 import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
 import '../../models/comment.dart';
@@ -22,23 +29,34 @@ Future<Comment?> showReplySheet(
   required int parentDepth,
   String? replyingTo,
 }) {
+  final repo = ref.read(redditRepositoryProvider);
+  final container = ProviderScope.containerOf(context, listen: false);
+  final epoch = container.read(authSessionEpochProvider);
+  void requireSession() {
+    if (container.read(authSessionEpochProvider) != epoch ||
+        container.read(authTransitionProvider)) {
+      throw StateError('Account changed');
+    }
+  }
+
   return showModalBottomSheet<Comment>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
     requestFocus: false,
-    sheetAnimationStyle: const AnimationStyle(
-      curve: Cubic(0.2, 0.0, 0.0, 1.0),
-      duration: Duration(milliseconds: 400),
-    ),
+    sheetAnimationStyle: MotionTokens.reduced(context)
+        ? AnimationStyle.noAnimation
+        : const AnimationStyle(
+            curve: Cubic(0.2, 0.0, 0.0, 1.0),
+            duration: Duration(milliseconds: 300),
+          ),
     builder: (ctx) => _ComposeSheet(
-      ref: ref,
       title: replyingTo == null ? 'Reply' : 'Reply to u/$replyingTo',
       submitLabel: 'Reply',
       allowAttachments: true,
       draftKey: 'reply_$parentFullname',
       onSubmitMedia: (text, media) async {
-        final repo = ref.read(redditRepositoryProvider);
+        requireSession();
         if (media == null) {
           return repo.reply(
             parentFullname: parentFullname,
@@ -51,6 +69,7 @@ Future<Comment?> showReplySheet(
             bytes: media.bytes,
             filename: media.filename,
           );
+          requireSession();
           final body = text.isEmpty ? url : '$text\n\n$url';
           return repo.reply(
             parentFullname: parentFullname,
@@ -78,28 +97,34 @@ Future<String?> showEditSheet(
   required String thingFullname,
   required String initialText,
 }) {
+  final repo = ref.read(redditRepositoryProvider);
   return showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
+    requestFocus: false,
+    sheetAnimationStyle: MotionTokens.reduced(context)
+        ? AnimationStyle.noAnimation
+        : const AnimationStyle(duration: Duration(milliseconds: 300)),
     builder: (ctx) => _ComposeSheet(
-      ref: ref,
       title: 'Edit',
       submitLabel: 'Save',
       initialText: initialText,
       onSubmit: (text) async {
-        await ref
-            .read(redditRepositoryProvider)
-            .editText(thingFullname: thingFullname, text: text);
+        await repo.editText(thingFullname: thingFullname, text: text);
         return text;
       },
     ),
   );
 }
 
-class _ComposeSheet<T> extends StatefulWidget {
+final replyGifPickerProvider =
+    Provider<Future<String?> Function(BuildContext, WidgetRef)>(
+      (ref) => showGiphyPicker,
+    );
+
+class _ComposeSheet<T> extends ConsumerStatefulWidget {
   const _ComposeSheet({
-    required this.ref,
     required this.title,
     required this.submitLabel,
     this.onSubmit,
@@ -108,163 +133,322 @@ class _ComposeSheet<T> extends StatefulWidget {
     this.initialText,
     this.draftKey,
   }) : assert(onSubmit != null || onSubmitMedia != null);
-
-  final WidgetRef ref;
-  final String title;
-  final String submitLabel;
-  final String? initialText;
+  final String title, submitLabel;
+  final String? initialText, draftKey;
   final bool allowAttachments;
-
-  /// When set, the in-progress text is autosaved/restored under this key.
-  final String? draftKey;
-
-  /// Text-only submit (used for editing).
-  final Future<T> Function(String text)? onSubmit;
-
-  /// Submit with an optional attachment (used for replies).
-  final Future<T> Function(String text, MediaAttachment? media)? onSubmitMedia;
-
+  final Future<T> Function(String)? onSubmit;
+  final Future<T> Function(String, MediaAttachment?)? onSubmitMedia;
   @override
-  State<_ComposeSheet<T>> createState() => _ComposeSheetState<T>();
+  ConsumerState<_ComposeSheet<T>> createState() => _ComposeSheetState<T>();
 }
 
-class _ComposeSheetState<T> extends State<_ComposeSheet<T>> {
-  late final _controller = TextEditingController(text: _initialText());
-  late final _focusNode = FocusNode();
-  bool _busy = false;
+class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
+    with WidgetsBindingObserver {
+  late final Drafts _drafts;
+  late final TextEditingController _controller;
+  final _focusNode = FocusNode();
+  Animation<double>? _entrance;
+  Timer? _saveTimer;
+  late String _savedText;
+  late final int _epoch;
+  bool _focused = false,
+      _busy = false,
+      _preview = false,
+      _pickingGif = false,
+      _attaching = false,
+      _submitted = false;
   String? _error;
   MediaAttachment? _media;
 
   @override
   void initState() {
     super.initState();
+    _epoch = ref.read(authSessionEpochProvider);
+    _drafts = ref.read(draftsProvider);
+    _savedText =
+        widget.initialText ??
+        (widget.draftKey == null ? '' : _drafts.get(widget.draftKey!) ?? '');
+    _controller = TextEditingController(text: _savedText)
+      ..addListener(_changed);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final animation = ModalRoute.of(context)?.animation;
+    if (_entrance != animation) {
+      _entrance?.removeStatusListener(_routeStatus);
+      _entrance = animation;
+      _entrance?.addStatusListener(_routeStatus);
+    }
+    if (animation == null || animation.status == AnimationStatus.completed) {
+      _focusAfterEntry();
+    }
+  }
+
+  void _routeStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _focusAfterEntry();
+  }
+
+  void _focusAfterEntry() {
+    if (_focused) return;
+    _focused = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNode.requestFocus();
+      if (mounted && !_preview) _focusNode.requestFocus();
     });
   }
 
-  String? _initialText() {
-    if (widget.initialText != null) return widget.initialText;
-    if (widget.draftKey != null) {
-      return widget.ref.read(draftsProvider).get(widget.draftKey!);
-    }
-    return null;
+  void _changed() {
+    if (_controller.text == _savedText) return;
+    _savedText = _controller.text;
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 250), _saveNow);
+    if (_preview) setState(() {});
   }
 
-  void _onChanged(String v) {
-    if (widget.draftKey != null) {
-      widget.ref.read(draftsProvider).save(widget.draftKey!, v);
+  void _saveNow() {
+    _saveTimer?.cancel();
+    if (!_submitted && widget.draftKey != null) {
+      unawaited(_drafts.save(widget.draftKey!, _controller.text));
     }
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _saveNow();
+  }
+
+  @override
   void dispose() {
+    _saveNow();
+    _saveTimer?.cancel();
+    _entrance?.removeStatusListener(_routeStatus);
+    WidgetsBinding.instance.removeObserver(this);
     _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   Future<void> _insertGif() async {
-    final url = await showGiphyPicker(context, widget.ref);
-    if (!mounted || url == null) return;
-    final sep = _controller.text.isEmpty ? '' : '\n';
-    _controller.text = '${_controller.text}$sep$url';
+    if (_busy || _pickingGif || _attaching) return;
+    setState(() => _pickingGif = true);
+    try {
+      final url = await ref.read(replyGifPickerProvider)(context, ref);
+      if (!mounted || url == null) return;
+      insertReplyGif(_controller, url);
+      _error = null;
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Could not open the GIF picker. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _pickingGif = false);
+    }
   }
 
   Future<void> _submit() async {
+    if (_busy || _pickingGif || _attaching) return;
     final text = _controller.text.trim();
+    final draftText = _controller.text;
     if (text.isEmpty && _media == null) return;
-    final drafts = widget.ref.read(draftsProvider);
+    if (ref.read(authSessionEpochProvider) != _epoch ||
+        ref.read(authTransitionProvider)) {
+      setState(
+        () =>
+            _error = 'Your account changed. Reopen this reply before sending.',
+      );
+      return;
+    }
+    _saveNow();
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final T result = widget.onSubmitMedia != null
+      final result = widget.onSubmitMedia != null
           ? await widget.onSubmitMedia!(text, _media)
           : await widget.onSubmit!(text);
-      if (widget.draftKey != null) {
-        drafts.clear(widget.draftKey!);
+      _submitted = true;
+      _saveTimer?.cancel();
+      if (widget.draftKey != null &&
+          _drafts.get(widget.draftKey!) == draftText) {
+        await _drafts.clear(widget.draftKey!).catchError((Object _) {});
       }
-      if (mounted) Navigator.pop(context, result);
-    } catch (e) {
+      if (mounted) {
+        if (ref.read(authSessionEpochProvider) != _epoch ||
+            ref.read(authTransitionProvider)) {
+          Navigator.pop(context);
+        } else {
+          Navigator.pop(context, result);
+        }
+      }
+    } catch (_) {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = '$e'.replaceFirst('Exception: ', '');
+          _error =
+              'Could not send this reply. Your text is kept; please try again.';
         });
       }
     }
   }
 
+  void _format(String before, String after) {
+    insertReplyMarkdown(_controller, before, after);
+    _focusNode.requestFocus();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final theme = Theme.of(context);
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final maxHeight = math.max(
+      0.0,
+      MediaQuery.sizeOf(context).height -
+          bottom -
+          MediaQuery.paddingOf(context).top -
+          48,
+    );
+    final enabled = !_busy && !_pickingGif && !_attaching;
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            widget.title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _controller,
-            focusNode: _focusNode,
-            minLines: 3,
-            maxLines: 8,
-            onChanged: _onChanged,
-            decoration: const InputDecoration(hintText: 'Markdown supported'),
-          ),
-          const SizedBox(height: 6),
-          if (widget.allowAttachments)
-            AttachmentControls(
-              media: _media,
-              onChanged: (m) => setState(() {
-                _media = m;
-                _error = null;
-              }),
-              onError: (msg) => setState(() => _error = msg),
-              leading: [
-                TextButton.icon(
-                  onPressed: _insertGif,
-                  icon: const Icon(Icons.gif_box_outlined),
-                  label: const Text('GIF'),
+      padding: EdgeInsets.only(bottom: bottom),
+      child: SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton.filledTonal(
+                      tooltip: _preview ? 'Write reply' : 'Preview Markdown',
+                      onPressed: enabled
+                          ? () {
+                              setState(() => _preview = !_preview);
+                              if (_preview) {
+                                _focusNode.unfocus();
+                              } else {
+                                _focusNode.requestFocus();
+                              }
+                            }
+                          : null,
+                      icon: Icon(
+                        _preview
+                            ? Icons.edit_rounded
+                            : Icons.visibility_outlined,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_preview)
+                  RepaintBoundary(
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 120),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: _controller.text.trim().isEmpty
+                          ? const Text('Nothing to preview yet.')
+                          : CommentContent(
+                              body: _controller.text,
+                              styleSheet: buildM3EMarkdownStyleSheet(theme),
+                            ),
+                    ),
+                  )
+                else ...[
+                  TextField(
+                    key: const ValueKey('reply-markdown-input'),
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    readOnly: !enabled,
+                    minLines: 3,
+                    maxLines: 8,
+                    decoration: const InputDecoration(
+                      hintText: 'Markdown supported',
+                    ),
+                  ),
+                  Wrap(
+                    children: [
+                      for (final item in [
+                        (Icons.format_bold_rounded, 'Bold', '**', '**'),
+                        (Icons.format_italic_rounded, 'Italic', '*', '*'),
+                        (Icons.code_rounded, 'Inline code', '`', '`'),
+                        (Icons.visibility_off_outlined, 'Spoiler', '>!', '!<'),
+                      ])
+                        IconButton(
+                          tooltip: item.$2,
+                          icon: Icon(item.$1, size: 20),
+                          onPressed: enabled
+                              ? () => _format(item.$3, item.$4)
+                              : null,
+                        ),
+                    ],
+                  ),
+                ],
+                if (widget.allowAttachments)
+                  AttachmentControls(
+                    media: _media,
+                    enabled: !_busy && !_pickingGif,
+                    onBusyChanged: (busy) => setState(() => _attaching = busy),
+                    onChanged: (media) => setState(() {
+                      _media = media;
+                      _error = null;
+                    }),
+                    onError: (message) => setState(() => _error = message),
+                    leading: [
+                      TextButton.icon(
+                        onPressed: enabled ? _insertGif : null,
+                        icon: const Icon(Icons.gif_box_outlined),
+                        label: const Text('GIF'),
+                      ),
+                    ],
+                  )
+                else
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: enabled ? _insertGif : null,
+                      icon: const Icon(Icons.gif_box_outlined),
+                      label: const Text('GIF'),
+                    ),
+                  ),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _error!,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: enabled ? _submit : null,
+                  icon: _busy
+                      ? const M3ELoadingIndicator.small()
+                      : const Icon(Icons.send_rounded),
+                  label: Text(_busy ? 'Sending…' : widget.submitLabel),
                 ),
               ],
-            )
-          else
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _insertGif,
-                icon: const Icon(Icons.gif_box_outlined),
-                label: const Text('GIF'),
-              ),
             ),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(_error!, style: TextStyle(color: cs.error)),
-          ],
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _busy ? null : _submit,
-            icon: _busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: M3ELoadingIndicator.small(),
-                  )
-                : const Icon(Icons.send_rounded),
-            label: Text(_busy ? 'Sending…' : widget.submitLabel),
           ),
-        ],
+        ),
       ),
     );
   }

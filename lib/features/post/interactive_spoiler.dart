@@ -12,7 +12,7 @@ import 'comment_media_helper.dart';
 
 /// Parses native Reddit markers after the Markdown code/escape rules.
 class SpoilerInlineSyntax extends md.InlineSyntax {
-  SpoilerInlineSyntax() : super(r'>!([\s\S]*?)!<');
+  SpoilerInlineSyntax() : super(r'>!((?:\\[\s\S]|!(?!<)|[^\\!])*)!<');
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
@@ -30,7 +30,7 @@ class SpoilerBlockSyntax extends md.BlockSyntax {
     if (!super.canParse(parser)) return false;
     for (var i = 0; parser.peek(i) != null; i++) {
       final line = parser.peek(i)!.content;
-      if (line.contains('!<')) return true;
+      if (redditSpoilerEnd(line, 0) != null) return true;
       if (line.trim().isEmpty) break;
     }
     return false;
@@ -42,7 +42,7 @@ class SpoilerBlockSyntax extends md.BlockSyntax {
     do {
       lines.add(parser.current.content);
       parser.advance();
-    } while (!parser.isDone && !lines.last.contains('!<'));
+    } while (!parser.isDone && redditSpoilerEnd(lines.last, 0) == null);
     return md.Element('p', parser.document.parseInline(lines.join('\n')));
   }
 }

@@ -73,14 +73,21 @@ class _SubredditScreenState extends ConsumerState<SubredditScreen> {
       body: PostListView(
         feedKey: widget.name,
         showSortBar: false,
+        showLoadingIndicator: false,
         header: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            about.when(
-              loading: () => const SizedBox(
+            if (about.isLoading || feed.isLoading)
+              const SizedBox(
                 height: 48,
-                child: Center(child: M3ELoadingIndicator.small()),
+                child: Center(
+                  child: M3ELoadingIndicator(
+                    semanticLabel: 'Loading community',
+                  ),
+                ),
               ),
+            about.when(
+              loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
               data: (s) => _header(context, s),
             ),

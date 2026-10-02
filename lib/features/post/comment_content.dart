@@ -13,7 +13,7 @@ import 'interactive_spoiler.dart';
 
 /// Built only for visible, expanded sliver children; attachments are never lost
 /// by stripping their URLs from Markdown without a matching media renderer.
-class CommentContent extends StatelessWidget {
+class CommentContent extends StatefulWidget {
   const CommentContent({
     super.key,
     required this.body,
@@ -22,14 +22,29 @@ class CommentContent extends StatelessWidget {
   final String body;
   final MarkdownStyleSheet styleSheet;
   @override
+  State<CommentContent> createState() => _CommentContentState();
+}
+
+class _CommentContentState extends State<CommentContent> {
+  late ParsedCommentContent _content = parseCommentContent(widget.body);
+
+  @override
+  void didUpdateWidget(covariant CommentContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.body != widget.body) {
+      _content = parseCommentContent(widget.body);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final content = parseCommentContent(body);
+    final content = _content;
     final text = content.text;
     final media = content.media;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (text.isNotEmpty) buildCommentMarkdownBody(text, styleSheet),
+        if (text.isNotEmpty) buildCommentMarkdownBody(text, widget.styleSheet),
         for (final item in media)
           Padding(
             padding: const EdgeInsets.only(top: 8),

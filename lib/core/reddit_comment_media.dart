@@ -24,6 +24,7 @@ final _inlineGifPattern = RegExp(
   caseSensitive: false,
 );
 final _trailingPunctuation = RegExp(r'[.,!?;:]+$');
+final _urlBoundary = RegExp(r'[\s<>\[\]"]');
 
 bool isCommentMediaUrl(String rawUrl) {
   final uri = Uri.tryParse(rawUrl.trim());
@@ -96,6 +97,13 @@ int? _balancedEnd(String text, int start, String open, String close) {
       i++;
       continue;
     }
+    if (open == '[' && char == '`') {
+      final end = markdownCodeEnd(text, i);
+      if (end != null) {
+        i = end - 1;
+        continue;
+      }
+    }
     if (open == '(' && quote == null && char == '<') {
       angle = true;
       continue;
@@ -149,6 +157,24 @@ ParsedCommentContent parseCommentContent(String body) {
       final output = StringBuffer();
       var cursor = 0;
       while (cursor < prose.length) {
+        if (prose[cursor] == '\\' && cursor + 1 < prose.length) {
+          output.write(prose.substring(cursor, cursor + 2));
+          cursor += 2;
+          continue;
+        }
+        final spoilerEnd = prose.startsWith('>!', cursor)
+            ? redditSpoilerEnd(prose, cursor + 2)
+            : null;
+        final protectedEnd = prose[cursor] == '`'
+            ? markdownCodeEnd(prose, cursor)
+            : prose.startsWith('>!', cursor)
+            ? (spoilerEnd == null ? null : spoilerEnd + 2)
+            : null;
+        if (protectedEnd != null) {
+          output.write(prose.substring(cursor, protectedEnd));
+          cursor = protectedEnd;
+          continue;
+        }
         final token = _inlineGifPattern.matchAsPrefix(prose, cursor);
         if (token != null) {
           final url = resolveInlineGifToken(token[0]!);
@@ -199,8 +225,7 @@ ParsedCommentContent parseCommentContent(String body) {
             prose.startsWith('http://', urlStart)) {
           var end = urlStart;
           var parens = 0;
-          while (end < prose.length &&
-              !RegExp(r'[\s<>\[\]"]').hasMatch(prose[end])) {
+          while (end < prose.length && !_urlBoundary.hasMatch(prose[end])) {
             if (prose[end] == '(') parens++;
             if (prose[end] == ')') {
               if (parens == 0) break;
@@ -224,7 +249,8 @@ ParsedCommentContent parseCommentContent(String body) {
       }
       return output.toString();
     },
-    protectSpoilers: true,
+    protectInlineCode: false,
+    protectEscapes: false,
     protectReferences: true,
   );
   final clean = text.trim().isEmpty
@@ -241,7 +267,8 @@ String commentTextWithoutMedia(String body) => parseCommentContent(body).text;
 String commentSearchText(String body) {
   final redacted = mapRedditMarkdownProse(
     body,
-    (prose) => prose.replaceAll(RegExp(r'>![\s\S]*?!<'), 'Spoiler'),
+    (prose) => prose,
+    transformSpoiler: (_) => 'Spoiler',
   );
   final document = md.Document(encodeHtml: false);
   return document

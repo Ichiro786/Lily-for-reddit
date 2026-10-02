@@ -1,5 +1,34 @@
 import 'package:markdown/markdown.dart' as md;
 
+final _markdownLines = RegExp(r'[^\n]*(?:\n|$)');
+final _markdownFence = RegExp(
+  r'^(?: {0,3}> ?)* {0,3}(?:(?:[-+*]|\d+[.)]) +)?(`{3,}|~{3,})(.*)',
+);
+final _backticks = RegExp(r'`+');
+
+/// Finds a closing spoiler marker, skipping escaped punctuation.
+int? redditSpoilerEnd(String source, int start) {
+  for (var i = start; i < source.length - 1; i++) {
+    if (source[i] == '\\') {
+      i++;
+      continue;
+    }
+    if (source.startsWith('!<', i)) return i;
+  }
+  return null;
+}
+
+int? markdownCodeEnd(String source, int start) {
+  var end = start;
+  while (end < source.length && source[end] == '`') {
+    end++;
+  }
+  for (final match in _backticks.allMatches(source, end)) {
+    if (match.end - match.start == end - start) return match.end;
+  }
+  return null;
+}
+
 /// Transforms prose without rewriting code examples or escaped punctuation.
 /// Source slices are retained directly, avoiding sentinel collisions with text.
 String mapRedditMarkdownProse(
@@ -7,15 +36,16 @@ String mapRedditMarkdownProse(
   String Function(String) transform, {
   bool protectSpoilers = false,
   bool protectReferences = false,
+  bool protectInlineCode = true,
+  bool protectEscapes = true,
+  String Function(String)? transformSpoiler,
 }) {
   final blocks = <(int, int)>[];
-  final lines = RegExp(r'[^\n]*(?:\n|$)').allMatches(source);
+  final lines = _markdownLines.allMatches(source);
   String? fence;
   int? fenceStart;
   for (final line in lines) {
-    final marker = RegExp(
-      r'^(?: {0,3}> ?)* {0,3}(?:(?:[-+*]|\d+[.)]) +)?(`{3,}|~{3,})(.*)',
-    ).firstMatch(line.group(0)!);
+    final marker = _markdownFence.firstMatch(line.group(0)!);
     if (fence != null) {
       if (marker != null &&
           marker[1]![0] == fence[0] &&
@@ -53,11 +83,28 @@ String mapRedditMarkdownProse(
       protect(blocks[blockIndex++].$2);
       continue;
     }
-    if (source[cursor] == '\\' && cursor + 1 < source.length) {
+    if ((protectSpoilers || transformSpoiler != null) &&
+        source.startsWith('>!', cursor)) {
+      final end = redditSpoilerEnd(source, cursor + 2);
+      if (end != null) {
+        if (transformSpoiler == null) {
+          protect(end + 2);
+        } else {
+          output.write(transform(source.substring(proseStart, cursor)));
+          output.write(transformSpoiler(source.substring(cursor, end + 2)));
+          cursor = end + 2;
+          proseStart = cursor;
+        }
+        continue;
+      }
+    }
+    if (protectEscapes &&
+        source[cursor] == '\\' &&
+        cursor + 1 < source.length) {
       protect(cursor + 2);
       continue;
     }
-    if (source[cursor] == '`') {
+    if (protectInlineCode && source[cursor] == '`') {
       final start = cursor;
       var end = start;
       while (end < source.length && source[end] == '`') {
@@ -67,7 +114,7 @@ String mapRedditMarkdownProse(
       final nextBlock = blockIndex < blocks.length
           ? blocks[blockIndex].$1
           : source.length;
-      for (final match in RegExp(r'`+').allMatches(source, end)) {
+      for (final match in _backticks.allMatches(source, end)) {
         if (match.start >= nextBlock) break;
         if (match.end - match.start == width) {
           protect(match.end);
@@ -77,13 +124,6 @@ String mapRedditMarkdownProse(
       if (cursor != start) continue;
       cursor = end;
       continue;
-    }
-    if (protectSpoilers && source.startsWith('>!', cursor)) {
-      final end = source.indexOf('!<', cursor + 2);
-      if (end >= 0) {
-        protect(end + 2);
-        continue;
-      }
     }
     cursor++;
   }

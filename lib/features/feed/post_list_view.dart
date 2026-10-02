@@ -31,11 +31,13 @@ class PostListView extends ConsumerStatefulWidget {
     this.header,
     this.showSortBar = true,
     this.frontpageStyle = false,
+    this.showLoadingIndicator = true,
   });
   final String feedKey;
   final Widget? header;
   final bool showSortBar;
   final bool frontpageStyle;
+  final bool showLoadingIndicator;
 
   @override
   ConsumerState<PostListView> createState() => _PostListViewState();
@@ -127,11 +129,14 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
         loading: () => ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: listPadding,
-          itemCount: (widget.header != null ? 1 : 0) + 4,
+          itemCount:
+              (widget.header != null ? 1 : 0) +
+              3 +
+              (widget.showLoadingIndicator ? 1 : 0),
           itemBuilder: (context, index) {
             if (widget.header != null && index == 0) return widget.header!;
             final row = index - (widget.header != null ? 1 : 0);
-            if (row == 0) {
+            if (widget.showLoadingIndicator && row == 0) {
               return const Padding(
                 padding: EdgeInsets.all(20),
                 child: Center(
