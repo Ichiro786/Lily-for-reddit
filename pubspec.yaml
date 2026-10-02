@@ -86,12 +86,12 @@ flutter:
 
 # Run `dart run flutter_native_splash:create` after changing these.
 flutter_native_splash:
-  color: "#FFFFFF"
+  color: "#000000"
   image: assets/splash/logo.png
-  color_dark: "#19171E"
+  color_dark: "#000000"
   image_dark: assets/splash/logo.png
   android_12:
     image: assets/splash/logo.png
-    color: "#FFFFFF"
+    color: "#000000"
     image_dark: assets/splash/logo.png
-    color_dark: "#19171E"
+    color_dark: "#000000"

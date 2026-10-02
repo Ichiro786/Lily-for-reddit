@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../core/theme/motion_tokens.dart';
 import '../media/expandable_post_media.dart';
@@ -242,23 +241,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         ),
       );
     }
-  }
-
-  Future<void> _onComposeImageSelected(XFile? file) async {
-    if (file == null) {
-      if (mounted) setState(() => _pendingComposeAttachment = null);
-      return;
-    }
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
-    setState(() {
-      _pendingComposeAttachment = MediaAttachment(
-        bytes: bytes,
-        filename: file.name,
-        mimeType: file.mimeType ?? 'image/jpeg',
-        isVideo: false,
-      );
-    });
   }
 
   void _scrollToComments() {
@@ -648,7 +630,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               _pendingComposeAttachment = null;
               _sendQuickReply(notifier, thread, text, attachment);
             },
-            onImageSelected: _onComposeImageSelected,
+            media: _pendingComposeAttachment,
+            onMediaSelected: (media) =>
+                setState(() => _pendingComposeAttachment = media),
             onJumpNext: thread == null || thread.comments.isEmpty
                 ? null
                 : _jumpNextTopLevel,

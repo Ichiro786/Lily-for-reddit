@@ -1,4 +1,4 @@
-package com.bennybar.luli_for_reddit
+package com.ichiro.lily_for_reddit
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -6,6 +6,7 @@ import io.flutter.plugin.common.MethodChannel
 import android.os.Build
 import android.content.ClipboardManager
 import android.content.Context
+import android.net.Uri
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
 
@@ -15,20 +16,24 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "lily/media_clipboard")
             .setMethodCallHandler { call, result ->
-                if (call.method != "readImage") {
+                if (call.method != "readImage" && call.method != "readKeyboardImage") {
                     result.notImplemented()
                     return@setMethodCallHandler
                 }
                 try {
-                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    val clip = clipboard.primaryClip
-                    val uri = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
+                    val uri = if (call.method == "readKeyboardImage") {
+                        call.argument<String>("uri")?.let { Uri.parse(it) }
+                    } else {
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = clipboard.primaryClip
+                        if (clip != null && clip.itemCount > 0) clip.getItemAt(0).uri else null
+                    }
                     if (uri == null || uri.scheme != "content") {
                         result.success(null)
                         return@setMethodCallHandler
                     }
-                    val mime = contentResolver.getType(uri)
-                    if (mime == null || !mime.startsWith("image/")) {
+                    val mime = contentResolver.getType(uri) ?: call.argument<String>("mimeType")
+                    if (mime !in setOf("image/png", "image/jpeg", "image/gif", "image/webp")) {
                         result.success(null)
                         return@setMethodCallHandler
                     }

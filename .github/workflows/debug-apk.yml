@@ -106,3 +106,9 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Verify packaged Android identity
+        run: |
+          analyzer="$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          package_id=$("$analyzer" manifest application-id build/app/outputs/flutter-apk/app-release.apk)
+          test "$package_id" = "com.ichiro.lily_for_reddit"

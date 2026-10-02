@@ -27,7 +27,7 @@ class MediaAttachment {
   }
 }
 
-String _mimeForImage(String name) {
+String imageMimeTypeForFilename(String name) {
   final n = name.toLowerCase();
   if (n.endsWith('.png')) return 'image/png';
   if (n.endsWith('.gif')) return 'image/gif';
@@ -41,7 +41,7 @@ Future<MediaAttachment?> pickImageAttachment() async {
   return MediaAttachment(
     bytes: await x.readAsBytes(),
     filename: x.name,
-    mimeType: x.mimeType ?? _mimeForImage(x.name),
+    mimeType: x.mimeType ?? imageMimeTypeForFilename(x.name),
     isVideo: false,
   );
 }

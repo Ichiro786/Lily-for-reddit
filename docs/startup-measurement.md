@@ -50,7 +50,7 @@ Measure cold, warm, and hot starts separately. For a cold-start-oriented measure
 
 ```bash
 adb shell am start -S -W \
-  com.bennybar.luli_for_reddit/.MainActivity \
+  com.ichiro.lily_for_reddit/.MainActivity \
   -a android.intent.action.MAIN \
   -c android.intent.category.LAUNCHER
 ```

@@ -3,11 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/shape_tokens.dart';
+import '../media/attachment.dart';
+import '../media/keyboard_media.dart';
 
 class CommentComposeBar extends StatefulWidget {
   final TextEditingController? controller;
   final ValueChanged<String>? onSubmit;
   final ValueChanged<XFile?>? onImageSelected;
+  final ValueChanged<MediaAttachment?>? onMediaSelected;
+  final MediaAttachment? media;
   final VoidCallback? onJumpNext;
   final String hintText;
 
@@ -16,6 +20,8 @@ class CommentComposeBar extends StatefulWidget {
     this.controller,
     this.onSubmit,
     this.onImageSelected,
+    this.onMediaSelected,
+    this.media,
     this.onJumpNext,
     this.hintText = 'Add a comment...',
   });
@@ -29,10 +35,65 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
   final ImagePicker _picker = ImagePicker();
   XFile? _selectedImage;
   bool _isInternalController = false;
+  bool _readingMedia = false;
+  String? _mediaError;
+
+  @override
+  void didUpdateWidget(covariant CommentComposeBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.media != oldWidget.media) {
+      final media = widget.media;
+      _selectedImage = media == null
+          ? null
+          : XFile.fromData(
+              media.bytes,
+              name: media.filename,
+              mimeType: media.mimeType,
+            );
+    }
+  }
+
+  void _acceptMedia(MediaAttachment media) {
+    final file = XFile.fromData(
+      media.bytes,
+      name: media.filename,
+      mimeType: media.mimeType,
+    );
+    setState(() {
+      _selectedImage = file;
+      _mediaError = null;
+    });
+    if (widget.onMediaSelected != null) {
+      widget.onMediaSelected!(media);
+    } else {
+      widget.onImageSelected?.call(file);
+    }
+  }
+
+  Future<void> _keyboardContent(KeyboardInsertedContent content) async {
+    if (_readingMedia) return;
+    setState(() => _readingMedia = true);
+    try {
+      final media = await readKeyboardAttachment(content);
+      if (mounted) _acceptMedia(media);
+    } catch (error) {
+      if (mounted) setState(() => _mediaError = keyboardAttachmentError(error));
+    } finally {
+      if (mounted) setState(() => _readingMedia = false);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    final media = widget.media;
+    if (media != null) {
+      _selectedImage = XFile.fromData(
+        media.bytes,
+        name: media.filename,
+        mimeType: media.mimeType,
+      );
+    }
     if (widget.controller == null) {
       _controller = TextEditingController();
       _isInternalController = true;
@@ -50,23 +111,45 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
   }
 
   Future<void> _pickImage() async {
+    if (_readingMedia) return;
+    setState(() => _readingMedia = true);
     HapticFeedback.selectionClick();
     try {
       final picked = await _picker.pickImage(source: ImageSource.gallery);
       if (mounted && picked != null) {
-        setState(() => _selectedImage = picked);
-        widget.onImageSelected?.call(picked);
+        final bytes = await picked.readAsBytes();
+        if (mounted) {
+          _acceptMedia(
+            MediaAttachment(
+              bytes: bytes,
+              filename: picked.name,
+              mimeType:
+                  picked.mimeType ?? imageMimeTypeForFilename(picked.name),
+              isVideo: false,
+            ),
+          );
+        }
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _mediaError = 'Could not attach that image. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _readingMedia = false);
+    }
   }
 
   void _handleSend() {
+    if (_readingMedia || widget.onSubmit == null) return;
     final text = _controller.text.trim();
     if (text.isNotEmpty || _selectedImage != null) {
       HapticFeedback.mediumImpact();
       widget.onSubmit?.call(text);
       _controller.clear();
       setState(() => _selectedImage = null);
+      widget.onMediaSelected?.call(null);
     }
   }
 
@@ -85,6 +168,8 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_mediaError != null)
+              Text(_mediaError!, style: TextStyle(color: colorScheme.error)),
             if (_selectedImage != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -114,6 +199,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                             onTap: () {
                               setState(() => _selectedImage = null);
                               widget.onImageSelected?.call(null);
+                              widget.onMediaSelected?.call(null);
                             },
                             child: Container(
                               padding: const EdgeInsets.all(2),
@@ -151,6 +237,11 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                         Expanded(
                           child: TextField(
                             controller: _controller,
+                            contentInsertionConfiguration:
+                                ContentInsertionConfiguration(
+                                  allowedMimeTypes: keyboardImageMimeTypes,
+                                  onContentInserted: _keyboardContent,
+                                ),
                             onSubmitted: (_) => _handleSend(),
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: colorScheme.onSurface,
@@ -175,7 +266,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                         ),
                         IconButton(
                           tooltip: 'Attach image',
-                          onPressed: _pickImage,
+                          onPressed: _readingMedia ? null : _pickImage,
                           icon: Icon(
                             Icons.add_photo_alternate_outlined,
                             size: 22,

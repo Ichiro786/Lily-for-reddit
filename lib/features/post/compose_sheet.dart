@@ -15,6 +15,7 @@ import '../../core/network/catbox.dart';
 import '../../core/providers.dart';
 import '../../models/comment.dart';
 import '../media/attachment.dart';
+import '../media/keyboard_media.dart';
 import '../media/attachment_bar.dart';
 import '../media/giphy_picker.dart';
 
@@ -156,6 +157,7 @@ class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
       _preview = false,
       _pickingGif = false,
       _attaching = false,
+      _readingKeyboard = false,
       _submitted = false;
   String? _error;
   MediaAttachment? _media;
@@ -231,7 +233,7 @@ class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
   }
 
   Future<void> _insertGif() async {
-    if (_busy || _pickingGif || _attaching) return;
+    if (_busy || _pickingGif || _attaching || _readingKeyboard) return;
     setState(() => _pickingGif = true);
     try {
       final url = await ref.read(replyGifPickerProvider)(context, ref);
@@ -248,7 +250,7 @@ class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
   }
 
   Future<void> _submit() async {
-    if (_busy || _pickingGif || _attaching) return;
+    if (_busy || _pickingGif || _attaching || _readingKeyboard) return;
     final text = _controller.text.trim();
     final draftText = _controller.text;
     if (text.isEmpty && _media == null) return;
@@ -294,6 +296,23 @@ class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
     }
   }
 
+  Future<void> _insertKeyboardContent(KeyboardInsertedContent content) async {
+    if (_busy || _pickingGif || _attaching || _readingKeyboard) return;
+    setState(() => _readingKeyboard = true);
+    try {
+      final media = await readKeyboardAttachment(content);
+      if (!mounted) return;
+      setState(() {
+        _media = media;
+        _error = null;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = keyboardAttachmentError(error));
+    } finally {
+      if (mounted) setState(() => _readingKeyboard = false);
+    }
+  }
+
   void _format(String before, String after) {
     insertReplyMarkdown(_controller, before, after);
     _focusNode.requestFocus();
@@ -310,7 +329,7 @@ class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
           MediaQuery.paddingOf(context).top -
           48,
     );
-    final enabled = !_busy && !_pickingGif && !_attaching;
+    final enabled = !_busy && !_pickingGif && !_attaching && !_readingKeyboard;
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: SafeArea(
@@ -379,6 +398,12 @@ class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
                     controller: _controller,
                     focusNode: _focusNode,
                     readOnly: !enabled,
+                    contentInsertionConfiguration: widget.allowAttachments
+                        ? ContentInsertionConfiguration(
+                            allowedMimeTypes: keyboardImageMimeTypes,
+                            onContentInserted: _insertKeyboardContent,
+                          )
+                        : null,
                     minLines: 3,
                     maxLines: 8,
                     decoration: const InputDecoration(
@@ -406,7 +431,7 @@ class _ComposeSheetState<T> extends ConsumerState<_ComposeSheet<T>>
                 if (widget.allowAttachments)
                   AttachmentControls(
                     media: _media,
-                    enabled: !_busy && !_pickingGif,
+                    enabled: !_busy && !_pickingGif && !_readingKeyboard,
                     onBusyChanged: (busy) => setState(() => _attaching = busy),
                     onChanged: (media) => setState(() {
                       _media = media;
