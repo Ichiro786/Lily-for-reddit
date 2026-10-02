@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -73,7 +75,7 @@ class UserScreen extends ConsumerWidget {
             about.when(
               loading: () => const SizedBox(
                 height: 96,
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: M3ELoadingIndicator()),
               ),
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),

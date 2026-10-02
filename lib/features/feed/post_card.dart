@@ -13,6 +13,10 @@ import '../../core/interaction_actions.dart';
 import '../../core/route_observer.dart';
 import '../auth/auth_controller.dart';
 import '../../core/media_aspect_ratio.dart';
+import '../../core/reddit_comment_media.dart';
+import '../../core/theme/motion_tokens.dart';
+import '../media/expandable_post_media.dart';
+import '../media/post_media_image.dart';
 import '../../core/root_messenger.dart';
 import '../../core/share.dart';
 import '../../core/theme/shape_tokens.dart';
@@ -50,6 +54,8 @@ class _PostCardState extends ConsumerState<PostCard>
   bool _visible = false;
   bool _foreground = true;
   bool _routeActive = true;
+  bool _tabActive = true;
+  final _mediaOnscreen = ValueNotifier<bool>(true);
   bool _exposureRecorded = false;
 
   @override
@@ -64,11 +70,13 @@ class _PostCardState extends ConsumerState<PostCard>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _tabActive = TickerMode.valuesOf(context).enabled;
     final route = ModalRoute.of(context);
     if (route != null) {
       appRouteObserver.subscribe(this, route);
       _routeActive = route.isCurrent;
     }
+    _syncExposure();
   }
 
   @override
@@ -109,6 +117,7 @@ class _PostCardState extends ConsumerState<PostCard>
     if (!_visible ||
         !_foreground ||
         !_routeActive ||
+        !_tabActive ||
         !enabled ||
         _exposureRecorded) {
       _dwellTimer?.cancel();
@@ -124,6 +133,7 @@ class _PostCardState extends ConsumerState<PostCard>
           !_visible ||
           !_foreground ||
           !_routeActive ||
+          !_tabActive ||
           !ref.read(settingsControllerProvider).trackHistory ||
           ref.read(authTransitionProvider) ||
           epoch != ref.read(authSessionEpochProvider) ||
@@ -143,6 +153,7 @@ class _PostCardState extends ConsumerState<PostCard>
 
   @override
   void dispose() {
+    _mediaOnscreen.dispose();
     _dwellTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     appRouteObserver.unsubscribe(this);
@@ -184,7 +195,13 @@ class _PostCardState extends ConsumerState<PostCard>
     switch (p.type) {
       case PostType.image:
       case PostType.gif:
-        openImageViewer(context, p.previewUrl ?? p.url, title: p.title);
+        openImageViewer(
+          context,
+          p.type == PostType.gif && isCommentGifUrl(p.url)
+              ? normalizedCommentMediaUrl(p.url)
+              : p.previewUrl ?? p.url,
+          title: p.title,
+        );
       case PostType.gallery:
         openGalleryViewer(context, p.gallery, title: p.title);
       case PostType.video:
@@ -330,19 +347,26 @@ class _PostCardState extends ConsumerState<PostCard>
     return VisibilityDetector(
       key: ValueKey<String>('dwell-${widget.post.id}'),
       onVisibilityChanged: (info) {
+        if (!mounted) return;
+        _mediaOnscreen.value = info.visibleFraction > 0;
         _visible = info.visibleFraction >= 0.6;
         if (!_visible) _exposureRecorded = false;
         _syncExposure();
       },
-      child: GestureDetector(
-        onLongPress: widget.post.feedReason != null
-            ? _showTuneSheet
-            : _showPostMenu,
-        child: SwipeActions(
-          enabled: swipeActions,
-          onRight: () => _vote(1),
-          onLeft: () => _vote(-1),
-          child: card,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: _mediaOnscreen,
+        builder: (_, onscreen, child) =>
+            TickerMode(enabled: onscreen, child: child!),
+        child: GestureDetector(
+          onLongPress: widget.post.feedReason != null
+              ? _showTuneSheet
+              : _showPostMenu,
+          child: SwipeActions(
+            enabled: swipeActions,
+            onRight: () => _vote(1),
+            onLeft: () => _vote(-1),
+            child: card,
+          ),
         ),
       ),
     );
@@ -663,6 +687,11 @@ class _PostCardState extends ConsumerState<PostCard>
   /// Feed preview URL, using the lower-resolution Reddit preview when the
   /// Data-saver thumbnails setting is enabled.
   String? _cardImg(Post p) {
+    if (p.type == PostType.gif) {
+      return isCommentGifUrl(p.url)
+          ? normalizedCommentMediaUrl(p.url)
+          : p.previewUrl;
+    }
     final midResThumbnails = ref.watch(
       settingsControllerProvider.select((s) => s.midResThumbnails),
     );
@@ -911,133 +940,56 @@ class _PostCardState extends ConsumerState<PostCard>
       height: p.previewHeight,
       fallback: p.type == PostType.video ? 16 / 9 : 4 / 3,
     );
-    final extremePortrait = renderAspect < 0.4;
-    final maxHeight = mediaViewportMaxHeight(
-      viewportHeight: MediaQuery.sizeOf(context).height,
-      verticalPadding: MediaQuery.viewPaddingOf(context).vertical,
-    );
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cacheWidth = (MediaQuery.sizeOf(context).width * dpr)
         .round()
         .clamp(1, 1080)
         .toInt();
-    final autoplay = ref.watch(
-      settingsControllerProvider.select((s) => s.autoplayMedia),
-    );
+    final autoplay =
+        ref.watch(settingsControllerProvider.select((s) => s.autoplayMedia)) &&
+        !MotionTokens.reduced(context);
     final videoUrl = p.hlsUrl ?? p.fallbackVideoUrl ?? resolveVideoUrl(p.url);
-
-    Widget viewFullButton() => Semantics(
-      button: true,
-      label: 'View full image',
-      child: TextButton.icon(
-        onPressed: _openMedia,
-        icon: const Icon(Icons.open_in_full_rounded, size: 16),
-        label: const Text('View full'),
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          visualDensity: VisualDensity.compact,
-        ),
-      ),
-    );
-
-    if (p.type == PostType.video &&
-        autoplay &&
-        videoUrl.isNotEmpty &&
-        !videoUrl.toLowerCase().endsWith('.gif')) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final naturalHeight = constraints.maxWidth / renderAspect;
-            final capped = naturalHeight > maxHeight || extremePortrait;
-            final height = capped ? maxHeight : naturalHeight;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: ShapeTokens.small,
-                  child: InlineVideo(
-                    key: ValueKey('iv_${p.id}'),
-                    url: videoUrl,
-                    poster: url,
-                    height: height,
-                    onTap: _openMedia,
-                  ),
-                ),
-                if (capped) viewFullButton(),
-              ],
-            );
-          },
-        ),
-      );
-    }
-
-    Widget mediaStack({required bool capped}) => Stack(
-      fit: StackFit.expand,
-      children: [
-        if (url != null)
-          CachedNetworkImage(
-            imageUrl: url,
-            memCacheWidth: cacheWidth,
-            fit: capped ? BoxFit.cover : BoxFit.cover,
-            alignment: capped ? Alignment.topCenter : Alignment.center,
-            placeholder: (_, __) => Container(color: cs.surfaceContainerLowest),
-            errorWidget: (_, __, ___) => Container(
-              color: cs.surfaceContainerLowest,
-              child: Icon(
-                Icons.broken_image_outlined,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          )
-        else
-          Container(color: cs.surfaceContainerLowest),
-        if (p.type == PostType.video) const Center(child: _PlayBadge()),
-        if (p.type == PostType.gallery)
-          Positioned(
-            top: 8,
-            right: 8,
-            child: _Pill(
-              icon: Icons.collections_rounded,
-              label: '${p.gallery.length}',
-            ),
-          ),
-        if (p.type == PostType.gif)
-          const Positioned(top: 8, left: 8, child: _Pill(label: 'GIF')),
-        if (p.type == PostType.video)
-          const Positioned(
-            bottom: 8,
-            right: 8,
-            child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
-          ),
-      ],
-    );
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final naturalHeight = constraints.maxWidth / renderAspect;
-          final capped = naturalHeight > maxHeight || extremePortrait;
-          final media = ClipRRect(
-            borderRadius: ShapeTokens.small,
-            child: GestureDetector(
+      child: ExpandablePostMedia(
+        key: ValueKey(p.fullname),
+        aspectRatio: renderAspect,
+        onOpen: _openMedia,
+        builder: (context, height) {
+          if (p.type == PostType.video &&
+              autoplay &&
+              videoUrl.isNotEmpty &&
+              !isYouTubeUrl(p.url) &&
+              !isCommentGifUrl(videoUrl)) {
+            return InlineVideo(
+              key: ValueKey('iv_${p.id}'),
+              url: videoUrl,
+              poster: url,
+              height: height,
               onTap: _openMedia,
-              child: capped
-                  ? SizedBox(
-                      width: double.infinity,
-                      height: maxHeight,
-                      child: mediaStack(capped: true),
-                    )
-                  : AspectRatio(
-                      aspectRatio: renderAspect,
-                      child: mediaStack(capped: false),
-                    ),
-            ),
-          );
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [media, if (capped) viewFullButton()],
+            );
+          }
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (url != null)
+                PostMediaImage(
+                  url: url,
+                  cacheWidth: cacheWidth,
+                  animate: autoplay || p.type != PostType.gif,
+                )
+              else
+                Container(color: cs.surfaceContainerLowest),
+              if (p.type == PostType.video) const Center(child: _PlayBadge()),
+              if (p.type == PostType.gif)
+                const Positioned(top: 8, left: 8, child: _Pill(label: 'GIF')),
+              if (p.type == PostType.video)
+                const Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: _Pill(icon: Icons.videocam_rounded, label: 'VIDEO'),
+                ),
+            ],
           );
         },
       ),
@@ -1150,11 +1102,7 @@ class _PlayBadge extends StatelessWidget {
         color: colorScheme.scrim.withValues(alpha: 0.54),
         shape: BoxShape.circle,
       ),
-      child: Icon(
-        Icons.play_arrow_rounded,
-        color: colorScheme.onSurface,
-        size: 36,
-      ),
+      child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
     );
   }
 }
@@ -1176,13 +1124,13 @@ class _Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: colorScheme.onSurface),
+            Icon(icon, size: 14, color: Colors.white),
             const SizedBox(width: 4),
           ],
           Text(
             label,
             style: TextStyle(
-              color: colorScheme.onSurface,
+              color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.bold,
             ),

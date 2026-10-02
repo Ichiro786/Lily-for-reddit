@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -37,12 +39,13 @@ class AccountTab extends ConsumerWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text('Custom feeds',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(
-                            color: cs.primary, fontWeight: FontWeight.w700)),
+                child: Text(
+                  'Custom feeds',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: cs.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
               TextButton.icon(
                 onPressed: () => _createMulti(context, ref, username),
@@ -52,10 +55,13 @@ class AccountTab extends ConsumerWidget {
             ],
           ),
         ),
-        ref.watch(myMultiredditsProvider).when(
+        ref
+            .watch(myMultiredditsProvider)
+            .when(
               loading: () => const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(child: CircularProgressIndicator())),
+                padding: EdgeInsets.all(16),
+                child: Center(child: M3ELoadingIndicator()),
+              ),
               error: (e, _) => const SizedBox.shrink(),
               data: (multis) => Column(
                 children: [
@@ -79,7 +85,10 @@ class AccountTab extends ConsumerWidget {
   }
 
   Future<void> _createMulti(
-      BuildContext context, WidgetRef ref, String username) async {
+    BuildContext context,
+    WidgetRef ref,
+    String username,
+  ) async {
     final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
@@ -93,10 +102,13 @@ class AccountTab extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: const Text('Create')),
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Create'),
+          ),
         ],
       ),
     );
@@ -108,9 +120,13 @@ class AccountTab extends ConsumerWidget {
       ref.invalidate(myMultiredditsProvider);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content:
-                Text('Could not create feed: ${'$e'.replaceFirst('Exception: ', '')}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not create feed: ${'$e'.replaceFirst('Exception: ', '')}',
+            ),
+          ),
+        );
       }
     }
   }

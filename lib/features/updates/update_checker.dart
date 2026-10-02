@@ -16,7 +16,14 @@ class UpdateInfo {
 /// GitHub (no Play Store), so this is the update channel.
 class UpdateChecker {
   UpdateChecker({Dio? dio, Future<List<String>> Function()? supportedAbis})
-    : _dio = dio ?? Dio(),
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 15),
+            ),
+          ),
       _supportedAbis = supportedAbis ?? deviceAbis;
   final Dio _dio;
   final Future<List<String>> Function() _supportedAbis;

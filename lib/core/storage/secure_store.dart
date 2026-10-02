@@ -70,6 +70,9 @@ class SecureStore {
   Future<String?> get redirectUri => read(_kRedirectUri);
   Future<String?> get giphyKey => read(_kGiphyKey);
 
+  Future<void> saveGiphyKey(String key) =>
+      _write(_kGiphyKey, key.trim().isEmpty ? null : key.trim());
+
   Future<void> saveCredentials({
     required String clientId,
     required String redirectUri,
@@ -265,11 +268,13 @@ class SecureStore {
     }
   }
 
-  Future<Map<String, String>> snapshot() async => Map.of(await _storage.readAll());
+  Future<Map<String, String>> snapshot() async =>
+      Map.of(await _storage.readAll());
 
   Future<void> restoreSnapshot(Map<String, String> snapshot) async {
     final current = await _storage.readAll();
-    for (final key in current.keys.where((key) => !snapshot.containsKey(key)).toList()) {
+    for (final key
+        in current.keys.where((key) => !snapshot.containsKey(key)).toList()) {
       await _storage.delete(key: key);
     }
     for (final entry in snapshot.entries) {
@@ -301,7 +306,9 @@ class SecureStore {
     if (user != null && user.trim().isEmpty) {
       throw const FormatException('Invalid username');
     }
-    if (user != null && mode == 'web' && (values[_kWebCookie]?.isEmpty ?? true)) {
+    if (user != null &&
+        mode == 'web' &&
+        (values[_kWebCookie]?.isEmpty ?? true)) {
       throw const FormatException('Missing website session');
     }
     if (user != null &&

@@ -12,4 +12,3 @@ key.properties
 *.jks
 *.keystore
 !app/debug.keystore
-!app/ci-release.keystore

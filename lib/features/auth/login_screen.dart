@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,8 +19,9 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _clientId = TextEditingController();
-  final _redirect =
-      TextEditingController(text: RedditConstants.defaultRedirectUri);
+  final _redirect = TextEditingController(
+    text: RedditConstants.defaultRedirectUri,
+  );
   final _giphy = TextEditingController();
 
   bool _busy = false;
@@ -60,8 +63,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
       _checkResult = null;
     });
-    final result =
-        await ref.read(authRepositoryProvider).validateClientId(_clientId.text);
+    final result = await ref
+        .read(authRepositoryProvider)
+        .validateClientId(_clientId.text);
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -81,8 +85,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
     if (!_redirect.text.trim().contains('://')) {
-      setState(() => _error =
-          'The Redirect URI looks invalid — it should look like ${RedditConstants.defaultRedirectUri}');
+      setState(
+        () => _error =
+            'The Redirect URI looks invalid — it should look like ${RedditConstants.defaultRedirectUri}',
+      );
       return;
     }
     setState(() {
@@ -105,14 +111,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     // Persist credentials early so a retry keeps them.
-    await ref.read(secureStoreProvider).saveCredentials(
+    await ref
+        .read(secureStoreProvider)
+        .saveCredentials(
           clientId: _clientId.text.trim(),
           redirectUri: _redirect.text.trim(),
           giphyKey: _giphy.text.trim(),
         );
 
     try {
-      await ref.read(authControllerProvider.notifier).login(
+      await ref
+          .read(authControllerProvider.notifier)
+          .login(
             clientId: _clientId.text.trim(),
             redirectUri: _redirect.text.trim(),
           );
@@ -148,24 +158,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 color: cs.primaryContainer,
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: Icon(Icons.rocket_launch_rounded,
-                  size: 38, color: cs.onPrimaryContainer),
+              child: Icon(
+                Icons.rocket_launch_rounded,
+                size: 38,
+                color: cs.onPrimaryContainer,
+              ),
             ),
             const SizedBox(height: 20),
-            Text(RedditConstants.appName,
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              RedditConstants.appName,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 8),
             Text(
               'Connect your own Reddit API app to sign in. Lily for Reddit ships '
               'without any keys baked in — you provide them once, stored securely on '
               'this device.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: cs.onSurfaceVariant),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 24),
 
@@ -208,10 +221,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
             if (_checkResult != null) ...[
               const SizedBox(height: 16),
-              _Banner(
-                ok: _checkOk,
-                text: _checkResult!,
-              ),
+              _Banner(ok: _checkOk, text: _checkResult!),
             ],
             if (_error != null) ...[
               const SizedBox(height: 16),
@@ -231,20 +241,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: M3ELoadingIndicator.small(),
                     )
                   : const Icon(Icons.login_rounded),
               label: Text(_busy ? 'Working…' : 'Connect Reddit account'),
             ),
             const SizedBox(height: 20),
-            const Row(children: [
-              Expanded(child: Divider()),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 10),
-                child: Text('or'),
-              ),
-              Expanded(child: Divider()),
-            ]),
+            const Row(
+              children: [
+                Expanded(child: Divider()),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('or'),
+                ),
+                Expanded(child: Divider()),
+              ],
+            ),
             const SizedBox(height: 8),
             TextButton.icon(
               onPressed: _busy ? null : _webLogin,
@@ -275,26 +287,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Continue')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Continue'),
+          ),
         ],
       ),
     );
     if (ok != true || !mounted) return;
-    final cookie = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const WebLoginScreen()),
-    );
+    final cookie = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const WebLoginScreen()));
     if (cookie == null || cookie.isEmpty || !mounted) return;
     setState(() => _busy = true);
     try {
-      await ref.read(authControllerProvider.notifier).loginWithWebSession(cookie);
+      await ref
+          .read(authControllerProvider.notifier)
+          .loginWithWebSession(cookie);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('$e'.replaceFirst('Exception: ', ''))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e'.replaceFirst('Exception: ', ''))),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -314,16 +331,22 @@ class _SetupCard extends StatelessWidget {
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(24))),
+            borderRadius: BorderRadius.all(Radius.circular(24)),
+          ),
           leading: Icon(Icons.help_outline_rounded, color: cs.primary),
           title: const Text('How to get your Client ID'),
           childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           children: [
             const _Step(1, 'Open reddit.com/prefs/apps and tap "create app".'),
-            const _Step(2, 'Choose the "installed app" type (no secret needed).'),
+            const _Step(
+              2,
+              'Choose the "installed app" type (no secret needed).',
+            ),
             _Step(3, 'Set the redirect URI to exactly:  $redirectUri'),
-            const _Step(4,
-                'Create it. The Client ID is the string just under the app name.'),
+            const _Step(
+              4,
+              'Create it. The Client ID is the string just under the app name.',
+            ),
             const _Step(5, 'Paste that Client ID below and connect.'),
             const SizedBox(height: 8),
             Align(
@@ -360,11 +383,14 @@ class _Step extends StatelessWidget {
           CircleAvatar(
             radius: 11,
             backgroundColor: cs.secondaryContainer,
-            child: Text('$n',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: cs.onSecondaryContainer)),
+            child: Text(
+              '$n',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: cs.onSecondaryContainer,
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(child: Text(text)),
@@ -373,7 +399,8 @@ class _Step extends StatelessWidget {
               tooltip: 'Copy',
               icon: const Icon(Icons.copy_rounded, size: 18),
               onPressed: () => Clipboard.setData(
-                  const ClipboardData(text: RedditConstants.defaultRedirectUri)),
+                const ClipboardData(text: RedditConstants.defaultRedirectUri),
+              ),
             ),
         ],
       ),
@@ -428,15 +455,22 @@ class _Banner extends StatelessWidget {
     final fg = ok ? cs.onPrimaryContainer : cs.onErrorContainer;
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(ok ? Icons.check_circle_rounded : Icons.error_rounded,
-              color: fg, size: 20),
+          Icon(
+            ok ? Icons.check_circle_rounded : Icons.error_rounded,
+            color: fg,
+            size: 20,
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: TextStyle(color: fg))),
+          Expanded(
+            child: Text(text, style: TextStyle(color: fg)),
+          ),
         ],
       ),
     );

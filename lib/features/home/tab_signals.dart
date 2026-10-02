@@ -33,3 +33,6 @@ bool scrollChromeVisible(ScrollNotification notification, bool visible) {
 /// (The Posts tab uses its own `frontpageScrollSignalProvider`, which also
 /// refreshes when already at the top.)
 final tabReselectProvider = StateProvider.family<int, int>((ref, tab) => 0);
+
+/// Focus Discover's search dock without pushing another route.
+final discoverSearchSignalProvider = StateProvider<int>((ref) => 0);

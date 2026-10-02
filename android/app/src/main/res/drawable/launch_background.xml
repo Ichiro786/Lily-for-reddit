@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AMOLED launch surface in every device appearance. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/black" />
+    <item android:width="192dp" android:height="192dp" android:gravity="center"
+        android:drawable="@drawable/android12splash" />
+</layer-list>

@@ -52,7 +52,7 @@ class _TestSettingsController extends SettingsController {
 /// update paths can be exercised offline.
 class _NoopRedditRepository extends RedditRepository {
   _NoopRedditRepository()
-      : super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
+    : super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
 
   @override
   Future<void> vote(String fullname, int dir) async {}
@@ -62,47 +62,45 @@ class _NoopRedditRepository extends RedditRepository {
 }
 
 Settings _settings(PostDisplay display) => Settings(
-      themeMode: ThemeMode.dark,
-      amoled: true,
-      useDynamicColor: false,
-      seedColor: AppTheme.seed.toARGB32(),
-      blurNsfw: true,
-      defaultSort: PostSort.best,
-      postDisplay: display,
-      swipeActions: false,
-      trackHistory: true,
-      offlineCache: true,
-      checkUpdates: false,
-      forYouFeed: false,
-      autoHideReadForYou: false,
-      midResThumbnails: true,
-      subsCacheEnabled: true,
-      subsCacheMinutes: 10,
-      textScale: 1,
-      autoplayMedia: false,
-      showApiUsage: false,
-      notifyInbox: false,
-      topBarMode: TopBarMode.expandable,
-      navLabels: true,
-    );
+  themeMode: ThemeMode.dark,
+  amoled: true,
+  useDynamicColor: false,
+  seedColor: AppTheme.seed.toARGB32(),
+  blurNsfw: true,
+  defaultSort: PostSort.best,
+  postDisplay: display,
+  swipeActions: false,
+  trackHistory: true,
+  offlineCache: true,
+  checkUpdates: false,
+  forYouFeed: false,
+  autoHideReadForYou: false,
+  midResThumbnails: true,
+  subsCacheEnabled: true,
+  subsCacheMinutes: 10,
+  textScale: 1,
+  autoplayMedia: false,
+  notifyInbox: false,
+  navLabels: true,
+);
 
 Post _post() => Post(
-      id: 't3_m3e',
-      fullname: 't3_m3e',
-      title: 'A readable Material 3 Expressive post card',
-      subreddit: 'flutter',
-      subredditPrefixed: 'r/flutter',
-      author: 'lily',
-      score: 128,
-      numComments: 24,
-      upvoteRatio: 0.98,
-      created: DateTime.utc(2026, 1, 1),
-      permalink: '/r/flutter/comments/m3e',
-      url: 'https://www.reddit.com/r/flutter/comments/m3e',
-      domain: 'reddit.com',
-      type: PostType.self,
-      isSelf: true,
-    );
+  id: 't3_m3e',
+  fullname: 't3_m3e',
+  title: 'A readable Material 3 Expressive post card',
+  subreddit: 'flutter',
+  subredditPrefixed: 'r/flutter',
+  author: 'lily',
+  score: 128,
+  numComments: 24,
+  upvoteRatio: 0.98,
+  created: DateTime.utc(2026, 1, 1),
+  permalink: '/r/flutter/comments/m3e',
+  url: 'https://www.reddit.com/r/flutter/comments/m3e',
+  domain: 'reddit.com',
+  type: PostType.self,
+  isSelf: true,
+);
 
 Widget _postHarness({
   required PostDisplay display,
@@ -111,8 +109,9 @@ Widget _postHarness({
   return ProviderScope(
     key: ValueKey<String>('settings-${display.name}'),
     overrides: [
-      settingsControllerProvider
-          .overrideWith(() => _TestSettingsController(_settings(display))),
+      settingsControllerProvider.overrideWith(
+        () => _TestSettingsController(_settings(display)),
+      ),
       interactionVaultProvider.overrideWith(_TestInteractionVault.new),
       historyContainsProvider.overrideWith((ref, id) => false),
       ...additionalOverrides,
@@ -153,24 +152,27 @@ void main() {
     );
   });
 
-  test('feed media preserves intrinsic source ratios for variable-height layout', () {
-    expect(
-      intrinsicMediaAspectRatio(width: 4000, height: 3000),
-      closeTo(4 / 3, 0.0001),
-    );
-    expect(
-      intrinsicMediaAspectRatio(width: 1080, height: 1920),
-      closeTo(9 / 16, 0.0001),
-    );
-    expect(
-      intrinsicMediaAspectRatio(width: 300, height: 2400),
-      closeTo(1 / 8, 0.0001),
-    );
-    expect(
-      intrinsicMediaAspectRatio(width: 2400, height: 600),
-      closeTo(4, 0.0001),
-    );
-  });
+  test(
+    'feed media preserves intrinsic source ratios for variable-height layout',
+    () {
+      expect(
+        intrinsicMediaAspectRatio(width: 4000, height: 3000),
+        closeTo(4 / 3, 0.0001),
+      );
+      expect(
+        intrinsicMediaAspectRatio(width: 1080, height: 1920),
+        closeTo(9 / 16, 0.0001),
+      );
+      expect(
+        intrinsicMediaAspectRatio(width: 300, height: 2400),
+        closeTo(1 / 8, 0.0001),
+      );
+      expect(
+        intrinsicMediaAspectRatio(width: 2400, height: 600),
+        closeTo(4, 0.0001),
+      );
+    },
+  );
 
   test('feed media cap is derived from viewport metrics', () {
     expect(
@@ -192,13 +194,15 @@ void main() {
           'images': [
             {
               'source': {
-                'url': 'https://preview.redd.it/test.jpg?width=1080&amp;crop=smart&amp;s=abc123xyz',
+                'url':
+                    'https://preview.redd.it/test.jpg?width=1080&amp;crop=smart&amp;s=abc123xyz',
                 'width': 1080,
                 'height': 1920,
               },
               'resolutions': [
                 {
-                  'url': 'https://preview.redd.it/test.jpg?width=640&amp;crop=smart&amp;s=def456uvw',
+                  'url':
+                      'https://preview.redd.it/test.jpg?width=640&amp;crop=smart&amp;s=def456uvw',
                   'width': 640,
                   'height': 1137,
                 },
@@ -208,8 +212,14 @@ void main() {
         },
       });
 
-      expect(post.previewUrl, 'https://preview.redd.it/test.jpg?width=1080&crop=smart&s=abc123xyz');
-      expect(post.previewMedUrl, 'https://preview.redd.it/test.jpg?width=640&crop=smart&s=def456uvw');
+      expect(
+        post.previewUrl,
+        'https://preview.redd.it/test.jpg?width=1080&crop=smart&s=abc123xyz',
+      );
+      expect(
+        post.previewMedUrl,
+        'https://preview.redd.it/test.jpg?width=640&crop=smart&s=def456uvw',
+      );
       expect(post.previewWidth, 1080);
       expect(post.previewHeight, 1920);
     });
@@ -226,7 +236,8 @@ void main() {
         'media_metadata': {
           'm1': {
             's': {
-              'u': 'https://preview.redd.it/gallery1.jpg?width=800&amp;s=xyz789',
+              'u':
+                  'https://preview.redd.it/gallery1.jpg?width=800&amp;s=xyz789',
               'x': 800,
               'y': 600,
             },
@@ -235,7 +246,10 @@ void main() {
       });
 
       expect(post.gallery.length, 1);
-      expect(post.gallery.first.url, 'https://preview.redd.it/gallery1.jpg?width=800&s=xyz789');
+      expect(
+        post.gallery.first.url,
+        'https://preview.redd.it/gallery1.jpg?width=800&s=xyz789',
+      );
       expect(post.gallery.first.width, 800);
       expect(post.gallery.first.height, 600);
       expect(post.type, PostType.gallery);
@@ -246,34 +260,41 @@ void main() {
         'id': 'p3',
         'title': 'Test thumb and URL unescaping',
         'url': 'https://i.redd.it/img.jpg?auto=webp&amp;s=link123',
-        'thumbnail': 'https://b.thumbs.redditmedia.com/thumb.jpg?width=140&amp;crop=smart',
+        'thumbnail':
+            'https://b.thumbs.redditmedia.com/thumb.jpg?width=140&amp;crop=smart',
       });
 
       expect(post.url, 'https://i.redd.it/img.jpg?auto=webp&s=link123');
-      expect(post.thumbnailUrl, 'https://b.thumbs.redditmedia.com/thumb.jpg?width=140&crop=smart');
+      expect(
+        post.thumbnailUrl,
+        'https://b.thumbs.redditmedia.com/thumb.jpg?width=140&crop=smart',
+      );
     });
 
-    test('extracts video dimensions from reddit_video when preview is missing', () {
-      final post = Post.fromData({
-        'id': 'v1',
-        'title': 'Portrait video without preview',
-        'is_video': true,
-        'media': {
-          'reddit_video': {
-            'width': 1080,
-            'height': 1920,
-            'fallback_url': 'https://v.redd.it/vid.mp4',
-            'hls_url': 'https://v.redd.it/vid.m3u8',
+    test(
+      'extracts video dimensions from reddit_video when preview is missing',
+      () {
+        final post = Post.fromData({
+          'id': 'v1',
+          'title': 'Portrait video without preview',
+          'is_video': true,
+          'media': {
+            'reddit_video': {
+              'width': 1080,
+              'height': 1920,
+              'fallback_url': 'https://v.redd.it/vid.mp4',
+              'hls_url': 'https://v.redd.it/vid.m3u8',
+            },
           },
-        },
-      });
+        });
 
-      expect(post.type, PostType.video);
-      expect(post.previewWidth, 1080);
-      expect(post.previewHeight, 1920);
-      expect(post.fallbackVideoUrl, 'https://v.redd.it/vid.mp4');
-      expect(post.hlsUrl, 'https://v.redd.it/vid.m3u8');
-    });
+        expect(post.type, PostType.video);
+        expect(post.previewWidth, 1080);
+        expect(post.previewHeight, 1920);
+        expect(post.fallbackVideoUrl, 'https://v.redd.it/vid.mp4');
+        expect(post.hlsUrl, 'https://v.redd.it/vid.m3u8');
+      },
+    );
 
     test('falls back to crosspost_parent_list for media metadata', () {
       final post = Post.fromData({
@@ -294,7 +315,8 @@ void main() {
               'images': [
                 {
                   'source': {
-                    'url': 'https://preview.redd.it/parent_thumb.jpg?width=720&amp;s=abc',
+                    'url':
+                        'https://preview.redd.it/parent_thumb.jpg?width=720&amp;s=abc',
                     'width': 720,
                     'height': 1280,
                   },
@@ -308,7 +330,10 @@ void main() {
       expect(post.type, PostType.video);
       expect(post.previewWidth, 720);
       expect(post.previewHeight, 1280);
-      expect(post.previewUrl, 'https://preview.redd.it/parent_thumb.jpg?width=720&s=abc');
+      expect(
+        post.previewUrl,
+        'https://preview.redd.it/parent_thumb.jpg?width=720&s=abc',
+      );
       expect(post.fallbackVideoUrl, 'https://v.redd.it/parent.mp4');
     });
   });
@@ -322,16 +347,34 @@ void main() {
       expect(hasMediaDimensions(width: 100, height: -1), isFalse);
     });
 
-    test('intrinsicMediaAspectRatio defaults to 4/3 when dimensions are missing', () {
-      expect(intrinsicMediaAspectRatio(), closeTo(4 / 3, 0.0001));
-      expect(intrinsicMediaAspectRatio(width: null, height: null), closeTo(4 / 3, 0.0001));
-      expect(intrinsicMediaAspectRatio(width: 0, height: 0), closeTo(4 / 3, 0.0001));
-      expect(intrinsicMediaAspectRatio(width: -10, height: 100), closeTo(4 / 3, 0.0001));
-    });
+    test(
+      'intrinsicMediaAspectRatio defaults to 4/3 when dimensions are missing',
+      () {
+        expect(intrinsicMediaAspectRatio(), closeTo(4 / 3, 0.0001));
+        expect(
+          intrinsicMediaAspectRatio(width: null, height: null),
+          closeTo(4 / 3, 0.0001),
+        );
+        expect(
+          intrinsicMediaAspectRatio(width: 0, height: 0),
+          closeTo(4 / 3, 0.0001),
+        );
+        expect(
+          intrinsicMediaAspectRatio(width: -10, height: 100),
+          closeTo(4 / 3, 0.0001),
+        );
+      },
+    );
 
     test('intrinsicMediaAspectRatio supports caller-specified fallback', () {
-      expect(intrinsicMediaAspectRatio(fallback: 16 / 9), closeTo(16 / 9, 0.0001));
-      expect(intrinsicMediaAspectRatio(width: null, height: null, fallback: 1.0), 1.0);
+      expect(
+        intrinsicMediaAspectRatio(fallback: 16 / 9),
+        closeTo(16 / 9, 0.0001),
+      );
+      expect(
+        intrinsicMediaAspectRatio(width: null, height: null, fallback: 1.0),
+        1.0,
+      );
     });
   });
 
@@ -339,31 +382,38 @@ void main() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
   });
 
-  testWidgets('PostCard uses M3E surface container in AMOLED dark theme',
-      (tester) async {
+  testWidgets('PostCard uses M3E surface container in AMOLED dark theme', (
+    tester,
+  ) async {
     await tester.pumpWidget(_postHarness(display: PostDisplay.large));
     await tester.pump(const Duration(milliseconds: 500));
 
     final theme = Theme.of(tester.element(find.byType(PostCard)));
-    final card = tester.widget<Container>(find.byWidgetPredicate((widget) {
-      if (widget is! Container || widget.margin == null) return false;
-      if (widget.margin !=
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 6)) {
-        return false;
-      }
-      final decoration = widget.decoration;
-      return decoration is BoxDecoration &&
-          decoration.color == theme.colorScheme.surfaceContainer;
-    }));
+    final card = tester.widget<Container>(
+      find.byWidgetPredicate((widget) {
+        if (widget is! Container || widget.margin == null) return false;
+        if (widget.margin !=
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 6)) {
+          return false;
+        }
+        final decoration = widget.decoration;
+        return decoration is BoxDecoration &&
+            decoration.color == theme.colorScheme.surfaceContainer;
+      }),
+    );
     final decoration = card.decoration! as BoxDecoration;
 
     expect(decoration.color, theme.colorScheme.surfaceContainer);
-    expect(decoration.borderRadius, const BorderRadius.all(Radius.circular(24)));
+    expect(
+      decoration.borderRadius,
+      const BorderRadius.all(Radius.circular(24)),
+    );
     expect(theme.scaffoldBackgroundColor, Colors.black);
   });
 
-  testWidgets('segmented action bar reports upvote, downvote, and save taps',
-      (tester) async {
+  testWidgets('segmented action bar reports upvote, downvote, and save taps', (
+    tester,
+  ) async {
     var upvotes = 0;
     var downvotes = 0;
     var saves = 0;
@@ -424,8 +474,9 @@ void main() {
     expect(find.byIcon(Icons.bookmark_outline_rounded), findsOneWidget);
   });
 
-  testWidgets('action controls expose readable semantics and More callback',
-      (tester) async {
+  testWidgets('action controls expose readable semantics and More callback', (
+    tester,
+  ) async {
     var more = 0;
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(
@@ -450,13 +501,15 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('very tall media gets an intentional full-view affordance',
-      (tester) async {
+  testWidgets('very tall media gets an intentional full-view affordance', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          settingsControllerProvider
-              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.card))),
+          settingsControllerProvider.overrideWith(
+            () => _TestSettingsController(_settings(PostDisplay.card)),
+          ),
           interactionVaultProvider.overrideWith(_TestInteractionVault.new),
           historyContainsProvider.overrideWith((ref, id) => false),
         ],
@@ -464,9 +517,7 @@ void main() {
           theme: AppTheme.dark(null, amoled: true),
           home: Scaffold(
             body: ListView(
-              children: [
-                PostCard(post: _imagePost(width: 300, height: 2400)),
-              ],
+              children: [PostCard(post: _imagePost(width: 300, height: 2400))],
             ),
           ),
         ),
@@ -478,8 +529,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('settings switch between full and compact card layouts',
-      (tester) async {
+  testWidgets('settings switch between full and compact card layouts', (
+    tester,
+  ) async {
     await tester.pumpWidget(_postHarness(display: PostDisplay.large));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(CompactPostCard), findsNothing);
@@ -491,8 +543,9 @@ void main() {
     expect(find.byType(M3EPostActionBar), findsOneWidget);
   });
 
-  testWidgets('action bar renders the effective score exactly once',
-      (tester) async {
+  testWidgets('action bar renders the effective score exactly once', (
+    tester,
+  ) async {
     // Regression (Phase 1): the bar used to display score + voteState even
     // though callers pass the override-adjusted effective score, producing a
     // double-counted number for every vote state.
@@ -524,57 +577,61 @@ void main() {
     expect(find.text('98'), findsNothing);
   });
 
-  testWidgets('voting through the card adjusts the displayed score exactly once',
-      (tester) async {
-    // Regression (Phase 1): end-to-end optimistic path — PostCard ->
-    // PostOverridesController -> M3EPostActionBar — with one delta per tap.
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          settingsControllerProvider.overrideWith(
-              () => _TestSettingsController(_settings(PostDisplay.large))),
-          interactionVaultProvider.overrideWith(_TestInteractionVault.new),
-          historyContainsProvider.overrideWith((ref, id) => false),
-          sharedPrefsProvider.overrideWithValue(prefs),
-          redditRepositoryProvider.overrideWith((ref) {
-            return _NoopRedditRepository();
-          }),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.dark(null, amoled: true),
-          home: Scaffold(
-            body: ListView(children: [
-              PostCard(post: _post().copyWith(score: 100)),
-            ]),
+  testWidgets(
+    'voting through the card adjusts the displayed score exactly once',
+    (tester) async {
+      // Regression (Phase 1): end-to-end optimistic path — PostCard ->
+      // PostOverridesController -> M3EPostActionBar — with one delta per tap.
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsControllerProvider.overrideWith(
+              () => _TestSettingsController(_settings(PostDisplay.large)),
+            ),
+            interactionVaultProvider.overrideWith(_TestInteractionVault.new),
+            historyContainsProvider.overrideWith((ref, id) => false),
+            sharedPrefsProvider.overrideWithValue(prefs),
+            redditRepositoryProvider.overrideWith((ref) {
+              return _NoopRedditRepository();
+            }),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(null, amoled: true),
+            home: Scaffold(
+              body: ListView(
+                children: [PostCard(post: _post().copyWith(score: 100))],
+              ),
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 300));
+      );
+      await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('100'), findsOneWidget);
+      expect(find.text('100'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('101'), findsOneWidget);
-    expect(find.text('102'), findsNothing);
+      await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('101'), findsOneWidget);
+      expect(find.text('102'), findsNothing);
 
-    // Switching directions applies the single net delta (-2 from up).
-    await tester.tap(find.byIcon(Icons.arrow_downward_rounded));
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('99'), findsOneWidget);
-    expect(find.text('98'), findsNothing);
+      // Switching directions applies the single net delta (-2 from up).
+      await tester.tap(find.byIcon(Icons.arrow_downward_rounded));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('99'), findsOneWidget);
+      expect(find.text('98'), findsNothing);
 
-    // And back to upvoted (+2 net).
-    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('101'), findsOneWidget);
-  });
+      // And back to upvoted (+2 net).
+      await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('101'), findsOneWidget);
+    },
+  );
 
-  testWidgets('compact card thumbnail uses BoxFit.cover and center alignment',
-      (tester) async {
+  testWidgets('compact card thumbnail uses BoxFit.cover and center alignment', (
+    tester,
+  ) async {
     final post = _imagePost(
       width: 1200,
       height: 800,
@@ -583,8 +640,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          settingsControllerProvider
-              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.mini))),
+          settingsControllerProvider.overrideWith(
+            () => _TestSettingsController(_settings(PostDisplay.mini)),
+          ),
           interactionVaultProvider.overrideWith(_TestInteractionVault.new),
           historyContainsProvider.overrideWith((ref, id) => false),
         ],
@@ -603,8 +661,9 @@ void main() {
     expect(imageWidget.alignment, Alignment.center);
   });
 
-  testWidgets('link preview thumbnail uses BoxFit.cover and center alignment',
-      (tester) async {
+  testWidgets('link preview thumbnail uses BoxFit.cover and center alignment', (
+    tester,
+  ) async {
     final linkPost = _post().copyWith(
       type: PostType.link,
       isSelf: false,
@@ -613,8 +672,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          settingsControllerProvider
-              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.large))),
+          settingsControllerProvider.overrideWith(
+            () => _TestSettingsController(_settings(PostDisplay.large)),
+          ),
           interactionVaultProvider.overrideWith(_TestInteractionVault.new),
           historyContainsProvider.overrideWith((ref, id) => false),
         ],
@@ -633,40 +693,39 @@ void main() {
     expect(imageWidget.alignment, Alignment.center);
   });
 
-  testWidgets('capped tall media uses BoxFit.cover and Alignment.topCenter',
-      (tester) async {
-    final tallPost = _imagePost(
-      width: 300,
-      height: 2400,
-      url: 'https://example.com/tall_infographic.jpg',
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          settingsControllerProvider
-              .overrideWith(() => _TestSettingsController(_settings(PostDisplay.card))),
-          interactionVaultProvider.overrideWith(_TestInteractionVault.new),
-          historyContainsProvider.overrideWith((ref, id) => false),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.dark(null, amoled: true),
-          home: Scaffold(
-            body: ListView(
-              children: [
-                PostCard(post: tallPost),
-              ],
+  testWidgets(
+    'capped tall media preserves the whole photograph without cropping',
+    (tester) async {
+      final tallPost = _imagePost(
+        width: 300,
+        height: 2400,
+        url: 'https://example.com/tall_infographic.jpg',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsControllerProvider.overrideWith(
+              () => _TestSettingsController(_settings(PostDisplay.card)),
+            ),
+            interactionVaultProvider.overrideWith(_TestInteractionVault.new),
+            historyContainsProvider.overrideWith((ref, id) => false),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(null, amoled: true),
+            home: Scaffold(
+              body: ListView(children: [PostCard(post: tallPost)]),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 100));
+      );
+      await tester.pump(const Duration(milliseconds: 100));
 
-    final imageFinder = find.byType(CachedNetworkImage);
-    expect(imageFinder, findsOneWidget);
-    final imageWidget = tester.widget<CachedNetworkImage>(imageFinder);
-    expect(imageWidget.fit, BoxFit.cover);
-    expect(imageWidget.alignment, Alignment.topCenter);
-    expect(find.text('View full'), findsOneWidget);
-  });
+      final imageFinder = find.byType(CachedNetworkImage);
+      expect(imageFinder, findsOneWidget);
+      final imageWidget = tester.widget<CachedNetworkImage>(imageFinder);
+      expect(imageWidget.fit, BoxFit.contain);
+      expect(imageWidget.alignment, Alignment.center);
+      expect(find.text('View full'), findsOneWidget);
+    },
+  );
 }

@@ -31,7 +31,9 @@ class NotificationService {
   /// the UI isolate and inside the background poller isolate.
   Future<void> init() async {
     if (_inited) return;
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings(
+      '@drawable/lily_icon_monochrome',
+    );
     const darwin = DarwinInitializationSettings(
       // We request permission explicitly via [requestPermission] instead.
       requestAlertPermission: false,
@@ -47,8 +49,10 @@ class NotificationService {
       onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
     // Pre-create the Android channel so importance/sound are correct.
-    final android13 = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android13 = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await android13?.createNotificationChannel(
       const AndroidNotificationChannel(
         _channelId,
@@ -65,15 +69,22 @@ class NotificationService {
   Future<bool> requestPermission() async {
     await init();
     if (Platform.isAndroid) {
-      final impl = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final impl = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       return (await impl?.requestNotificationsPermission()) ?? true;
     }
     if (Platform.isIOS) {
-      final impl = _plugin.resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>();
+      final impl = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
       return (await impl?.requestPermissions(
-              alert: true, badge: true, sound: true)) ??
+            alert: true,
+            badge: true,
+            sound: true,
+          )) ??
           true;
     }
     return true;

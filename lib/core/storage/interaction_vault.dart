@@ -219,9 +219,10 @@ class InteractionVault extends Notifier<InteractionVaultState> {
   void markSeen(String postId) {
     if (postId.isEmpty) return;
     final now = DateTime.now().millisecondsSinceEpoch;
+    final cutoff = _cutoff();
     final next = {
       for (final entry in state.seenPosts.entries)
-        if (entry.value >= _cutoff()) entry.key: entry.value,
+        if (entry.value >= cutoff) entry.key: entry.value,
       postId: now,
     };
     state = state.copyWith(seenPosts: Map.unmodifiable(next));

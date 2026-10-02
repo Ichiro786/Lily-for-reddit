@@ -60,6 +60,6 @@ class RedditConstants {
   /// User-Agent. Reddit requires a unique, descriptive UA per its API rules.
   static String userAgent(String? username) {
     final who = (username == null || username.isEmpty) ? 'anonymous' : username;
-    return 'android:com.bennybar.luli_for_reddit:LilyForReddit (by /u/$who)';
+    return 'android:com.ichiro.lily_for_reddit:LilyForReddit (by /u/$who)';
   }
 }

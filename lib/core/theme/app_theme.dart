@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'color_schemes.dart';
 import 'shape_tokens.dart';
 import 'typography.dart';
+import 'thread_colors.dart';
 
 /// Upvote / downvote accent colors, exposed as a theme extension so vote
 /// controls can read brightness-correct colors.
@@ -60,7 +61,10 @@ class AppTheme {
   );
 
   static ColorScheme _baseScheme(
-      ColorScheme? dynamicScheme, Color seed, Brightness brightness) {
+    ColorScheme? dynamicScheme,
+    Color seed,
+    Brightness brightness,
+  ) {
     if (dynamicScheme != null) return dynamicScheme;
     if (seed.toARGB32() == AppTheme.seed.toARGB32()) {
       return brightness == Brightness.light
@@ -70,8 +74,10 @@ class AppTheme {
     return ColorScheme.fromSeed(seedColor: seed, brightness: brightness);
   }
 
-  static ThemeData light(ColorScheme? dynamicScheme,
-      {Color seed = AppTheme.seed}) {
+  static ThemeData light(
+    ColorScheme? dynamicScheme, {
+    Color seed = AppTheme.seed,
+  }) {
     return _build(
       _baseScheme(dynamicScheme, seed, Brightness.light),
       Brightness.light,
@@ -105,7 +111,10 @@ class AppTheme {
       brightness: brightness,
       scaffoldBackgroundColor: scheme.surface,
       textTheme: M3ETypography.textTheme(scheme.onSurface),
-      extensions: [brightness == Brightness.light ? _voteLight : _voteDark],
+      extensions: [
+        brightness == Brightness.light ? _voteLight : _voteDark,
+        ThreadColors.fromScheme(scheme),
+      ],
     );
 
     return base.copyWith(
@@ -135,6 +144,25 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surfaceContainerHigh,
         shape: ShapeTokens.largeShape,
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
+        shape: ShapeTokens.smallShape,
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          shape: const WidgetStatePropertyAll(ShapeTokens.smallShape),
+          backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          shape: const WidgetStatePropertyAll(ShapeTokens.smallShape),
+          backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        ),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: scheme.surfaceContainerHigh,
@@ -175,7 +203,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: ShapeTokens.small,
-          borderSide: BorderSide(color: scheme.primary, width: 2),
+          borderSide: BorderSide.none,
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(

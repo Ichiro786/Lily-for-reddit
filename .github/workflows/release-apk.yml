@@ -1,15 +1,39 @@
 name: Flutter release APKs
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'pubspec.yaml'
+      - '.github/workflows/release-apk.yml'
+      - 'tool/verify_release_apks.py'
+      - 'tool/test_release_verifier.py'
+      - 'android/release-cert.sha256'
+      - 'docs/RELEASE_*.md'
   push:
+    branches:
+      - main
+    paths:
+      - 'pubspec.yaml'
+      - '.github/workflows/release-apk.yml'
+      - 'tool/verify_release_apks.py'
+      - 'tool/test_release_verifier.py'
+      - 'android/release-cert.sha256'
+      - 'docs/RELEASE_*.md'
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag name (e.g. v1.0.1). If empty, uses tag ref or version from pubspec.yaml.'
+        description: 'Release tag name. Must match the version in pubspec.yaml.'
         required: false
         type: string
+      publish:
+        description: 'Publish the approved changelog and verified APKs. Leave off for build-only validation.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -38,24 +62,45 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
+      - name: Analyze and test release source
+        run: |
+          python3 -m unittest discover -s tool -p 'test_release_verifier.py' -v
+          flutter analyze
+          flutter test
+
       - name: Resolve release tag
         id: release_tag
         shell: bash
+        env:
+          REQUESTED_TAG: ${{ inputs.tag_name }}
+          CURRENT_REF: ${{ github.ref }}
+          CURRENT_REF_NAME: ${{ github.ref_name }}
         run: |
-          if [[ -n "${{ inputs.tag_name }}" ]]; then
-            tag="${{ inputs.tag_name }}"
-          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            tag="${{ github.ref_name }}"
+          version=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)$/\1/p' pubspec.yaml)
+          build_number=$(sed -nE 's/^version: [0-9]+\.[0-9]+\.[0-9]+\+([0-9]+)$/\1/p' pubspec.yaml)
+          test -n "$version"
+          test -n "$build_number"
+          if [[ -n "$REQUESTED_TAG" ]]; then
+            tag="$REQUESTED_TAG"
+          elif [[ "$CURRENT_REF" == refs/tags/v* ]]; then
+            tag="$CURRENT_REF_NAME"
           else
-            version=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+)\+[0-9]+$/\1/p' pubspec.yaml)
-            test -n "$version"
             tag="v$version"
           fi
+          test "$tag" = "v$version"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
+          echo "notes=docs/RELEASE_$version.md" >> "$GITHUB_OUTPUT"
+          if [[ -f "docs/RELEASE_$version.md" ]]; then
+            title=$(sed -n 's/^# //p' "docs/RELEASE_$version.md" | head -n 1)
+          else
+            title="Lily for Reddit $version"
+          fi
+          echo "title=$title" >> "$GITHUB_OUTPUT"
 
-      # Prefer repository secrets for production signing. When the secrets are
-      # not configured yet, use the committed deterministic fallback so every
-      # release run keeps the same certificate instead of generating a new one.
+      # Production releases require the private key stored in repository secrets.
+      # Never fall back to a public or debug certificate.
       - name: Prepare persistent release signing config
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -64,56 +109,95 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [[ -n "$RELEASE_KEYSTORE_BASE64" || -n "$KEYSTORE_PASSWORD" || -n "$KEY_ALIAS" || -n "$KEY_PASSWORD" ]]; then
-            if [[ -z "$RELEASE_KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
-              echo "All four release signing secrets must be provided together." >&2
-              exit 1
-            fi
-            printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
-            store_file="app/release.keystore"
-            store_password="$KEYSTORE_PASSWORD"
-            key_alias="$KEY_ALIAS"
-            key_password="$KEY_PASSWORD"
-          else
-            store_file="app/ci-release.keystore"
-            store_password="lily-ci-release-2026"
-            key_alias="lily-ci-release"
-            key_password="lily-ci-release-2026"
+          umask 077
+          if [[ -z "$RELEASE_KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+            echo "All four private release signing secrets are required; public signing fallback is disabled." >&2
+            exit 1
           fi
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
           cat > android/key.properties <<EOF
-          storeFile=$store_file
-          storePassword=$store_password
-          keyAlias=$key_alias
-          keyPassword=$key_password
+          storeFile=app/release.keystore
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
           EOF
 
       - name: Build split release APKs
-        run: flutter build apk --release --split-per-abi
+        run: flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64
 
-      - name: Generate SHA-256 checksums
-        shell: bash
+      - name: Verify release APKs and prepare downloads
         run: |
-          cd build/app/outputs/flutter-apk
-          sha256sum app-*-release.apk > checksums-sha256.txt
-          cat checksums-sha256.txt
+          python3 tool/verify_release_apks.py \
+            --version '${{ steps.release_tag.outputs.version }}' \
+            --build-number '${{ steps.release_tag.outputs.build_number }}'
+
+      - name: Remove runner signing files
+        if: always()
+        run: rm -f android/key.properties android/app/release.keystore
+
+      - name: Retain R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: lily-release-r8-${{ steps.release_tag.outputs.tag }}-run-${{ github.run_number }}
+          path: build/app/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Upload split release APKs
         uses: actions/upload-artifact@v4
         with:
           name: lily-for-reddit-release-apks-${{ steps.release_tag.outputs.tag }}-run-${{ github.run_number }}
           path: |
-            build/app/outputs/flutter-apk/app-*-release.apk
-            build/app/outputs/flutter-apk/checksums-sha256.txt
+            build/release-downloads/*.apk
+            build/release-downloads/checksums-sha256.txt
+            build/release-downloads/build-verification.json
           if-no-files-found: error
           retention-days: 14
 
+      # A new version merged to main can publish without requiring local CLI
+      # credentials. Published releases are immutable to this workflow: later
+      # main pushes may validate them, but must not replace their APKs.
+      - name: Decide whether to publish a new release
+        id: publication
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if draft=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.draft' 2>build/release-lookup-error.txt); then
+            if [[ "$draft" == "true" ]]; then
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              echo "Release already published; preserving its APKs."
+            fi
+          elif grep -q 'HTTP 404' build/release-lookup-error.txt; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            cat build/release-lookup-error.txt >&2
+            exit 1
+          fi
+
+      - name: Validate approved release notes
+        if: steps.publication.outputs.publish == 'true'
+        env:
+          RELEASE_NOTES: ${{ steps.release_tag.outputs.notes }}
+        run: |
+          test -s "$RELEASE_NOTES"
+          ! grep -Eq 'BANNER_URL_PENDING|TODO|DRAFT_PLACEHOLDER' "$RELEASE_NOTES"
+
       - name: Upload APKs to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        if: steps.publication.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: ${{ steps.release_tag.outputs.title }}
+          body_path: ${{ steps.release_tag.outputs.notes }}
+          target_commitish: ${{ github.sha }}
+          fail_on_unmatched_files: true
           files: |
-            build/app/outputs/flutter-apk/app-*-release.apk
-            build/app/outputs/flutter-apk/checksums-sha256.txt
+            build/release-downloads/*.apk
+            build/release-downloads/checksums-sha256.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

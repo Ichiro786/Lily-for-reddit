@@ -1,4 +1,5 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:pasteboard/pasteboard.dart';
@@ -26,7 +27,7 @@ class MediaAttachment {
   }
 }
 
-String _mimeForImage(String name) {
+String imageMimeTypeForFilename(String name) {
   final n = name.toLowerCase();
   if (n.endsWith('.png')) return 'image/png';
   if (n.endsWith('.gif')) return 'image/gif';
@@ -40,7 +41,7 @@ Future<MediaAttachment?> pickImageAttachment() async {
   return MediaAttachment(
     bytes: await x.readAsBytes(),
     filename: x.name,
-    mimeType: x.mimeType ?? _mimeForImage(x.name),
+    mimeType: x.mimeType ?? imageMimeTypeForFilename(x.name),
     isVideo: false,
   );
 }
@@ -59,6 +60,32 @@ Future<MediaAttachment?> pickVideoAttachment() async {
 /// Reads an image off the system clipboard (a pasted screenshot/copy). Returns
 /// null if the clipboard holds no image.
 Future<MediaAttachment?> pasteImageAttachment() async {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    try {
+      final image = await const MethodChannel(
+        'lily/media_clipboard',
+      ).invokeMapMethod<String, dynamic>('readImage');
+      final bytes = image?['bytes'];
+      if (bytes is! Uint8List || bytes.isEmpty) return null;
+      final mime = image?['mimeType'] as String? ?? 'image/png';
+      final extension = switch (mime) {
+        'image/jpeg' => 'jpg',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+        _ => 'png',
+      };
+      return MediaAttachment(
+        bytes: bytes,
+        filename: 'pasted.$extension',
+        mimeType: mime,
+        isVideo: false,
+      );
+    } on MissingPluginException {
+      throw UnsupportedError(
+        'Image paste is unavailable. Use Attach image instead.',
+      );
+    }
+  }
   final bytes = await Pasteboard.image;
   if (bytes == null || bytes.isEmpty) return null;
   return MediaAttachment(

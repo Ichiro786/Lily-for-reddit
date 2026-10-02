@@ -89,7 +89,7 @@ Widget _page(GlobalKey key, {required ThemeData theme, double scale = 1}) =>
               child: PostListView(
                 feedKey: '',
                 frontpageStyle: true,
-                header: FrontpageHeader(forYou: false, onToolbar: () {}),
+                header: FrontpageHeader(forYou: false),
               ),
             ),
             floatingActionButton: SizedBox(

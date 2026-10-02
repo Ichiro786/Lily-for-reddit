@@ -1,11 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/motion_tokens.dart';
 import 'm3e_loading_indicator.dart';
 
-class M3EScallopedSpinner extends StatefulWidget {
+class M3EScallopedSpinner extends StatelessWidget {
   const M3EScallopedSpinner({
     super.key,
     this.progress = 1,
@@ -13,134 +12,17 @@ class M3EScallopedSpinner extends StatefulWidget {
     this.size = 42,
     this.semanticLabel = 'Refreshing',
   });
-
   final double progress;
   final bool refreshing;
   final double size;
   final String semanticLabel;
 
   @override
-  State<M3EScallopedSpinner> createState() => _M3EScallopedSpinnerState();
-}
-
-class _M3EScallopedSpinnerState extends State<M3EScallopedSpinner>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _rotation;
-
-  @override
-  void initState() {
-    super.initState();
-    _rotation = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    );
-    _syncAnimation();
-  }
-
-  @override
-  void didUpdateWidget(covariant M3EScallopedSpinner oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _syncAnimation();
-  }
-
-  void _syncAnimation() {
-    if (widget.refreshing) {
-      if (!_rotation.isAnimating) _rotation.repeat();
-    } else if (_rotation.isAnimating) {
-      _rotation.stop();
-      _rotation.value = 0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _rotation.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-    final progress = widget.progress.clamp(0.0, 1.0).toDouble();
-    return Semantics(
-      label: widget.semanticLabel,
-      liveRegion: true,
-      child: SizedBox.square(
-        dimension: widget.size,
-        child: AnimatedBuilder(
-          animation: _rotation,
-          builder: (_, __) {
-            final pulse = widget.refreshing
-                ? 1 + math.sin(_rotation.value * math.pi * 2) * 0.06
-                : 1.0;
-            return CustomPaint(
-              painter: _M3EScallopedPainter(
-                color: color,
-                progress: progress,
-                rotation: widget.refreshing
-                    ? _rotation.value * math.pi * 2
-                    : progress * (math.pi / 2),
-                scale: pulse,
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _M3EScallopedPainter extends CustomPainter {
-  const _M3EScallopedPainter({
-    required this.color,
-    required this.progress,
-    required this.rotation,
-    required this.scale,
-  });
-
-  final Color color;
-  final double progress;
-  final double rotation;
-  final double scale;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-
-    final path = computeM3EFlowerPath(
-      size: size,
-      progress: progress,
-      rotation: rotation,
-      scale: scale,
-    );
-
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.fill
-        ..isAntiAlias = true,
-    );
-
-    final center = size.center(Offset.zero);
-    final maxRadius = math.min(size.width, size.height) / 2;
-    final dotRadius = maxRadius * 0.16 * scale;
-    if (dotRadius > 1.0 && progress > 0.25) {
-      final innerPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.28 * progress)
-        ..style = PaintingStyle.fill
-        ..isAntiAlias = true;
-      canvas.drawCircle(center, dotRadius, innerPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _M3EScallopedPainter oldDelegate) {
-    return color != oldDelegate.color ||
-        progress != oldDelegate.progress ||
-        rotation != oldDelegate.rotation ||
-        scale != oldDelegate.scale;
-  }
+  Widget build(BuildContext context) => M3ELoadingIndicator(
+    size: size,
+    progress: refreshing ? null : progress,
+    semanticLabel: semanticLabel,
+  );
 }
 
 class M3ERefreshIndicator extends StatefulWidget {
@@ -165,6 +47,7 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
   double _pullExtent = 0;
   bool _refreshing = false;
   bool _thresholdReached = false;
+  int _resetGeneration = 0;
 
   @override
   void initState() {
@@ -177,6 +60,7 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
 
   @override
   void dispose() {
+    _resetGeneration++;
     _springController.dispose();
     super.dispose();
   }
@@ -185,7 +69,8 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
       (_pullExtent / widget.triggerExtent).clamp(0.0, 1.0).toDouble();
 
   Future<void> show() async {
-    if (_refreshing) return;
+    if (!mounted || _refreshing) return;
+    _resetGeneration++;
     if (_springController.isAnimating) _springController.stop();
     setState(() {
       _refreshing = true;
@@ -196,18 +81,26 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
   }
 
   bool _onScrollNotification(ScrollNotification notification) {
-    if (notification.metrics.axis != Axis.vertical || _refreshing) {
+    if (notification.depth != 0 ||
+        notification.metrics.axis != Axis.vertical ||
+        _refreshing) {
       return false;
     }
 
     if (notification is OverscrollNotification &&
+        notification.dragDetails != null &&
         notification.overscroll < 0 &&
         notification.metrics.pixels <= notification.metrics.minScrollExtent) {
       _setPullExtent(_pullExtent - notification.overscroll);
     } else if (notification is ScrollUpdateNotification &&
-        notification.metrics.pixels < notification.metrics.minScrollExtent) {
-      _setPullExtent(
-          notification.metrics.minScrollExtent - notification.metrics.pixels);
+        notification.dragDetails != null) {
+      if (notification.metrics.pixels < notification.metrics.minScrollExtent) {
+        _setPullExtent(
+          notification.metrics.minScrollExtent - notification.metrics.pixels,
+        );
+      } else if (_pullExtent > 0) {
+        _setPullExtent(_pullExtent - (notification.scrollDelta ?? 0));
+      }
     } else if (notification is ScrollEndNotification && _pullExtent > 0) {
       if (_progress >= 1) {
         _startRefresh();
@@ -219,6 +112,7 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
   }
 
   void _setPullExtent(double extent) {
+    _resetGeneration++;
     if (_springController.isAnimating) _springController.stop();
     final next = extent.clamp(0.0, widget.triggerExtent * 1.35).toDouble();
     if (next >= widget.triggerExtent && !_thresholdReached) {
@@ -234,6 +128,7 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
 
   void _startRefresh() {
     if (_refreshing) return;
+    _resetGeneration++;
     if (_springController.isAnimating) _springController.stop();
     setState(() {
       _refreshing = true;
@@ -249,38 +144,39 @@ class M3ERefreshIndicatorState extends State<M3ERefreshIndicator>
       if (mounted) {
         setState(() {
           _refreshing = false;
-          _pullExtent = 0;
           _thresholdReached = false;
         });
+        _resetPull();
       }
     }
   }
 
   void _resetPull() {
     if (!mounted || _pullExtent == 0) return;
+    final generation = ++_resetGeneration;
     _springController.stop();
+    if (MotionTokens.reduced(context)) {
+      setState(() {
+        _pullExtent = 0;
+        _thresholdReached = false;
+      });
+      return;
+    }
     final startExtent = _pullExtent;
-    final animation = Tween<double>(begin: startExtent, end: 0).animate(
-      CurvedAnimation(
-        parent: _springController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
     void listener() {
-      if (mounted) {
-        setState(() {
-          _pullExtent = animation.value;
-          if (_pullExtent == 0) {
-            _thresholdReached = false;
-          }
-        });
+      if (mounted && generation == _resetGeneration) {
+        setState(
+          () => _pullExtent =
+              startExtent *
+              (1 - Curves.easeOutCubic.transform(_springController.value)),
+        );
       }
     }
 
-    animation.addListener(listener);
+    _springController.addListener(listener);
     _springController.forward(from: 0).whenCompleteOrCancel(() {
-      animation.removeListener(listener);
-      if (mounted) {
+      _springController.removeListener(listener);
+      if (mounted && generation == _resetGeneration) {
         setState(() {
           _pullExtent = 0;
           _thresholdReached = false;

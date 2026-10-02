@@ -29,6 +29,7 @@ void main() {
     'sustained',
     'disable_pending',
     'dispose',
+    'inactive_tab',
   ]) {
     testWidgets('B11 passive exposure $scenario honors dwell and tracking', (
       tester,
@@ -45,8 +46,11 @@ void main() {
           container: c,
           child: MaterialApp(
             home: Scaffold(
-              body: PostCard(
-                post: interactionPost().copyWith(feedReason: 'Recommended'),
+              body: TickerMode(
+                enabled: true,
+                child: PostCard(
+                  post: interactionPost().copyWith(feedReason: 'Recommended'),
+                ),
               ),
             ),
           ),
@@ -56,6 +60,7 @@ void main() {
       final d = tester.widget<VisibilityDetector>(
         find.byType(VisibilityDetector),
       );
+      final card = tester.widget<PostCard>(find.byType(PostCard));
       void visible(bool value) => d.onVisibilityChanged?.call(
         VisibilityInfo(
           key: d.key!,
@@ -74,6 +79,16 @@ void main() {
         c.read(settingsControllerProvider.notifier).setTrackHistory(false);
       }
       if (scenario == 'dispose') await tester.pumpWidget(const SizedBox());
+      if (scenario == 'inactive_tab') {
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: c,
+            child: MaterialApp(
+              home: Scaffold(body: TickerMode(enabled: false, child: card)),
+            ),
+          ),
+        );
+      }
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pump(const Duration(seconds: 2));
       expect(

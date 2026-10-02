@@ -174,12 +174,11 @@ void main() {
     );
     expect(fieldPill, findsOneWidget);
 
-    // Dock chrome: same elevated surface family as sheets and the nav dock.
+    // Dock canvas follows the active scaffold; the field remains an elevated pill.
     final dock = find.byWidgetPredicate(
       (widget) =>
           widget is Container &&
-          widget.decoration is BoxDecoration &&
-          (widget.decoration! as BoxDecoration).color == cs.surfaceContainerHigh,
+          widget.color == cs.surface,
     );
     expect(dock, findsOneWidget);
   });

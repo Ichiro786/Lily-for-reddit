@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/widgets/m3e_loading_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -31,11 +33,13 @@ class ManageMultiredditScreen extends ConsumerWidget {
                   content: const Text('This custom feed will be removed.'),
                   actions: [
                     TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel')),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
                     FilledButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Delete')),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Delete'),
+                    ),
                   ],
                 ),
               );
@@ -49,7 +53,7 @@ class ManageMultiredditScreen extends ConsumerWidget {
         ],
       ),
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: M3ELoadingIndicator()),
         error: (e, _) => Center(child: Text('Could not load feed: $e')),
         data: (multi) {
           if (multi == null) {
@@ -90,7 +94,10 @@ class ManageMultiredditScreen extends ConsumerWidget {
   }
 
   Future<void> _addSubreddit(
-      BuildContext context, WidgetRef ref, String path) async {
+    BuildContext context,
+    WidgetRef ref,
+    String path,
+  ) async {
     final controller = TextEditingController();
     final sr = await showDialog<String>(
       context: context,
@@ -100,15 +107,21 @@ class ManageMultiredditScreen extends ConsumerWidget {
           controller: controller,
           autofocus: true,
           autocorrect: false,
-          decoration: const InputDecoration(prefixText: 'r/', labelText: 'Name'),
+          decoration: const InputDecoration(
+            prefixText: 'r/',
+            labelText: 'Name',
+          ),
           onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: const Text('Add')),
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Add'),
+          ),
         ],
       ),
     );

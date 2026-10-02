@@ -2,6 +2,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luli_for_reddit/features/post/comment_media_helper.dart';
 
 void main() {
+  test('code examples stay text and media-link captions are preserved', () {
+    const code = '```\nhttps://i.redd.it/example.gif\n![img](emote|123)\n```';
+    expect(extractCommentMedia(code), isEmpty);
+    expect(commentTextWithoutMedia(code), code);
+    expect(
+      resolveCommentBodyMedia(code, {
+        '123': {
+          's': {'u': 'https://i.redd.it/emote.png'},
+        },
+      }),
+      code,
+    );
+    expect(
+      commentTextWithoutMedia('[Photo caption](https://i.redd.it/image.jpg)'),
+      'Photo caption',
+    );
+    expect(isCommentMediaUrl('http:///broken.png'), isFalse);
+  });
   group('isCommentMediaUrl', () {
     test('accepts supported image extensions', () {
       for (final extension in ['gif', 'gifv', 'png', 'jpg', 'jpeg', 'webp']) {
@@ -22,7 +40,8 @@ void main() {
     });
 
     test('rejects unsupported URLs', () {
-      expect(isCommentMediaUrl('https://example.com/video.mp4'), isFalse);
+      expect(isCommentMediaUrl('https://example.com/video.mp4'), isTrue);
+      expect(isCommentVideoUrl('https://example.com/video.mp4'), isTrue);
       expect(isCommentMediaUrl('not a URL'), isFalse);
       expect(isCommentMediaUrl('ftp://example.com/photo.jpg'), isFalse);
     });
@@ -32,7 +51,9 @@ void main() {
     expect(isCommentGifUrl('https://example.com/reaction.GIF'), isTrue);
     expect(isCommentGifUrl('https://example.com/reaction.gifv'), isTrue);
     expect(
-      normalizedCommentMediaUrl('https://example.com/reaction.gifv?source=reddit'),
+      normalizedCommentMediaUrl(
+        'https://example.com/reaction.gifv?source=reddit',
+      ),
       'https://example.com/reaction.gif?source=reddit',
     );
   });
@@ -52,18 +73,18 @@ https://preview.redd.it/xyz789?width=640
     expect(media.first.isGif, isFalse);
   });
 
-  test('resolves inline Giphy and emote GIF tokens', () {
+  test('resolves Giphy tokens without inventing URLs for opaque emotes', () {
     final media = extractCommentMedia(
       'A reaction ![gif](giphy|abc123) and ![gif](emote|xyz789)',
     );
     expect(media.map((item) => item.url).toList(), [
-      'https://giphy.com/media/abc123/giphy.gif',
-      'https://giphy.com/media/xyz789/giphy.gif',
+      'https://media.giphy.com/media/abc123/giphy.gif',
     ]);
     expect(media.every((item) => item.isGif), isTrue);
+    expect(resolveInlineGifToken('![gif](emote|xyz789)'), isNull);
     expect(
       resolveInlineGifToken('![gif](giphy|abc123)'),
-      'https://giphy.com/media/abc123/giphy.gif',
+      'https://media.giphy.com/media/abc123/giphy.gif',
     );
   });
 

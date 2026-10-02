@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
+
+import '../theme/motion_tokens.dart';
 
 /// Computes the 12-lobed Material 3 Expressive morphing flower path.
 ///
@@ -140,13 +143,9 @@ class M3EMorphingFlowerPainter extends CustomPainter {
   }
 }
 
-/// Material 3 Expressive shape-morphing loading indicator.
-///
-/// When [progress] is supplied (0.0 to 1.0), renders in pull-driven determinate
-/// mode, morphing from a circle to a 12-lobed flower.
-/// When [progress] is null, renders in indeterminate active mode with smooth
-/// rotation and breathing scale oscillation.
-class M3ELoadingIndicator extends StatefulWidget {
+/// Theme-colored shape morphs while loading; pull progress stays gesture-driven.
+/// Hidden tabs and reduced motion use a static shape without periodic timers.
+class M3ELoadingIndicator extends StatelessWidget {
   const M3ELoadingIndicator({
     super.key,
     this.size = 32,
@@ -155,30 +154,27 @@ class M3ELoadingIndicator extends StatefulWidget {
     this.color,
     this.progress,
   });
-
   const M3ELoadingIndicator.small({
     super.key,
     this.semanticLabel,
     this.color,
     this.progress,
-  })  : size = 18,
-        strokeWidth = 2.5;
-
+  }) : size = 18,
+       strokeWidth = 2.5;
   const M3ELoadingIndicator.medium({
     super.key,
     this.semanticLabel,
     this.color,
     this.progress,
-  })  : size = 32,
-        strokeWidth = 3.5;
-
+  }) : size = 32,
+       strokeWidth = 3.5;
   const M3ELoadingIndicator.large({
     super.key,
     this.semanticLabel,
     this.color,
     this.progress,
-  })  : size = 48,
-        strokeWidth = 4.5;
+  }) : size = 48,
+       strokeWidth = 4.5;
 
   final double size;
   final double strokeWidth;
@@ -187,88 +183,40 @@ class M3ELoadingIndicator extends StatefulWidget {
   final double? progress;
 
   @override
-  State<M3ELoadingIndicator> createState() => _M3ELoadingIndicatorState();
-}
-
-class _M3ELoadingIndicatorState extends State<M3ELoadingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-    if (widget.progress == null) {
-      _controller.repeat();
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant M3ELoadingIndicator oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.progress != null) {
-      if (_controller.isAnimating) {
-        _controller.stop();
-      }
-    } else {
-      if (!_controller.isAnimating) {
-        _controller.repeat();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final effectiveColor =
-        widget.color ?? Theme.of(context).colorScheme.primary;
-
-    Widget indicator;
-    if (widget.progress != null) {
-      final t = widget.progress!.clamp(0.0, 1.0);
-      final rotation = t * (math.pi / 2);
-      indicator = CustomPaint(
-        painter: M3EMorphingFlowerPainter(
-          color: effectiveColor,
-          progress: t,
-          rotation: rotation,
-          scale: 1.0,
-          strokeWidth: widget.strokeWidth,
-        ),
-      );
-    } else {
-      indicator = AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          final rotation = _controller.value * math.pi * 2;
-          final pulse = 1.0 + math.sin(rotation) * 0.06;
-          return CustomPaint(
-            painter: M3EMorphingFlowerPainter(
-              color: effectiveColor,
-              progress: 1.0,
-              rotation: rotation,
-              scale: pulse,
-              strokeWidth: widget.strokeWidth,
-            ),
-          );
-        },
-      );
-    }
-
+    final effectiveColor = color ?? Theme.of(context).colorScheme.primary;
+    final animate =
+        progress == null &&
+        !MotionTokens.reduced(context) &&
+        TickerMode.valuesOf(context).enabled;
+    final t = (progress ?? 0.65).clamp(0.0, 1.0);
     return Semantics(
-      label: widget.semanticLabel ?? 'Loading...',
+      label: semanticLabel ?? 'Loading...',
       liveRegion: true,
       child: SizedBox.square(
-        dimension: widget.size,
-        child: indicator,
+        dimension: size,
+        child: RepaintBoundary(
+          child: animate
+              // The package paints a fixed 38dp active shape. Scale its canonical
+              // 48dp canvas, rather than shrinking constraints and clipping it.
+              ? FittedBox(
+                  child: ExpressiveLoadingIndicator(
+                    color: effectiveColor,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 48,
+                      height: 48,
+                    ),
+                  ),
+                )
+              : CustomPaint(
+                  painter: M3EMorphingFlowerPainter(
+                    color: effectiveColor,
+                    progress: t,
+                    rotation: t * math.pi / 2,
+                    strokeWidth: strokeWidth,
+                  ),
+                ),
+        ),
       ),
     );
   }

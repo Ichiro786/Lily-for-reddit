@@ -106,9 +106,11 @@ void main() {
     expect(find.text('r/dart'), findsWidgets);
     expect(find.text('r/flutter'), findsNothing);
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Joined'));
+    await tester.tap(find.text('Filter'));
     await tester.pumpAndSettle();
-    expect(find.text('Joined'), findsWidgets);
+    await tester.tap(find.text('Joined').last);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Favorites'), findsOneWidget);
   });
 
   testWidgets('Explore screen matches M3E blueprint with headline, chip row, and live stats',
@@ -145,15 +147,15 @@ void main() {
     expect(find.text('All'), findsOneWidget);
     expect(find.text('Communities'), findsOneWidget);
     expect(find.text('Posts'), findsOneWidget);
-    expect(find.text('Joined'), findsWidgets);
+    expect(find.byTooltip('Favorites'), findsOneWidget);
 
     // 4. Section hierarchy: "Recently visited" precedes "Popular near you"
     final recentPos = tester.getTopLeft(find.text('Recently visited')).dy;
     final popularPos = tester.getTopLeft(find.text('Popular near you')).dy;
     expect(recentPos, lessThan(popularPos));
 
-    // 5. "See all >" action button
-    expect(find.text('See all >'), findsOneWidget);
+    // 5. "See all" action button
+    expect(find.text('See all'), findsOneWidget);
 
     // 6. Live online count indicator
     expect(find.textContaining('online'), findsWidgets);
@@ -241,7 +243,7 @@ void main() {
     expect(find.byKey(const ValueKey<String>('inbox-unread-dot')), findsOneWidget);
     await tester.tap(find.text('Mentions'));
     await tester.pumpAndSettle();
-    expect(selected, 3);
+    expect(selected, 2);
   });
 
   testWidgets('grouped Settings panels toggle AMOLED and select palette color',
@@ -404,7 +406,7 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Sign in'), findsOneWidget);
   });
 
-  testWidgets('InboxScreen renders M3E app bar overflow menu, filter bar, and items',
+  testWidgets('InboxScreen renders M3E app bar overflow menu, single category row, and items',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -430,9 +432,10 @@ void main() {
     expect(find.byTooltip('More options'), findsOneWidget);
     expect(find.byTooltip('New message'), findsOneWidget);
 
-    // Verify filter bar
-    expect(find.text('Filter'), findsOneWidget);
-    expect(find.text('Replies'), findsOneWidget);
+    expect(find.byType(TabBar), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('Filter'), findsNothing);
+    expect(find.text('Replies'), findsNothing);
     expect(find.text('Hello there'), findsOneWidget);
 
     // Verify overflow menu

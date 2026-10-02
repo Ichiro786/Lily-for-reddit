@@ -5,7 +5,7 @@ Apple team: free/personal "Uzi Drori" (4M663HCPB9).
 
 Signing setup (paid Apple Developer Program):
   Team   : Kenes International Organizers of Congresses  (57L2ULXB7Z)
-  Bundle : com.bennybar.lulireddit   (iOS only; Android stays com.bennybar.luli_for_reddit)
+  Bundle : com.bennybar.lulireddit   (iOS only; Android uses com.ichiro.lily_for_reddit)
 
 ==> AD-HOC SIGNED IPA (1-year, installs via Apple Configurator 2).
 

@@ -41,7 +41,8 @@ class Post with _$Post {
     @Default(false) bool canModPost,
     String? linkFlairText,
     String? distinguished,
-    String? feedReason, // "why you're seeing this" in the For You feed (transient)
+    String?
+    feedReason, // "why you're seeing this" in the For You feed (transient)
     String? crosspostFrom, // subreddit a crosspost originates from
     @Default(<String>[]) List<String> pollOptions,
     // media
@@ -64,17 +65,21 @@ class Post with _$Post {
         ? _m(crosspostParents.first)
         : null;
 
-    final preview = _firstPreviewImage(d) ??
+    final preview =
+        _firstPreviewImage(d) ??
         (parentData != null ? _firstPreviewImage(parentData) : null);
-    final media = _m(d['media']) ??
-        (parentData != null ? _m(parentData['media']) : null);
+    final media =
+        _m(d['media']) ?? (parentData != null ? _m(parentData['media']) : null);
     final redditVideo = _m(media?['reddit_video']);
-    final isVideo = d['is_video'] == true ||
+    final isVideo =
+        d['is_video'] == true ||
         parentData?['is_video'] == true ||
         redditVideo != null;
     final gallery = _parseGallery(d).isNotEmpty
         ? _parseGallery(d)
-        : (parentData != null ? _parseGallery(parentData) : const <GalleryImage>[]);
+        : (parentData != null
+              ? _parseGallery(parentData)
+              : const <GalleryImage>[]);
 
     final videoWidth = (redditVideo?['width'] as num?)?.toInt();
     final videoHeight = (redditVideo?['height'] as num?)?.toInt();
@@ -86,7 +91,8 @@ class Post with _$Post {
         : (preview?.height ?? videoHeight);
 
     final rawUrl = d['url'] as String? ?? parentData?['url'] as String? ?? '';
-    final rawThumb = d['thumbnail'] as String? ?? parentData?['thumbnail'] as String?;
+    final rawThumb =
+        d['thumbnail'] as String? ?? parentData?['thumbnail'] as String?;
 
     return Post(
       id: d['id'] as String? ?? '',
@@ -122,7 +128,8 @@ class Post with _$Post {
       pollOptions: _pollOptions(d),
       thumbnailUrl: _validThumb(rawThumb),
       previewUrl: preview?.url,
-      previewMedUrl: _medPreviewUrl(d) ??
+      previewMedUrl:
+          _medPreviewUrl(d) ??
           (parentData != null ? _medPreviewUrl(parentData) : null) ??
           preview?.url,
       previewWidth: resolvedWidth,
@@ -154,9 +161,8 @@ String? _crosspostFrom(Map<String, dynamic> d) {
 List<String> _pollOptions(Map<String, dynamic> d) {
   final opts = _l(_m(d['poll_data'])?['options']);
   if (opts == null) return const [];
-  return [
-    for (final o in opts) _m(o)?['text'] as String? ?? '',
-  ]..removeWhere((e) => e.isEmpty);
+  return [for (final o in opts) _m(o)?['text'] as String? ?? '']
+    ..removeWhere((e) => e.isEmpty);
 }
 
 PostType _detectType(
@@ -169,11 +175,19 @@ PostType _detectType(
   if (hasGallery) return PostType.gallery;
   if (isVideo) return PostType.video;
   final hint = (d['post_hint'] ?? parent?['post_hint']) as String?;
+  final rawUrl = d['url'] as String? ?? parent?['url'] as String? ?? '';
+  final url = Uri.tryParse(rawUrl)?.path.toLowerCase() ?? '';
+  final previewImages = _l(_m(d['preview'] ?? parent?['preview'])?['images']);
+  final hasGifVariant =
+      previewImages != null &&
+      previewImages.isNotEmpty &&
+      _m(_m(_m(previewImages.first)?['variants'])?['gif']) != null;
+  if (url.endsWith('.gif') || hasGifVariant) return PostType.gif;
   if (hint == 'image') return PostType.image;
   if (hint == 'rich:video' || hint == 'hosted:video') return PostType.video;
-  final url = (d['url'] as String? ?? parent?['url'] as String? ?? '').toLowerCase();
-  if (url.endsWith('.gif')) return PostType.gif;
-  if (url.endsWith('.jpg') || url.endsWith('.jpeg') || url.endsWith('.png') ||
+  if (url.endsWith('.jpg') ||
+      url.endsWith('.jpeg') ||
+      url.endsWith('.png') ||
       url.endsWith('.webp')) {
     return PostType.image;
   }
@@ -187,18 +201,25 @@ String _unescapeUrl(String url) =>
 
 String? _validThumb(String? thumb) {
   if (thumb == null) return null;
-  if (thumb == 'self' || thumb == 'default' || thumb == 'nsfw' ||
-      thumb == 'spoiler' || thumb == 'image' || thumb.isEmpty) {
+  if (thumb == 'self' ||
+      thumb == 'default' ||
+      thumb == 'nsfw' ||
+      thumb == 'spoiler' ||
+      thumb == 'image' ||
+      thumb.isEmpty) {
     return null;
   }
   return _unescapeUrl(thumb);
 }
 
 ({String url, int? width, int? height})? _firstPreviewImage(
-    Map<String, dynamic> d) {
+  Map<String, dynamic> d,
+) {
   final images = _l(_m(d['preview'])?['images']);
   if (images == null || images.isEmpty) return null;
-  final source = _m(_m(images.first)?['source']);
+  final image = _m(images.first);
+  final animated = _m(_m(image?['variants'])?['gif']);
+  final source = _m(animated?['source']) ?? _m(image?['source']);
   final src = source?['url'] as String?;
   if (src == null) return null;
   return (
@@ -237,11 +258,13 @@ List<GalleryImage> _parseGallery(Map<String, dynamic> d) {
     final s = _m(_m(metadata[mediaId])?['s']);
     final url = (s?['u'] ?? s?['gif']) as String?;
     if (url == null) continue;
-    result.add(GalleryImage(
-      url: _unescapeUrl(url),
-      width: (s?['x'] as num?)?.toInt(),
-      height: (s?['y'] as num?)?.toInt(),
-    ));
+    result.add(
+      GalleryImage(
+        url: _unescapeUrl(url),
+        width: (s?['x'] as num?)?.toInt(),
+        height: (s?['y'] as num?)?.toInt(),
+      ),
+    );
   }
   return result;
 }

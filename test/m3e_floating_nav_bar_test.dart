@@ -18,6 +18,53 @@ Finder _dock() => find
     .first;
 
 void main() {
+  testWidgets(
+    'Discover single taps stay immediate and spaced taps do not search',
+    (tester) async {
+      final selections = <int>[];
+      var searches = 0;
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(
+            currentIndex: 0,
+            onTap: selections.add,
+            onSearch: () => searches++,
+          ),
+        ),
+      );
+      await tester.tap(find.text('Discover'));
+      expect(selections, [1]);
+      expect(searches, 0);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Discover'));
+      expect(selections, [1, 1]);
+      expect(searches, 0);
+      await tester.tap(find.text('Home'));
+      await tester.tap(find.text('Discover'));
+      expect(searches, 0);
+      await tester.pump(const Duration(milliseconds: 400));
+    },
+  );
+
+  testWidgets(
+    'Discover search is available by long press when labels are hidden',
+    (tester) async {
+      var searches = 0;
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(
+            currentIndex: 1,
+            isMinimized: true,
+            onTap: (_) {},
+            onSearch: () => searches++,
+          ),
+        ),
+      );
+      await tester.longPress(find.byTooltip('Discover · double-tap to search'));
+      expect(searches, 1);
+    },
+  );
+
   testWidgets('labels fade immediately and finish hiding within 120ms', (
     tester,
   ) async {
@@ -30,7 +77,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 40));
     final fades = tester.widgetList<FadeTransition>(
       find.descendant(
-        of: find.byType(M3EFloatingNavBar),
+        of: find.byType(AnimatedOpacity),
         matching: find.byType(FadeTransition),
       ),
     );
@@ -67,7 +114,7 @@ void main() {
     expect(tester.getSize(_dock()).height, 60);
     for (final fade in tester.widgetList<FadeTransition>(
       find.descendant(
-        of: find.byType(M3EFloatingNavBar),
+        of: find.byType(AnimatedOpacity),
         matching: find.byType(FadeTransition),
       ),
     )) {
@@ -104,10 +151,7 @@ void main() {
     var selected = -1;
     await tester.pumpWidget(
       _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          onTap: (index) => selected = index,
-        ),
+        M3EFloatingNavBar(currentIndex: 0, onTap: (index) => selected = index),
       ),
     );
 
@@ -121,37 +165,25 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          onTap: (_) {},
-        ),
-      ),
+      _harness(M3EFloatingNavBar(currentIndex: 0, onTap: (_) {})),
     );
     expect(tester.getSize(_dock()).height, 64);
 
     await tester.pumpWidget(
       _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          isMinimized: true,
-          onTap: (_) {},
-        ),
+        M3EFloatingNavBar(currentIndex: 0, isMinimized: true, onTap: (_) {}),
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.getSize(_dock()).height, 60);
   });
 
-  testWidgets('Inbox badge dot is visible when unread count is nonzero',
-      (tester) async {
+  testWidgets('Inbox badge dot is visible when unread count is nonzero', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          unreadCount: 7,
-          onTap: (_) {},
-        ),
+        M3EFloatingNavBar(currentIndex: 0, unreadCount: 7, onTap: (_) {}),
       ),
     );
 
@@ -160,51 +192,46 @@ void main() {
   });
 
   testWidgets(
-      'minimizing and expanding dock causes no layout overflows across all animation frames',
-      (tester) async {
-    await tester.pumpWidget(
-      _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          isMinimized: false,
-          onTap: (_) {},
+    'minimizing and expanding dock causes no layout overflows across all animation frames',
+    (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(currentIndex: 0, isMinimized: false, onTap: (_) {}),
         ),
-      ),
-    );
-    expect(tester.takeException(), isNull);
+      );
+      expect(tester.takeException(), isNull);
 
-    // Transition to minimized
-    await tester.pumpWidget(
-      _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          isMinimized: true,
-          onTap: (_) {},
+      // Transition to minimized
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(currentIndex: 0, isMinimized: true, onTap: (_) {}),
         ),
-      ),
-    );
+      );
 
-    for (final ms in [0, 40, 80, 120, 160, 220]) {
-      await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
-      expect(tester.takeException(), isNull,
-          reason: 'Overflow occurred while minimizing at ${ms}ms');
-    }
+      for (final ms in [0, 40, 80, 120, 160, 220]) {
+        await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'Overflow occurred while minimizing at ${ms}ms',
+        );
+      }
 
-    // Transition back to expanded
-    await tester.pumpWidget(
-      _harness(
-        M3EFloatingNavBar(
-          currentIndex: 0,
-          isMinimized: false,
-          onTap: (_) {},
+      // Transition back to expanded
+      await tester.pumpWidget(
+        _harness(
+          M3EFloatingNavBar(currentIndex: 0, isMinimized: false, onTap: (_) {}),
         ),
-      ),
-    );
+      );
 
-    for (final ms in [0, 40, 80, 120, 160, 220]) {
-      await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
-      expect(tester.takeException(), isNull,
-          reason: 'Overflow occurred while expanding at ${ms}ms');
-    }
-  });
+      for (final ms in [0, 40, 80, 120, 160, 220]) {
+        await tester.pump(Duration(milliseconds: ms == 0 ? 0 : 40));
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'Overflow occurred while expanding at ${ms}ms',
+        );
+      }
+    },
+  );
 }

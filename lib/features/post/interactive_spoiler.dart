@@ -3,19 +3,47 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../../core/theme/shape_tokens.dart';
+import '../../core/theme/motion_tokens.dart';
 import '../../core/url_launcher_helper.dart';
+import '../../core/reddit_markdown.dart';
+import '../../core/root_messenger.dart';
+import 'comment_content.dart';
+import 'comment_media_helper.dart';
 
-/// Turns the `<spoiler>…</spoiler>` tags produced by [normalizeRedditSpoilers]
-/// into real markdown elements, which is what lets [RedditSpoilerBuilder]
-/// replace them with an [InteractiveSpoiler] widget. Without this syntax the
-/// markdown package emits raw HTML text and the builder never fires.
+/// Parses native Reddit markers after the Markdown code/escape rules.
 class SpoilerInlineSyntax extends md.InlineSyntax {
-  SpoilerInlineSyntax() : super(r'<spoiler>([\s\S]*?)</spoiler>');
+  SpoilerInlineSyntax() : super(r'>!((?:\\[\s\S]|!(?!<)|[^\\!])*)!<');
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
     parser.addNode(md.Element('spoiler', [md.Text(match[1] ?? '')]));
     return true;
+  }
+}
+
+// A spoiler at the start of a line must be parsed before the blockquote rule.
+class SpoilerBlockSyntax extends md.BlockSyntax {
+  @override
+  RegExp get pattern => RegExp(r'^ {0,3}>!');
+  @override
+  bool canParse(md.BlockParser parser) {
+    if (!super.canParse(parser)) return false;
+    for (var i = 0; parser.peek(i) != null; i++) {
+      final line = parser.peek(i)!.content;
+      if (redditSpoilerEnd(line, 0) != null) return true;
+      if (line.trim().isEmpty) break;
+    }
+    return false;
+  }
+
+  @override
+  md.Node parse(md.BlockParser parser) {
+    final lines = <String>[];
+    do {
+      lines.add(parser.current.content);
+      parser.advance();
+    } while (!parser.isDone && redditSpoilerEnd(lines.last, 0) == null);
+    return md.Element('p', parser.document.parseInline(lines.join('\n')));
   }
 }
 
@@ -39,9 +67,7 @@ MarkdownStyleSheet buildM3EMarkdownStyleSheet(ThemeData theme) {
     blockquoteDecoration: BoxDecoration(
       color: cs.surfaceContainerHigh.withValues(alpha: 0.5),
       borderRadius: BorderRadius.circular(8),
-      border: Border(
-        left: BorderSide(color: cs.primary, width: 3.5),
-      ),
+      border: Border(left: BorderSide(color: cs.primary, width: 3.5)),
     ),
     codeblockDecoration: BoxDecoration(
       color: cs.surfaceContainerHighest,
@@ -53,17 +79,14 @@ MarkdownStyleSheet buildM3EMarkdownStyleSheet(ThemeData theme) {
       fontFamily: 'monospace',
       color: cs.onSurfaceVariant,
     ),
-    a: TextStyle(
-      color: cs.primary,
-      decoration: TextDecoration.underline,
-    ),
+    a: TextStyle(color: cs.primary, decoration: TextDecoration.underline),
   );
 }
 
 /// The single intentional rendering path for comment Markdown.
 ///
-/// Composes the existing spoiler pipeline ([normalizeRedditSpoilers] +
-/// [RedditSpoilerBuilder]) with link handling so every consumer — the
+/// Composes native spoiler, superscript and mention syntax with link handling
+/// so every consumer — the
 /// flattened-comment presentation provider and tests — renders comment bodies
 /// identically instead of duplicating configuration.
 ///
@@ -75,15 +98,20 @@ MarkdownBody buildCommentMarkdownBody(
   MarkdownStyleSheet styleSheet,
 ) {
   return MarkdownBody(
-    data: normalizeRedditSpoilers(body),
-    builders: {
-      'spoiler': RedditSpoilerBuilder(),
-    },
-    inlineSyntaxes: [SpoilerInlineSyntax()],
+    data: body,
+    builders: {'spoiler': RedditSpoilerBuilder()},
+    blockSyntaxes: [SpoilerBlockSyntax()],
+    inlineSyntaxes: [
+      SpoilerInlineSyntax(),
+      RedditSuperscriptSyntax(),
+      RedditMentionSyntax(),
+    ],
+    extensionSet: md.ExtensionSet.gitHubFlavored,
+    sizedImageBuilder: (image) => Text(image.alt ?? 'Image unavailable'),
     styleSheet: styleSheet,
-    onTapLink: (_, href, __) {
-      if (href != null) {
-        launchSmartUrl(href);
+    onTapLink: (_, href, __) async {
+      if (href != null && !await launchSmartUrl(href)) {
+        showRootSnackBar(const SnackBar(content: Text('Could not open link')));
       }
     },
   );
@@ -102,6 +130,12 @@ class _InteractiveSpoilerState extends State<InteractiveSpoiler> {
   bool _revealed = false;
 
   @override
+  void didUpdateWidget(covariant InteractiveSpoiler oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.text != oldWidget.text) _revealed = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -109,7 +143,7 @@ class _InteractiveSpoilerState extends State<InteractiveSpoiler> {
       behavior: HitTestBehavior.opaque,
       onTap: () => setState(() => _revealed = !_revealed),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
+        duration: MotionTokens.feedback(context),
         curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
@@ -118,13 +152,31 @@ class _InteractiveSpoilerState extends State<InteractiveSpoiler> {
               : scheme.surfaceContainerHighest,
           borderRadius: ShapeTokens.extraSmall,
         ),
-        child: Text(
-          _revealed ? widget.text : 'Spoiler (Tap to reveal)',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: scheme.onSurface,
-            fontWeight: _revealed ? FontWeight.normal : FontWeight.w600,
-          ),
-        ),
+        child:
+            _revealed &&
+                (extractCommentMedia(widget.text).isNotEmpty ||
+                    RegExp(r'[*_\[\]\n~`^]|[ru]/').hasMatch(widget.text))
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => setState(() => _revealed = false),
+                    icon: const Icon(Icons.visibility_off_outlined),
+                    label: const Text('Hide spoiler'),
+                  ),
+                  CommentContent(
+                    body: widget.text,
+                    styleSheet: buildM3EMarkdownStyleSheet(theme),
+                  ),
+                ],
+              )
+            : Text(
+                _revealed ? widget.text : 'Spoiler (Tap to reveal)',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurface,
+                  fontWeight: _revealed ? FontWeight.normal : FontWeight.w600,
+                ),
+              ),
       ),
     );
   }
@@ -140,13 +192,18 @@ class RedditSpoilerBuilder extends MarkdownElementBuilder {
 }
 
 String normalizeRedditSpoilers(String markdown) {
-  final pattern = RegExp(r'>!([\s\S]*?)!<|!([^!\n]*?)!<');
-  return markdown.replaceAllMapped(pattern, (match) {
-    final text = match.group(1) ?? match.group(2) ?? '';
-    final escaped = text
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-    return '<spoiler>$escaped</spoiler>';
-  });
+  // Compatibility for callers of the old normalization helper. The renderer
+  // parses native >! markers directly and never preprocesses Markdown code.
+  final pattern = RegExp(r'>!([\s\S]*?)!<|(?<![>\w!])!([^!\n]*?)!<');
+  return mapRedditMarkdownProse(
+    markdown,
+    (prose) => prose.replaceAllMapped(pattern, (match) {
+      final text = match.group(1) ?? match.group(2) ?? '';
+      final escaped = text
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;');
+      return '<spoiler>$escaped</spoiler>';
+    }),
+  );
 }

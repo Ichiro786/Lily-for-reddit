@@ -14,6 +14,8 @@ import '../history/interest_store.dart';
 import '../settings/settings_controller.dart';
 import 'feed_ranker.dart';
 
+const _keepCursor = Object();
+
 class FeedState {
   const FeedState({
     required this.posts,
@@ -37,14 +39,14 @@ class FeedState {
     List<Post>? posts,
     PostSort? sort,
     TopTime? time,
-    String? after,
+    Object? after = _keepCursor,
     bool? loadingMore,
     bool? hasPending,
   }) => FeedState(
     posts: posts ?? this.posts,
     sort: sort ?? this.sort,
     time: time ?? this.time,
-    after: after,
+    after: identical(after, _keepCursor) ? this.after : after as String?,
     loadingMore: loadingMore ?? this.loadingMore,
     hasPending: hasPending ?? this.hasPending,
   );

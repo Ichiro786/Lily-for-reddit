@@ -15,7 +15,7 @@ if (keystorePropertiesFile.exists()) {
 val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
 
 android {
-    namespace = "com.bennybar.luli_for_reddit"
+    namespace = "com.ichiro.lily_for_reddit"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -32,7 +32,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.bennybar.luli_for_reddit"
+        applicationId = "com.ichiro.lily_for_reddit"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

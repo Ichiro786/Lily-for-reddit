@@ -38,8 +38,10 @@ class _InlineVideoState extends State<InlineVideo>
   int _generation = 0;
   bool _foreground = true;
   bool _routeActive = true;
+  bool _tabActive = true;
   bool _failed = false;
-  bool get _canPlay => mounted && _visible && _foreground && _routeActive;
+  bool get _canPlay =>
+      mounted && _visible && _foreground && _routeActive && _tabActive;
 
   @override
   void initState() {
@@ -53,6 +55,11 @@ class _InlineVideoState extends State<InlineVideo>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final tabActive = TickerMode.valuesOf(context).enabled;
+    if (_tabActive != tabActive) {
+      _tabActive = tabActive;
+      unawaited(_syncPlayback());
+    }
     final route = ModalRoute.of(context);
     if (route != null) {
       appRouteObserver.subscribe(this, route);
@@ -197,7 +204,6 @@ class _InlineVideoState extends State<InlineVideo>
         .round()
         .clamp(1, 1080)
         .toInt();
-    final posterHeight = (widget.height * dpr).round().clamp(1, 1080).toInt();
     final poster = widget.poster;
     return VisibilityDetector(
       key: Key('inlinevid_${widget.url}'),
@@ -212,7 +218,7 @@ class _InlineVideoState extends State<InlineVideo>
             children: [
               if (_ready && c != null)
                 FittedBox(
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   clipBehavior: Clip.hardEdge,
                   child: SizedBox(
                     width: c.value.size.width,
@@ -224,8 +230,7 @@ class _InlineVideoState extends State<InlineVideo>
                 CachedNetworkImage(
                   imageUrl: poster,
                   memCacheWidth: posterWidth,
-                  memCacheHeight: posterHeight,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                 )
               else
                 ColoredBox(
@@ -248,8 +253,9 @@ class _InlineVideoState extends State<InlineVideo>
                 Positioned(
                   right: 8,
                   bottom: 8,
-                  child: GestureDetector(
-                    onTap: () {
+                  child: IconButton(
+                    tooltip: _muted ? 'Unmute video' : 'Mute video',
+                    onPressed: () {
                       setState(() => _muted = !_muted);
                       if (c != null) {
                         unawaited(
@@ -257,19 +263,16 @@ class _InlineVideoState extends State<InlineVideo>
                         );
                       }
                     },
-                    child: Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: colorScheme.scrim.withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        _muted
-                            ? Icons.volume_off_rounded
-                            : Icons.volume_up_rounded,
-                        color: colorScheme.onSurface,
-                        size: 18,
-                      ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: colorScheme.scrim.withValues(alpha: 0.5),
+                      minimumSize: const Size(48, 48),
+                    ),
+                    icon: Icon(
+                      _muted
+                          ? Icons.volume_off_rounded
+                          : Icons.volume_up_rounded,
+                      color: Colors.white,
+                      size: 18,
                     ),
                   ),
                 ),

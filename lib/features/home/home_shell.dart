@@ -1,13 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/network/rate_limit.dart';
-import '../../core/theme/shape_tokens.dart';
-import '../../core/widgets/glass_surface.dart';
-import '../auth/auth_controller.dart';
+import '../../core/theme/motion_tokens.dart';
 import '../explore/explore_screen.dart';
 import '../feed/post_list_view.dart';
 import '../inbox/inbox_controller.dart';
@@ -39,9 +37,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   final List<Widget?> _tabWidgets = List<Widget?>.filled(4, null);
 
   final ValueNotifier<bool> _chrome = ValueNotifier<bool>(true);
+  Timer? _revealChromeTimer;
 
   @override
   void dispose() {
+    _revealChromeTimer?.cancel();
     _chrome.dispose();
     super.dispose();
   }
@@ -89,7 +89,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
     if (enable != true || !mounted) return;
     final granted = await NotificationService.instance.requestPermission();
-    if (!granted) return;
+    if (!granted || !mounted) return;
     ref.read(settingsControllerProvider.notifier).setNotifyInbox(true);
     await pollInbox(notify: false); // prime, don't notify for existing unread
     await registerInboxPolling();
@@ -141,8 +141,28 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   bool _onScroll(ScrollNotification n) {
+    if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
+    if (scrollChromeVisible(n, true) && !scrollChromeVisible(n, false)) {
+      return false; // Idle/ballistic events must not cancel a pending reveal.
+    }
     final visible = scrollChromeVisible(n, _chrome.value);
-    if (visible != _chrome.value) _chrome.value = visible;
+    if (!visible) {
+      _revealChromeTimer?.cancel();
+      _revealChromeTimer = null;
+      _chrome.value = false;
+    } else if (!_chrome.value) {
+      if (n.metrics.pixels <= n.metrics.minScrollExtent ||
+          MotionTokens.reduced(context)) {
+        _revealChromeTimer?.cancel();
+        _revealChromeTimer = null;
+        _chrome.value = true;
+      } else {
+        _revealChromeTimer ??= Timer(const Duration(milliseconds: 64), () {
+          _revealChromeTimer = null;
+          if (mounted) _chrome.value = true;
+        });
+      }
+    }
     return false;
   }
 
@@ -162,11 +182,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           child: _LazyKeepAliveTabHost(
             index: _index,
             tabs: [
-              ValueListenableBuilder<bool>(
-                valueListenable: _chrome,
-                builder: (_, visible, __) =>
-                    _FrontpageTab(chromeVisible: visible),
-              ),
+              const _FrontpageTab(),
               _tabWidgets[1],
               _tabWidgets[2],
               _tabWidgets[3],
@@ -179,7 +195,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               valueListenable: _chrome,
               builder: (context, visible, child) => AnimatedScale(
                 scale: visible ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
+                duration: MotionTokens.feedback(context),
                 curve: Curves.fastOutSlowIn,
                 child: child!,
               ),
@@ -201,8 +217,30 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         builder: (_, visible, __) => M3EFloatingNavBar(
           currentIndex: _index,
           unreadCount: unread,
-          isMinimized: !visible || !showNavLabels,
+          isVisible: visible,
+          isMinimized: !showNavLabels,
+          onSearch: () {
+            _revealChromeTimer?.cancel();
+            _revealChromeTimer = null;
+            _chrome.value = true;
+            if (_index != 1) {
+              setState(() {
+                _tabWidgets[1] ??= _createTab(1);
+                _index = 1;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  ref.read(discoverSearchSignalProvider.notifier).state++;
+                }
+              });
+            } else {
+              ref.read(discoverSearchSignalProvider.notifier).state++;
+            }
+          },
           onTap: (i) {
+            _revealChromeTimer?.cancel();
+            _revealChromeTimer = null;
+            _chrome.value = true;
             // Re-tapping the active tab scrolls it to top (Posts also refreshes).
             if (i == _index) {
               if (i == 0) {
@@ -227,371 +265,84 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 /// Keeps initialized tabs mounted while creating non-selected tabs on demand.
 /// Offstage preserves each tab's element/state tree; TickerMode avoids running
 /// animations for tabs that are not currently visible.
-class _LazyKeepAliveTabHost extends StatelessWidget {
+class _LazyKeepAliveTabHost extends StatefulWidget {
   const _LazyKeepAliveTabHost({required this.index, required this.tabs});
 
   final int index;
   final List<Widget?> tabs;
 
   @override
+  State<_LazyKeepAliveTabHost> createState() => _LazyKeepAliveTabHostState();
+}
+
+class _LazyKeepAliveTabHostState extends State<_LazyKeepAliveTabHost>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entry = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 180),
+    value: 1,
+  );
+  late final Animation<double> _opacity = _entry.drive(
+    CurveTween(curve: Curves.easeOutCubic),
+  );
+
+  @override
+  void didUpdateWidget(covariant _LazyKeepAliveTabHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) {
+      if (MotionTokens.reduced(context)) {
+        _entry.value = 1;
+      } else {
+        _entry.forward(from: 0);
+      }
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MotionTokens.reduced(context)) _entry.value = 1;
+  }
+
+  @override
+  void dispose() {
+    _entry.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
       children: [
-        for (var i = 0; i < tabs.length; i++)
+        for (var i = 0; i < widget.tabs.length; i++)
           Offstage(
             key: ValueKey<int>(i),
-            offstage: i != index,
+            offstage: i != widget.index,
             child: TickerMode(
-              enabled: i == index,
-              child: tabs[i] ?? const SizedBox.shrink(),
+              enabled: i == widget.index,
+              child: FadeTransition(
+                opacity: _opacity,
+                child: RepaintBoundary(
+                  child: widget.tabs[i] ?? const SizedBox.shrink(),
+                ),
+              ),
             ),
           ),
-      ],
-    );
-  }
-}
-
-/// Three-dot menu to switch the feed's post display type.
-class _DisplayMenu extends ConsumerWidget {
-  const _DisplayMenu();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsControllerProvider);
-    final ctrl = ref.read(settingsControllerProvider.notifier);
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert_rounded),
-      tooltip: 'Display',
-      onSelected: (v) {
-        if (v == 'autoplay') {
-          ctrl.setAutoplayMedia(!s.autoplayMedia);
-        } else {
-          ctrl.setPostDisplay(
-            PostDisplay.values.firstWhere((d) => d.name == v),
-          );
-        }
-      },
-      itemBuilder: (_) => [
-        for (final d in PostDisplay.values)
-          PopupMenuItem(
-            value: d.name,
-            child: Row(
-              children: [
-                Icon(d.icon, size: 20),
-                const SizedBox(width: 12),
-                Text(d.label),
-                if (d == s.postDisplay) ...[
-                  const Spacer(),
-                  const Icon(Icons.check_rounded, size: 18),
-                ],
-              ],
-            ),
-          ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'autoplay',
-          child: Row(
-            children: [
-              const Icon(Icons.play_circle_outline_rounded, size: 20),
-              const SizedBox(width: 12),
-              const Text('Autoplay media'),
-              const Spacer(),
-              if (s.autoplayMedia) const Icon(Icons.check_rounded, size: 18),
-            ],
-          ),
-        ),
       ],
     );
   }
 }
 
 class _FrontpageTab extends ConsumerWidget {
-  const _FrontpageTab({this.chromeVisible = true});
-  final bool chromeVisible;
+  const _FrontpageTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-    final username =
-        ref.watch(authControllerProvider).valueOrNull?.username ?? '';
-    final settings = ref.watch(settingsControllerProvider);
-    final forYou = settings.forYouFeed;
-    final mode = settings.topBarMode;
-    final expandable = mode == TopBarMode.expandable;
-    // Full mode pins the action row; Expandable floats it in on demand.
-    final showActionRow = mode == TopBarMode.full;
-    return Column(
-      children: [
-        // Full mode: Google-app style search bar with avatar — collapses on
-        // scroll. Compact mode hides it; Expandable shows it on demand.
-        if (showActionRow)
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.fastOutSlowIn,
-            alignment: Alignment.topCenter,
-            child: chromeVisible
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: Row(
-                      children: [
-                        if (ref
-                            .watch(settingsControllerProvider)
-                            .showApiUsage) ...[
-                          const _ApiUsagePill(),
-                          const SizedBox(width: 8),
-                        ],
-                        Expanded(
-                          child: Container(
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: cs.surfaceContainerHigh,
-                              borderRadius: ShapeTokens.full,
-                              border: Border.all(
-                                color: cs.outlineVariant.withValues(
-                                  alpha: 0.20,
-                                ),
-                                width: 1,
-                              ),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: ShapeTokens.full,
-                                onTap: () => context.push('/search'),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.search_rounded,
-                                        color: cs.onSurfaceVariant,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        'Search Reddit',
-                                        style: TextStyle(
-                                          color: cs.onSurfaceVariant,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const _DisplayMenu(),
-                        const SizedBox(width: 4),
-                        Semantics(
-                          button: true,
-                          label: 'Your profile',
-                          child: GestureDetector(
-                            onTap: () => context.push('/u/$username'),
-                            child: CircleAvatar(
-                              radius: 20,
-                              backgroundColor: cs.primaryContainer,
-                              child: Text(
-                                username.isNotEmpty
-                                    ? username[0].toUpperCase()
-                                    : '?',
-                                style: TextStyle(
-                                  color: cs.onPrimaryContainer,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : const SizedBox(width: double.infinity, height: 0),
-          ),
-        Expanded(
-          child: PostListView(
-            feedKey: '',
-            frontpageStyle: true,
-            header: FrontpageHeader(
-              forYou: forYou,
-              onToolbar: expandable
-                  ? () => _showFloatingToolbar(context, ref, username)
-                  : null,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Expandable top-bar mode: floats the full toolbar (search, new post, display,
-/// profile) in from the top as a dismissible overlay — it never displaces the
-/// feed.
-Future<void> _showFloatingToolbar(
-  BuildContext context,
-  WidgetRef ref,
-  String username,
-) {
-  final router = GoRouter.of(context);
-  final cs = Theme.of(context).colorScheme;
-  return showGeneralDialog(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: 'Toolbar',
-    barrierColor: Colors.black.withValues(alpha: 0.30),
-    transitionDuration: const Duration(milliseconds: 200),
-    pageBuilder: (ctx, _, __) {
-      void close() => Navigator.of(ctx).pop();
-      return SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: GlassSurface(
-              borderRadius: BorderRadius.circular(28),
-              tintOpacity: 1.0,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
-                        onTap: () {
-                          close();
-                          router.push('/search');
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.search_rounded,
-                                color: cs.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                'Search Reddit',
-                                style: TextStyle(color: cs.onSurfaceVariant),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton.filled(
-                      tooltip: 'New post',
-                      icon: const Icon(Icons.edit_square, size: 22),
-                      style: IconButton.styleFrom(
-                        backgroundColor: cs.primary,
-                        foregroundColor: cs.onPrimary,
-                      ),
-                      onPressed: () {
-                        close();
-                        router.push('/submit');
-                      },
-                    ),
-                    const _DisplayMenu(),
-                    const SizedBox(width: 4),
-                    Semantics(
-                      button: true,
-                      label: 'Your profile',
-                      child: GestureDetector(
-                        onTap: () {
-                          close();
-                          router.push('/u/$username');
-                        },
-                        child: CircleAvatar(
-                          radius: 20,
-                          backgroundColor: cs.primaryContainer,
-                          child: Text(
-                            username.isNotEmpty
-                                ? username[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              color: cs.onPrimaryContainer,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween(
-            begin: const Offset(0, -0.06),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        ),
-      );
-    },
+  Widget build(BuildContext context, WidgetRef ref) => PostListView(
+    feedKey: '',
+    frontpageStyle: true,
+    header: FrontpageHeader(
+      forYou: ref.watch(settingsControllerProvider.select((s) => s.forYouFeed)),
+    ),
   );
-}
-
-/// Shows live Reddit API rate-limit usage alongside the search bar
-/// (power-user setting). Reddit allows ~100 requests/minute per OAuth client.
-class _ApiUsagePill extends ConsumerWidget {
-  const _ApiUsagePill();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-    final rl = ref.watch(rateLimitProvider);
-    final String label;
-    if (rl == null) {
-      label = 'API: 0/100';
-    } else {
-      label = 'API: ${rl.used}/${rl.total}';
-    }
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHigh,
-        borderRadius: ShapeTokens.full,
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: 0.20),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.speed_rounded, size: 16, color: cs.primary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: cs.onSurfaceVariant,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
