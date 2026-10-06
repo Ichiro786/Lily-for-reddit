@@ -15,6 +15,8 @@ import '../../models/post.dart';
 import '../history/history_store.dart';
 import '../settings/settings_controller.dart';
 import 'feed_controller.dart';
+import 'feed_resume_store.dart';
+import '../../core/storage/interaction_vault.dart';
 import 'post_card.dart';
 import 'post_skeleton.dart';
 
@@ -43,13 +45,19 @@ class PostListView extends ConsumerStatefulWidget {
   ConsumerState<PostListView> createState() => _PostListViewState();
 }
 
-class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
+class _PostListViewState extends ConsumerState<PostListView>
+    with RouteAware, WidgetsBindingObserver {
   final _scroll = ScrollController();
+  bool _restored = false;
+  int? _lastPositionRevision;
+  bool _tabActive = true;
+  PageRoute? _route;
   final _refreshKey = GlobalKey<M3ERefreshIndicatorState>();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scroll.addListener(() {
       if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 600) {
         ref.read(feedControllerProvider(widget.feedKey).notifier).loadMore();
@@ -61,18 +69,62 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final route = ModalRoute.of(context);
-    if (route is PageRoute) appRouteObserver.subscribe(this, route);
+    _tabActive = TickerMode.valuesOf(context).enabled;
+    if (route is PageRoute) {
+      _route = route;
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PostListView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.feedKey != widget.feedKey) {
+      _restored = false;
+      _lastPositionRevision = null;
+    }
   }
 
   /// Returning to the feed after a pushed route (e.g. a post) is popped:
   /// pull in fresh posts if the feed has gone stale.
   @override
   void didPopNext() {
+    _savePosition();
     ref.read(feedControllerProvider(widget.feedKey).notifier).refreshIfStale();
+  }
+
+  void _savePosition() {
+    if (!_scroll.hasClients) return;
+    ref
+        .read(feedControllerProvider(widget.feedKey).notifier)
+        .savePosition(
+          _scroll.offset,
+          active: _tabActive && (_route?.isCurrent ?? true),
+        );
+  }
+
+  @override
+  void didPushNext() => _savePosition();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_tabActive && (_route?.isCurrent ?? true)) {
+        ref
+            .read(feedControllerProvider(widget.feedKey).notifier)
+            .refreshIfStale();
+      }
+      return;
+    }
+    _savePosition();
+    ref.read(feedResumeStoreProvider.notifier).flush();
+    ref.read(historyControllerProvider.notifier).flushPersisted();
+    ref.read(interactionVaultProvider.notifier).flushPersisted();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     appRouteObserver.unsubscribe(this);
     _scroll.dispose();
     super.dispose();
@@ -90,6 +142,7 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
   }
 
   void _returnToTop() {
+    if (!_scroll.hasClients) return;
     if (MotionTokens.reduced(context)) {
       _scroll.jumpTo(0);
     } else {
@@ -165,23 +218,31 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
           final forYouFeed = ref.watch(
             settingsControllerProvider.select((s) => s.forYouFeed),
           );
-          final autoHideReadForYou = ref.watch(
-            settingsControllerProvider.select((s) => s.autoHideReadForYou),
-          );
-          var posts = state.posts;
-          // Auto-hide already-read items in the For You feed (live: rebuilds
-          // when history changes).
-          if (forYouFeed && widget.feedKey.isEmpty && autoHideReadForYou) {
-            ref.watch(historyControllerProvider);
-            final history = ref.read(historyControllerProvider.notifier);
-            posts = posts
-                .where(
-                  (p) => !(p.feedReason != null && history.containsId(p.id)),
-                )
-                .toList();
+          final posts = state.posts;
+          // Freeze presentation while scrolling; seen/read IDs are reconciled
+          // when fetching, rather than removing a card during its dwell timer.
+          if (_lastPositionRevision != null &&
+              _lastPositionRevision != state.positionRevision) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _scroll.hasClients) {
+                _scroll.jumpTo(0);
+                _savePosition();
+              }
+            });
+          }
+          _lastPositionRevision = state.positionRevision;
+          if (!_restored) {
+            _restored = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || !_scroll.hasClients) return;
+              final resume = ref.read(settingsControllerProvider).resumeFeeds;
+              _scroll.jumpTo(resume ? state.initialScrollOffset : 0);
+              _savePosition();
+            });
           }
           if (posts.isEmpty) {
             return ListView(
+              controller: _scroll,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: listPadding,
               children: [
@@ -197,7 +258,11 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
                         ? notifier.selectForYou
                         : null,
                   ),
-                _EmptyFeed(onRefresh: notifier.refresh),
+                _EmptyFeed(
+                  onRefresh: notifier.refresh,
+                  onLoadMore: state.hasMore ? notifier.loadMore : null,
+                  loading: state.loadingMore,
+                ),
               ],
             );
           }
@@ -274,7 +339,13 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
 
     return Stack(
       children: [
-        refreshable,
+        NotificationListener<ScrollEndNotification>(
+          onNotification: (notification) {
+            if (notification.depth == 0) _savePosition();
+            return false;
+          },
+          child: refreshable,
+        ),
         if (hasPending)
           Positioned(
             top: 8,
@@ -283,8 +354,8 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
             child: Center(
               child: _NewPostsPill(
                 onTap: () {
-                  notifier.applyPending();
-                  if (_scroll.hasClients) {
+                  final applied = notifier.applyPending();
+                  if (applied && _scroll.hasClients) {
                     _returnToTop();
                   }
                 },
@@ -297,9 +368,15 @@ class _PostListViewState extends ConsumerState<PostListView> with RouteAware {
 }
 
 class _EmptyFeed extends StatelessWidget {
-  const _EmptyFeed({required this.onRefresh});
+  const _EmptyFeed({
+    required this.onRefresh,
+    this.onLoadMore,
+    this.loading = false,
+  });
 
   final Future<void> Function() onRefresh;
+  final Future<void> Function()? onLoadMore;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -311,7 +388,9 @@ class _EmptyFeed extends StatelessWidget {
           Icon(Icons.inbox_rounded, size: 42, color: cs.primary),
           const SizedBox(height: 14),
           Text(
-            'No posts yet',
+            onLoadMore != null
+                ? 'No unread posts on this page'
+                : 'No posts yet',
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -324,9 +403,15 @@ class _EmptyFeed extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           FilledButton.tonalIcon(
-            onPressed: onRefresh,
+            onPressed: loading ? null : (onLoadMore ?? onRefresh),
             icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Refresh'),
+            label: Text(
+              loading
+                  ? 'Looking…'
+                  : onLoadMore != null
+                  ? 'Keep looking'
+                  : 'Refresh',
+            ),
           ),
         ],
       ),

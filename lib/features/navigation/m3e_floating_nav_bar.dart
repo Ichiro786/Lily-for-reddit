@@ -79,6 +79,12 @@ class _M3EFloatingNavBarState extends State<M3EFloatingNavBar> {
 
     final labelHeight = MediaQuery.textScalerOf(context).scale(12) * 4 / 3;
     final height = isMinimized ? 60.0 : math.max(64.0, 48 + labelHeight);
+    // Lily's dock uses capsule corners. A 4dp inset plus the 1dp border
+    // gives every edge the same gap; nested curves share the same center.
+    const inset = 4.0;
+    const borderWidth = 1.0;
+    final outerRadius = BorderRadius.circular(height / 2);
+    final innerRadius = BorderRadius.circular(height / 2 - inset - borderWidth);
     return RepaintBoundary(
       child: SafeArea(
         top: false,
@@ -89,11 +95,11 @@ class _M3EFloatingNavBarState extends State<M3EFloatingNavBar> {
             duration: duration,
             curve: Curves.easeOutCubic,
             height: height,
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(inset),
             decoration: BoxDecoration(
               color: cs.surfaceContainerLow,
-              borderRadius: ShapeTokens.extraLarge,
-              border: Border.all(color: cs.outlineVariant),
+              borderRadius: outerRadius,
+              border: Border.all(color: cs.outlineVariant, width: borderWidth),
               boxShadow: [
                 BoxShadow(
                   color: cs.shadow.withValues(alpha: 0.20),
@@ -119,7 +125,8 @@ class _M3EFloatingNavBarState extends State<M3EFloatingNavBar> {
                     Icons.person_rounded,
                     'Profile',
                   ),
-                ])
+                ]) ...[
+                  if (index > 0) const SizedBox(width: 8),
                   Expanded(
                     child: Semantics(
                       button: true,
@@ -141,116 +148,109 @@ class _M3EFloatingNavBarState extends State<M3EFloatingNavBar> {
                         message: index == 1 && widget.onSearch != null
                             ? 'Discover · double-tap to search'
                             : label,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: M3EPressBounce(
-                            selected: currentIndex == index,
-                            child: Material(
-                              color: currentIndex == index
-                                  ? cs.primaryContainer
-                                  : Colors.transparent,
-                              animationDuration: duration,
-                              borderRadius: ShapeTokens.medium,
-                              child: InkWell(
-                                borderRadius: ShapeTokens.medium,
-                                onTap: () => _select(index),
-                                onLongPress: index == 1
-                                    ? widget.onSearch
-                                    : null,
-                                child: ClipRect(
-                                  child: OverflowBox(
-                                    minHeight: 0,
-                                    maxHeight: math.max(64.0, 48 + labelHeight),
-                                    alignment: Alignment.center,
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        FadeTransition(
-                                          opacity: icons,
-                                          child: Stack(
-                                            clipBehavior: Clip.none,
-                                            children: [
-                                              Icon(
-                                                currentIndex == index
-                                                    ? activeIcon
-                                                    : icon,
-                                                size: 24,
-                                                color: currentIndex == index
-                                                    ? cs.primary
-                                                    : cs.onSurfaceVariant,
-                                              ),
-                                              if (index == 2 && unreadCount > 0)
-                                                Positioned(
-                                                  right: -3,
-                                                  top: -2,
-                                                  child: Container(
-                                                    width: 8,
-                                                    height: 8,
-                                                    decoration: BoxDecoration(
-                                                      color: cs.primary,
-                                                      shape: BoxShape.circle,
-                                                    ),
+                        child: M3EPressBounce(
+                          selected: currentIndex == index,
+                          child: Material(
+                            color: currentIndex == index
+                                ? cs.primaryContainer
+                                : Colors.transparent,
+                            animationDuration: duration,
+                            borderRadius: innerRadius,
+                            child: InkWell(
+                              borderRadius: innerRadius,
+                              onTap: () => _select(index),
+                              onLongPress: index == 1 ? widget.onSearch : null,
+                              child: ClipRect(
+                                child: OverflowBox(
+                                  minHeight: 0,
+                                  maxHeight: math.max(64.0, 48 + labelHeight),
+                                  alignment: Alignment.center,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      FadeTransition(
+                                        opacity: icons,
+                                        child: Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            Icon(
+                                              currentIndex == index
+                                                  ? activeIcon
+                                                  : icon,
+                                              size: 24,
+                                              color: currentIndex == index
+                                                  ? cs.primary
+                                                  : cs.onSurfaceVariant,
+                                            ),
+                                            if (index == 2 && unreadCount > 0)
+                                              Positioned(
+                                                right: -3,
+                                                top: -2,
+                                                child: Container(
+                                                  width: 8,
+                                                  height: 8,
+                                                  decoration: BoxDecoration(
+                                                    color: cs.primary,
+                                                    shape: BoxShape.circle,
                                                   ),
                                                 ),
-                                            ],
-                                          ),
+                                              ),
+                                          ],
                                         ),
-                                        ClipRect(
-                                          child: AnimatedAlign(
+                                      ),
+                                      ClipRect(
+                                        child: AnimatedAlign(
+                                          duration: duration,
+                                          curve: Curves.easeOutCubic,
+                                          heightFactor: isMinimized ? 0 : 1,
+                                          alignment: Alignment.topCenter,
+                                          child: AnimatedOpacity(
+                                            opacity: isMinimized ? 0 : 1,
                                             duration: duration,
                                             curve: Curves.easeOutCubic,
-                                            heightFactor: isMinimized ? 0 : 1,
-                                            alignment: Alignment.topCenter,
-                                            child: AnimatedOpacity(
-                                              opacity: isMinimized ? 0 : 1,
-                                              duration: duration,
-                                              curve: Curves.easeOutCubic,
-                                              child: Padding(
-                                                padding: const EdgeInsets.only(
-                                                  top: 2,
-                                                ),
-                                                child: Column(
-                                                  children: [
-                                                    Text(
-                                                      label,
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .labelMedium
-                                                          ?.copyWith(
-                                                            letterSpacing: 0,
-                                                            color:
-                                                                currentIndex ==
-                                                                    index
-                                                                ? cs.onPrimaryContainer
-                                                                : cs.onSurfaceVariant,
-                                                          ),
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 2,
+                                              ),
+                                              child: Column(
+                                                children: [
+                                                  Text(
+                                                    label,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .labelMedium
+                                                        ?.copyWith(
+                                                          letterSpacing: 0,
+                                                          color:
+                                                              currentIndex ==
+                                                                  index
+                                                              ? cs.onPrimaryContainer
+                                                              : cs.onSurfaceVariant,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Container(
+                                                    width: 24,
+                                                    height: 2,
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          currentIndex == index
+                                                          ? cs.primary
+                                                          : Colors.transparent,
+                                                      borderRadius:
+                                                          ShapeTokens.full,
                                                     ),
-                                                    const SizedBox(height: 4),
-                                                    Container(
-                                                      width: 24,
-                                                      height: 2,
-                                                      decoration: BoxDecoration(
-                                                        color:
-                                                            currentIndex ==
-                                                                index
-                                                            ? cs.primary
-                                                            : Colors
-                                                                  .transparent,
-                                                        borderRadius:
-                                                            ShapeTokens.full,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ),
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -260,6 +260,7 @@ class _M3EFloatingNavBarState extends State<M3EFloatingNavBar> {
                       ),
                     ),
                   ),
+                ],
               ],
             ),
           ),

@@ -381,277 +381,288 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: async.when(
-              loading: () => _LoadingWithHeader(post: widget.initialPost),
-              error: (e, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Could not load this post.\n$e',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton(
-                        onPressed: notifier.refresh,
-                        child: const Text('Retry'),
-                      ),
-                    ],
+      body: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          children: [
+            Expanded(
+              child: async.when(
+                loading: () => _LoadingWithHeader(post: widget.initialPost),
+                error: (e, _) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Could not load this post.\n$e',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: notifier.refresh,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              data: (thread) {
-                final commentMarkdownStyle = _getCommentMarkdownStyle(context);
-                final presentations = ref.watch(
-                  flattenedCommentPresentationProvider((
-                    key,
-                    commentMarkdownStyle,
-                  )),
-                );
-                final flat = [
-                  for (final presentation in presentations)
-                    presentation.comment,
-                ];
-                _flat = flat;
-                final colorScheme = Theme.of(context).colorScheme;
-                final theme = Theme.of(context);
-                final sortHeader = Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: PopupMenuButton<String>(
-                        popUpAnimationStyle: AnimationStyle(
-                          duration: MotionTokens.content(context),
-                          reverseDuration: MotionTokens.feedback(context),
-                          curve: MotionTokens.emphasized,
+                data: (thread) {
+                  final commentMarkdownStyle = _getCommentMarkdownStyle(
+                    context,
+                  );
+                  final presentations = ref.watch(
+                    flattenedCommentPresentationProvider((
+                      key,
+                      commentMarkdownStyle,
+                    )),
+                  );
+                  final flat = [
+                    for (final presentation in presentations)
+                      presentation.comment,
+                  ];
+                  _flat = flat;
+                  final colorScheme = Theme.of(context).colorScheme;
+                  final theme = Theme.of(context);
+                  final sortHeader = Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        shape: ShapeTokens.largeShape,
-                        position: PopupMenuPosition.under,
-                        onSelected: notifier.changeSort,
-                        itemBuilder: (_) => [
-                          for (final s in commentSorts)
-                            CheckedPopupMenuItem(
-                              value: s,
-                              checked: notifier.sort == s,
-                              child: Text(commentSortLabels[s] ?? s),
-                            ),
-                        ],
-                        tooltip: 'Sort comments',
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 14,
+                        child: PopupMenuButton<String>(
+                          popUpAnimationStyle: AnimationStyle(
+                            duration: MotionTokens.content(context),
+                            reverseDuration: MotionTokens.feedback(context),
+                            curve: MotionTokens.emphasized,
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.sort_rounded,
-                                size: 18,
-                                color: colorScheme.primary,
+                          shape: ShapeTokens.largeShape,
+                          position: PopupMenuPosition.under,
+                          onSelected: notifier.changeSort,
+                          itemBuilder: (_) => [
+                            for (final s in commentSorts)
+                              CheckedPopupMenuItem(
+                                value: s,
+                                checked: notifier.sort == s,
+                                child: Text(commentSortLabels[s] ?? s),
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                // Reflect the controller's active sort; the label
-                                // mapping is the single canonical source.
-                                (commentSortLabels[notifier.sort] ??
-                                        notifier.sort)
-                                    .toUpperCase(),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.5,
+                          ],
+                          tooltip: 'Sort comments',
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 14,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.sort_rounded,
+                                  size: 18,
                                   color: colorScheme.primary,
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'COMMENTS',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.5,
+                                const SizedBox(width: 6),
+                                Text(
+                                  // Reflect the controller's active sort; the label
+                                  // mapping is the single canonical source.
+                                  (commentSortLabels[notifier.sort] ??
+                                          notifier.sort)
+                                      .toUpperCase(),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'COMMENTS',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 18,
                                   color: colorScheme.primary,
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 18,
-                                color: colorScheme.primary,
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                );
+                  );
 
-                return M3ERefreshIndicator(
-                  onRefresh: notifier.refresh,
-                  child: ScrollablePositionedList.builder(
-                    itemScrollController: _itemScrollController,
-                    itemPositionsListener: _itemPositions,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    minCacheExtent: 320,
-                    itemCount: flat.isEmpty ? 2 : flat.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return Column(
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (widget.focusCommentId != null)
-                                  Material(
-                                    color: colorScheme.secondaryContainer,
-                                    child: InkWell(
-                                      onTap: () => context.replace(
-                                        '/comments/${widget.subreddit}/${widget.postId}',
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 10,
+                  return M3ERefreshIndicator(
+                    onRefresh: notifier.refresh,
+                    child: ScrollablePositionedList.builder(
+                      itemScrollController: _itemScrollController,
+                      itemPositionsListener: _itemPositions,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      minCacheExtent: 320,
+                      itemCount: flat.isEmpty ? 2 : flat.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return Column(
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (widget.focusCommentId != null)
+                                    Material(
+                                      color: colorScheme.secondaryContainer,
+                                      child: InkWell(
+                                        onTap: () => context.replace(
+                                          '/comments/${widget.subreddit}/${widget.postId}',
                                         ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons
-                                                  .subdirectory_arrow_right_rounded,
-                                              size: 18,
-                                              color: colorScheme
-                                                  .onSecondaryContainer,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                'Viewing a single comment thread',
-                                                style: TextStyle(
-                                                  color: colorScheme
-                                                      .onSecondaryContainer,
-                                                  fontWeight: FontWeight.w600,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 10,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons
+                                                    .subdirectory_arrow_right_rounded,
+                                                size: 18,
+                                                color: colorScheme
+                                                    .onSecondaryContainer,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  'Viewing a single comment thread',
+                                                  style: TextStyle(
+                                                    color: colorScheme
+                                                        .onSecondaryContainer,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                            Text(
-                                              'Show all',
-                                              style: TextStyle(
-                                                color: colorScheme.primary,
-                                                fontWeight: FontWeight.w700,
+                                              Text(
+                                                'Show all',
+                                                style: TextStyle(
+                                                  color: colorScheme.primary,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
+                                  _PostHeader(
+                                    post: thread.post,
+                                    onComments: _scrollToComments,
                                   ),
-                                _PostHeader(
-                                  post: thread.post,
-                                  onComments: _scrollToComments,
-                                ),
-                                Divider(
-                                  height: 16,
-                                  color: colorScheme.outlineVariant.withValues(
-                                    alpha: 0.35,
+                                  Divider(
+                                    height: 16,
+                                    color: colorScheme.outlineVariant
+                                        .withValues(alpha: 0.35),
                                   ),
-                                ),
-                                sortHeader,
-                                const SizedBox(height: 8),
-                              ],
+                                  sortHeader,
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            ],
+                          );
+                        }
+                        if (flat.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.all(40),
+                            child: Center(child: Text('No comments yet')),
+                          );
+                        }
+                        final presentation = presentations[index - 1];
+                        final c = presentation.comment;
+                        return RepaintBoundary(
+                          child: _CommentTile(
+                            key: ValueKey(
+                              c.isMore ? moreNodeKey(c) : c.fullname,
                             ),
-                          ],
-                        );
-                      }
-                      if (flat.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.all(40),
-                          child: Center(child: Text('No comments yet')),
-                        );
-                      }
-                      final presentation = presentations[index - 1];
-                      final c = presentation.comment;
-                      return RepaintBoundary(
-                        child: _CommentTile(
-                          key: ValueKey(c.isMore ? moreNodeKey(c) : c.fullname),
-                          comment: c,
-                          richBody: presentation.markdownBody,
-                          opAuthor: thread.post.author,
-                          collapsed: thread.collapsed.contains(c.id),
-                          loadingMore: thread.loadingMore.contains(
-                            moreNodeKey(c),
-                          ),
-                          onToggle: () => notifier.toggleCollapse(c.id),
-                          onLoadMore: () => notifier.loadMore(c),
-                          onOverflow: () =>
-                              _showCommentOverflowMenu(context, c, thread.post),
-                          onOpenThread: () {
-                            final focusId = c.moreChildren.isNotEmpty
-                                ? c.moreChildren.first
-                                : c.id;
-                            context.push(
-                              '/comments/${Uri.encodeComponent(thread.post.subreddit)}/${thread.post.id}?comment=${Uri.encodeComponent(focusId)}',
-                            );
-                          },
-                          onReply: () async {
-                            final reply = await showReplySheet(
+                            comment: c,
+                            richBody: presentation.markdownBody,
+                            opAuthor: thread.post.author,
+                            collapsed: thread.collapsed.contains(c.id),
+                            loadingMore: thread.loadingMore.contains(
+                              moreNodeKey(c),
+                            ),
+                            onToggle: () => notifier.toggleCollapse(c.id),
+                            onLoadMore: () => notifier.loadMore(c),
+                            onOverflow: () => _showCommentOverflowMenu(
                               context,
-                              ref,
-                              parentFullname: c.fullname,
-                              parentDepth: c.depth,
-                              replyingTo: c.author,
-                            );
-                            if (reply != null) {
-                              notifier.insertReply(c.fullname, reply);
-                              ref
-                                  .read(postOverridesProvider.notifier)
-                                  .bumpComments(thread.post, 1);
-                              ref
-                                  .read(interestStoreProvider.notifier)
-                                  .bump(thread.post.subreddit, 2.5);
-                            }
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+                              c,
+                              thread.post,
+                            ),
+                            onOpenThread: () {
+                              final focusId = c.moreChildren.isNotEmpty
+                                  ? c.moreChildren.first
+                                  : c.id;
+                              context.push(
+                                '/comments/${Uri.encodeComponent(thread.post.subreddit)}/${thread.post.id}?comment=${Uri.encodeComponent(focusId)}',
+                              );
+                            },
+                            onReply: () async {
+                              final reply = await showReplySheet(
+                                context,
+                                ref,
+                                parentFullname: c.fullname,
+                                parentDepth: c.depth,
+                                replyingTo: c.author,
+                              );
+                              if (reply != null) {
+                                notifier.insertReply(c.fullname, reply);
+                                ref
+                                    .read(postOverridesProvider.notifier)
+                                    .bumpComments(thread.post, 1);
+                                ref
+                                    .read(interestStoreProvider.notifier)
+                                    .bump(thread.post.subreddit, 2.5);
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-          CommentComposeBar(
-            controller: _composeCtrl,
-            enabled:
-                thread != null &&
-                !_sendingQuickReply &&
-                !ref.watch(authTransitionProvider),
-            onPickGif: () => ref.read(replyGifPickerProvider)(context, ref),
-            onSubmit: (text) {
-              if (thread == null || _sendingQuickReply) return;
-              final attachment = _pendingComposeAttachment;
-              _pendingComposeAttachment = null;
-              _sendQuickReply(notifier, thread, text, attachment);
-            },
-            media: _pendingComposeAttachment,
-            onMediaSelected: (media) =>
-                setState(() => _pendingComposeAttachment = media),
-            onJumpNext: thread == null || thread.comments.isEmpty
-                ? null
-                : _jumpNextTopLevel,
-          ),
-        ],
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: constraints.maxHeight),
+              child: CommentComposeBar(
+                controller: _composeCtrl,
+                enabled:
+                    thread != null &&
+                    !_sendingQuickReply &&
+                    !ref.watch(authTransitionProvider),
+                onPickGif: () => ref.read(replyGifPickerProvider)(context, ref),
+                onSubmit: (text) {
+                  if (thread == null || _sendingQuickReply) return;
+                  final attachment = _pendingComposeAttachment;
+                  _pendingComposeAttachment = null;
+                  _sendQuickReply(notifier, thread, text, attachment);
+                },
+                media: _pendingComposeAttachment,
+                onMediaSelected: (media) =>
+                    setState(() => _pendingComposeAttachment = media),
+                onJumpNext: thread == null || thread.comments.isEmpty
+                    ? null
+                    : _jumpNextTopLevel,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

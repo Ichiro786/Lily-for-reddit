@@ -18,6 +18,67 @@ Finder _dock() => find
     .first;
 
 void main() {
+  for (final minimized in [false, true]) {
+    for (final direction in [TextDirection.ltr, TextDirection.rtl]) {
+      testWidgets('uniform dock insets: minimized=$minimized, $direction', (
+        tester,
+      ) async {
+        Rect? previousPill;
+        for (var selected = 0; selected < 4; selected++) {
+          await tester.pumpWidget(
+            _harness(
+              Directionality(
+                textDirection: direction,
+                child: M3EFloatingNavBar(
+                  currentIndex: selected,
+                  isMinimized: minimized,
+                  onTap: (_) {},
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final dock = tester.getRect(_dock());
+          final selectedMaterial = find.descendant(
+            of: find.byType(M3EFloatingNavBar),
+            matching: find.byWidgetPredicate(
+              (w) =>
+                  w is Material &&
+                  w.color ==
+                      Theme.of(
+                        tester.element(_dock()),
+                      ).colorScheme.primaryContainer,
+            ),
+          );
+          final pill = tester.getRect(selectedMaterial);
+          expect(pill.top - dock.top, closeTo(5, 0.1));
+          expect(dock.bottom - pill.bottom, closeTo(5, 0.1));
+          if (selected == 0 || selected == 3) {
+            final atLeft = (selected == 0) == (direction == TextDirection.ltr);
+            expect(
+              atLeft ? pill.left - dock.left : dock.right - pill.right,
+              closeTo(5, 0.1),
+            );
+          }
+          if (previousPill != null) {
+            expect(pill.width, closeTo(previousPill.width, 0.1));
+            expect(pill.height, closeTo(previousPill.height, 0.1));
+          }
+          previousPill = pill;
+          final outer =
+              tester.widget<AnimatedContainer>(_dock()).decoration!
+                  as BoxDecoration;
+          final material = tester.widget<Material>(selectedMaterial);
+          expect(
+            material.borderRadius!.resolve(direction).topLeft.x,
+            outer.borderRadius!.resolve(direction).topLeft.x - 5,
+          );
+          expect(tester.takeException(), isNull);
+        }
+      });
+    }
+  }
+
   testWidgets(
     'Discover single taps stay immediate and spaced taps do not search',
     (tester) async {

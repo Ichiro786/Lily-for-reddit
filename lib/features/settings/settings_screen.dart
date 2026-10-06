@@ -236,10 +236,17 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       ),
       SwitchListTile(
         secondary: const Icon(Icons.mark_email_read_outlined),
-        title: const Text('Auto-hide read items in "For You"'),
-        subtitle: const Text('Hide posts you\'ve marked/opened as read'),
-        value: s.autoHideReadForYou,
-        onChanged: ctrl.setAutoHideReadForYou,
+        title: const Text('Hide read posts automatically'),
+        subtitle: const Text('Hide seen or opened posts across your feeds'),
+        value: s.hideReadPosts,
+        onChanged: ctrl.setHideReadPosts,
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.restore_rounded),
+        title: const Text('Resume feeds where I left off'),
+        subtitle: const Text('Restore your sort and position on short returns'),
+        value: s.resumeFeeds,
+        onChanged: ctrl.setResumeFeeds,
       ),
       ListTile(
         leading: const Icon(Icons.tune_rounded),

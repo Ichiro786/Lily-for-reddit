@@ -7,6 +7,7 @@ import '../../core/widgets/m3e_animated_size.dart';
 import '../../core/widgets/m3e_loading_indicator.dart';
 import '../../models/post.dart';
 import 'media_viewers.dart';
+import 'gallery_preload.dart';
 
 /// An inline, swipeable gallery preview with a page counter and dot indicator.
 /// Tapping any image opens the full-screen viewer at that index.
@@ -174,31 +175,42 @@ class _GalleryCarouselState extends State<GalleryCarousel> {
                 height: displayHeight,
                 child: stack,
               );
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            M3EAnimatedSize(
-              alignment: Alignment.topCenter,
-              child: ClipRRect(
-                borderRadius: ShapeTokens.large,
-                child: viewport,
-              ),
-            ),
-            if (capped)
-              Semantics(
-                button: true,
-                label: 'View full gallery',
-                child: TextButton.icon(
-                  onPressed: () => setState(() => _expanded = !_expanded),
-                  icon: const Icon(Icons.open_in_full_rounded, size: 16),
-                  label: Text(_expanded ? 'Show less' : 'View full'),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
+        return GalleryPreload(
+          index: _index,
+          providers: [
+            for (final image in widget.images)
+              ResizeImage.resizeIfNeeded(
+                cacheWidth,
+                null,
+                CachedNetworkImageProvider(image.url),
               ),
           ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              M3EAnimatedSize(
+                alignment: Alignment.topCenter,
+                child: ClipRRect(
+                  borderRadius: ShapeTokens.large,
+                  child: viewport,
+                ),
+              ),
+              if (capped)
+                Semantics(
+                  button: true,
+                  label: 'View full gallery',
+                  child: TextButton.icon(
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                    icon: const Icon(Icons.open_in_full_rounded, size: 16),
+                    label: Text(_expanded ? 'Show less' : 'View full'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );

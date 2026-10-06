@@ -214,6 +214,8 @@ class BackupService {
       'checkUpdates',
       'forYouFeed',
       'autoHideReadForYou',
+      'hideReadPosts',
+      'resumeFeeds',
       'midResThumbnails',
       'subsCacheEnabled',
       'autoplayMedia',

@@ -311,11 +311,13 @@ void main() {
     );
     await tester.tap(find.byTooltip('Add media'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Next comment thread'));
     await tester.tap(find.text('Next comment thread'));
     await tester.pumpAndSettle();
     expect(find.text('u/last_author'), findsNothing);
     await tester.tap(find.byTooltip('Add media'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Next comment thread'));
     await tester.tap(find.text('Next comment thread'));
     await tester.pumpAndSettle();
     expect(find.text('u/last_author'), findsOneWidget);

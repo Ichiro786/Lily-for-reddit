@@ -94,6 +94,8 @@ class HistoryController extends Notifier<List<HistoryEntry>> {
     return entries;
   }
 
+  Future<void> flushPersisted() async => _writer?.flush();
+
   void markViewed(Post p) {
     final entry = HistoryEntry(
       id: p.id,
