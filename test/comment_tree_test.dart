@@ -186,6 +186,7 @@ void main() {
     expect(find.text('Photo'), findsOneWidget);
     expect(find.text('Video'), findsOneWidget);
     expect(find.text('GIF'), findsOneWidget);
+    await tester.ensureVisible(find.text('Next comment thread'));
     await tester.tap(find.text('Next comment thread'));
     await tester.pumpAndSettle();
 

@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/motion_tokens.dart';
 import '../explore/explore_screen.dart';
 import '../feed/post_list_view.dart';
+import '../feed/feed_resume_store.dart';
 import '../inbox/inbox_controller.dart';
 import '../inbox/inbox_screen.dart';
 import '../notifications/inbox_poller.dart';
@@ -49,7 +50,21 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   void initState() {
     super.initState();
+    final lastFeed = ref.read(settingsControllerProvider).resumeFeeds
+        ? ref.read(feedResumeStoreProvider).lastFeed
+        : '';
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      if (lastFeed.isNotEmpty && ModalRoute.of(context)?.isCurrent == true) {
+        final multi = lastFeed.split('::');
+        if (multi.length == 3 && multi.first == 'm') {
+          context.push(
+            '/m/${Uri.encodeComponent(multi[1])}/${Uri.encodeComponent(multi[2])}',
+          );
+        } else if (!lastFeed.contains('::')) {
+          context.push('/r/${Uri.encodeComponent(lastFeed)}');
+        }
+      }
       await _maybeCheckUpdates();
       if (mounted) await _maybeSuggestNotifications();
     });
@@ -172,90 +187,100 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final showNavLabels = ref.watch(
       settingsControllerProvider.select((s) => s.navLabels),
     );
-    return Scaffold(
-      // Pop variant: content flows under the detached floating nav.
-      extendBody: true,
-      body: NotificationListener<ScrollNotification>(
-        onNotification: _onScroll,
-        child: SafeArea(
-          bottom: false,
-          child: _LazyKeepAliveTabHost(
-            index: _index,
-            tabs: [
-              const _FrontpageTab(),
-              _tabWidgets[1],
-              _tabWidgets[2],
-              _tabWidgets[3],
-            ],
+    return PopScope(
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop || _index == 0) return;
+        _revealChromeTimer?.cancel();
+        _revealChromeTimer = null;
+        _chrome.value = true;
+        setState(() => _index = 0);
+      },
+      child: Scaffold(
+        // Pop variant: content flows under the detached floating nav.
+        extendBody: true,
+        body: NotificationListener<ScrollNotification>(
+          onNotification: _onScroll,
+          child: SafeArea(
+            bottom: false,
+            child: _LazyKeepAliveTabHost(
+              index: _index,
+              tabs: [
+                const _FrontpageTab(),
+                _tabWidgets[1],
+                _tabWidgets[2],
+                _tabWidgets[3],
+              ],
+            ),
           ),
         ),
-      ),
-      floatingActionButton: _index == 0
-          ? ValueListenableBuilder<bool>(
-              valueListenable: _chrome,
-              builder: (context, visible, child) => AnimatedScale(
-                scale: visible ? 1.0 : 0.0,
-                duration: MotionTokens.feedback(context),
-                curve: Curves.fastOutSlowIn,
-                child: child!,
-              ),
-              child: SizedBox(
-                width: 64,
-                height: 64,
-                child: FloatingActionButton(
-                  tooltip: 'Create post',
-                  elevation: 0,
-                  onPressed: () => context.push('/submit'),
-                  child: const Icon(Icons.add_rounded, size: 28),
+        floatingActionButton: _index == 0
+            ? ValueListenableBuilder<bool>(
+                valueListenable: _chrome,
+                builder: (context, visible, child) => AnimatedScale(
+                  scale: visible ? 1.0 : 0.0,
+                  duration: MotionTokens.feedback(context),
+                  curve: Curves.fastOutSlowIn,
+                  child: child!,
                 ),
-              ),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: ValueListenableBuilder<bool>(
-        valueListenable: _chrome,
-        builder: (_, visible, __) => M3EFloatingNavBar(
-          currentIndex: _index,
-          unreadCount: unread,
-          isVisible: visible,
-          isMinimized: !showNavLabels,
-          onSearch: () {
-            _revealChromeTimer?.cancel();
-            _revealChromeTimer = null;
-            _chrome.value = true;
-            if (_index != 1) {
-              setState(() {
-                _tabWidgets[1] ??= _createTab(1);
-                _index = 1;
-              });
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  ref.read(discoverSearchSignalProvider.notifier).state++;
-                }
-              });
-            } else {
-              ref.read(discoverSearchSignalProvider.notifier).state++;
-            }
-          },
-          onTap: (i) {
-            _revealChromeTimer?.cancel();
-            _revealChromeTimer = null;
-            _chrome.value = true;
-            // Re-tapping the active tab scrolls it to top (Posts also refreshes).
-            if (i == _index) {
-              if (i == 0) {
-                ref.read(frontpageScrollSignalProvider.notifier).state++;
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: FloatingActionButton(
+                    tooltip: 'Create post',
+                    elevation: 0,
+                    onPressed: () => context.push('/submit'),
+                    child: const Icon(Icons.add_rounded, size: 28),
+                  ),
+                ),
+              )
+            : null,
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+        bottomNavigationBar: ValueListenableBuilder<bool>(
+          valueListenable: _chrome,
+          builder: (_, visible, __) => M3EFloatingNavBar(
+            currentIndex: _index,
+            unreadCount: unread,
+            isVisible: visible,
+            isMinimized: !showNavLabels,
+            onSearch: () {
+              _revealChromeTimer?.cancel();
+              _revealChromeTimer = null;
+              _chrome.value = true;
+              if (_index != 1) {
+                setState(() {
+                  _tabWidgets[1] ??= _createTab(1);
+                  _index = 1;
+                });
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    ref.read(discoverSearchSignalProvider.notifier).state++;
+                  }
+                });
               } else {
-                ref.read(tabReselectProvider(i).notifier).state++;
+                ref.read(discoverSearchSignalProvider.notifier).state++;
               }
-              return;
-            }
-            setState(() {
-              if (i != 0) _tabWidgets[i] ??= _createTab(i);
-              _index = i;
-            });
-            _chrome.value = true; // always reveal chrome when switching tabs
-          },
+            },
+            onTap: (i) {
+              _revealChromeTimer?.cancel();
+              _revealChromeTimer = null;
+              _chrome.value = true;
+              // Re-tapping the active tab scrolls it to top (Posts also refreshes).
+              if (i == _index) {
+                if (i == 0) {
+                  ref.read(frontpageScrollSignalProvider.notifier).state++;
+                } else {
+                  ref.read(tabReselectProvider(i).notifier).state++;
+                }
+                return;
+              }
+              setState(() {
+                if (i != 0) _tabWidgets[i] ??= _createTab(i);
+                _index = i;
+              });
+              _chrome.value = true; // always reveal chrome when switching tabs
+            },
+          ),
         ),
       ),
     );

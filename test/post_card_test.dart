@@ -74,7 +74,7 @@ Settings _settings(PostDisplay display) => Settings(
   offlineCache: true,
   checkUpdates: false,
   forYouFeed: false,
-  autoHideReadForYou: false,
+  hideReadPosts: false,
   midResThumbnails: true,
   subsCacheEnabled: true,
   subsCacheMinutes: 10,

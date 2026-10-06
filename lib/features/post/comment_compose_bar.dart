@@ -1,11 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/theme/motion_tokens.dart';
 import '../../core/theme/shape_tokens.dart';
 import '../media/attachment.dart';
 import '../media/attachment_bar.dart';
 import '../media/composer_media_menu.dart';
+import '../media/composer_media_tray.dart';
 import '../media/keyboard_media.dart';
 import 'reply_editor.dart';
 
@@ -42,6 +46,8 @@ class CommentComposeBar extends StatefulWidget {
 
 class _CommentComposeBarState extends State<CommentComposeBar> {
   late TextEditingController _controller;
+  final _focusNode = FocusNode();
+  bool _trayOpen = false;
   MediaAttachment? _media;
   bool _ownsController = false, _readingMedia = false;
   int _generation = 0;
@@ -78,6 +84,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     if (!widget.enabled && oldWidget.enabled) {
       _generation++;
       _readingMedia = false;
+      _trayOpen = false;
     }
   }
 
@@ -86,6 +93,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     _generation++;
     _controller.removeListener(_changed);
     if (_ownsController) _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -128,6 +136,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     } finally {
       if (mounted && generation == _generation) {
         setState(() => _readingMedia = false);
+        if (widget.enabled) _focusNode.requestFocus();
       }
     }
   }
@@ -155,11 +164,21 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     } finally {
       if (mounted && generation == _generation) {
         setState(() => _readingMedia = false);
+        if (widget.enabled) _focusNode.requestFocus();
       }
     }
   }
 
+  void _toggleTray() {
+    if (!_enabled) return;
+    HapticFeedback.selectionClick();
+    _focusNode.requestFocus();
+    setState(() => _trayOpen = !_trayOpen);
+  }
+
   void _select(ComposerMediaAction action) {
+    if (!_enabled) return;
+    setState(() => _trayOpen = false);
     switch (action) {
       case ComposerMediaAction.photo:
         _readMedia(widget.imagePicker);
@@ -179,98 +198,184 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     final text = _controller.text.trim();
     if (text.isEmpty && _media == null) return;
     HapticFeedback.selectionClick();
+    setState(() => _trayOpen = false);
     widget.onSubmit!(text);
     _controller.clear();
     _acceptMedia(null);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(builder: _buildBar);
+
+  Widget _buildBar(BuildContext context, BoxConstraints constraints) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final hasContent = _controller.text.trim().isNotEmpty || _media != null;
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        color: cs.surface,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_mediaError != null)
-              Text(_mediaError!, style: TextStyle(color: cs.error)),
-            if (_media != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: AttachmentPreview(
-                  media: _media!,
-                  onRemove: _enabled ? () => _acceptMedia(null) : null,
-                ),
-              ),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 48),
-                    padding: const EdgeInsets.only(left: 16, right: 8),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: ShapeTokens.full,
+    // Design decision: cap the tray and let its rows scroll in short windows.
+    // The Scaffold already consumes viewInsets; adding them here would lift
+    // the composer twice when the keyboard opens.
+    final availableHeight = constraints.hasBoundedHeight
+        ? constraints.maxHeight
+        : math.max(
+            72.0,
+            MediaQuery.sizeOf(context).height -
+                MediaQuery.viewInsetsOf(context).bottom -
+                MediaQuery.viewPaddingOf(context).vertical -
+                kToolbarHeight,
+          );
+    final inputStyle = theme.textTheme.bodyMedium!;
+    final lineHeight =
+        MediaQuery.textScalerOf(context).scale(inputStyle.fontSize!) *
+        (inputStyle.height ?? 1.4);
+    final previewHeight = _media != null ? 80.0 : 0.0;
+    final errorHeight = _mediaError != null ? lineHeight * 3 : 0.0;
+    // Leave a scrollable tray viewport even with large text in landscape.
+    final maxLines =
+        ((availableHeight - 132 - previewHeight - errorHeight) / lineHeight)
+            .floor()
+            .clamp(1, 4);
+    return PopScope(
+      canPop: !_trayOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _trayOpen) setState(() => _trayOpen = false);
+      },
+      child: TextFieldTapRegion(
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: math.max(0, availableHeight),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: cs.surface,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_mediaError != null)
+                    Text(
+                      _mediaError!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: cs.error),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            readOnly: !_enabled,
-                            contentInsertionConfiguration:
-                                ContentInsertionConfiguration(
-                                  allowedMimeTypes: keyboardImageMimeTypes,
-                                  onContentInserted: _keyboardContent,
+                  if (_media != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: AttachmentPreview(
+                        media: _media!,
+                        onRemove: _enabled ? () => _acceptMedia(null) : null,
+                      ),
+                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 56),
+                          padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest,
+                            borderRadius: ShapeTokens.full,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Semantics(
+                                expanded: _trayOpen,
+                                child: IconButton(
+                                  tooltip: _trayOpen
+                                      ? 'Close media'
+                                      : 'Add media',
+                                  onPressed: _enabled ? _toggleTray : null,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 48,
+                                    height: 48,
+                                  ),
+                                  icon: AnimatedRotation(
+                                    turns: _trayOpen ? 0.125 : 0,
+                                    duration: MotionTokens.feedback(context),
+                                    curve: MotionTokens.emphasized,
+                                    child: Icon(
+                                      Icons.add_rounded,
+                                      size: 28,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
                                 ),
-                            onSubmitted: (_) => _handleSend(),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: cs.onSurface,
-                            ),
-                            decoration: InputDecoration(
-                              filled: false,
-                              hintText: widget.hintText,
-                              hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                                color: cs.onSurfaceVariant,
                               ),
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              disabledBorder: InputBorder.none,
-                              errorBorder: InputBorder.none,
-                              focusedErrorBorder: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            textInputAction: TextInputAction.send,
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: TextField(
+                                  controller: _controller,
+                                  focusNode: _focusNode,
+                                  readOnly: !_enabled,
+                                  minLines: 1,
+                                  maxLines: maxLines,
+                                  keyboardType: TextInputType.multiline,
+                                  contentInsertionConfiguration:
+                                      ContentInsertionConfiguration(
+                                        allowedMimeTypes:
+                                            keyboardImageMimeTypes,
+                                        onContentInserted: _keyboardContent,
+                                      ),
+                                  onSubmitted: (_) => _handleSend(),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: cs.onSurface,
+                                  ),
+                                  decoration: InputDecoration(
+                                    filled: false,
+                                    hintText: widget.hintText,
+                                    hintStyle: theme.textTheme.bodyMedium
+                                        ?.copyWith(color: cs.onSurfaceVariant),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    disabledBorder: InputBorder.none,
+                                    errorBorder: InputBorder.none,
+                                    focusedErrorBorder: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                  textInputAction: TextInputAction.send,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        if (hasContent)
-                          IconButton(
-                            tooltip: 'Send comment',
-                            onPressed: _enabled && widget.onSubmit != null
-                                ? _handleSend
-                                : null,
-                            icon: Icon(Icons.send_rounded, color: cs.primary),
-                          ),
-                      ],
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        tooltip: 'Send comment',
+                        onPressed:
+                            hasContent && _enabled && widget.onSubmit != null
+                            ? _handleSend
+                            : null,
+                        style: IconButton.styleFrom(
+                          fixedSize: const Size(56, 56),
+                          shape: const CircleBorder(),
+                        ),
+                        icon: const Icon(Icons.send_rounded),
+                      ),
+                    ],
+                  ),
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: ComposerMediaTray(
+                      open: _trayOpen,
+                      maxHeight: 264,
+                      enabled: _enabled,
+                      gifEnabled: widget.onPickGif != null,
+                      includeNextThread: widget.onJumpNext != null,
+                      onSelected: _select,
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                ComposerMediaMenuButton(
-                  enabled: _enabled,
-                  includeNextThread: widget.onJumpNext != null,
-                  onSelected: _select,
-                ),
-              ],
+                ],
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );

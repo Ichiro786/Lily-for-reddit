@@ -17,6 +17,7 @@ import '../../core/share.dart';
 import '../../core/widgets/m3e_loading_indicator.dart';
 import '../../core/url_launcher_helper.dart';
 import '../../models/post.dart';
+import 'gallery_preload.dart';
 
 /// A left-edge swipe-to-go-back strip (iOS-style), safe to overlay on viewers
 /// without stealing PhotoView pan / gallery paging (only the left 24px).
@@ -405,50 +406,62 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(color: Colors.black.withValues(alpha: bgOpacity)),
-          ),
-          Transform.translate(
-            offset: Offset(0, drag),
-            child: GestureDetector(
-              onVerticalDragUpdate: onDragUpdate,
-              onVerticalDragEnd: onDragEnd,
-              child: PhotoViewGallery.builder(
-                pageController: _controller,
-                itemCount: widget.images.length,
-                onPageChanged: (i) => setState(() => _index = i),
-                scaleStateChangedCallback: (s) =>
-                    setState(() => zoomed = s != PhotoViewScaleState.initial),
-                builder: (_, i) => PhotoViewGalleryPageOptions(
-                  imageProvider: CachedNetworkImageProvider(widget.images[i].url),
-                  minScale: PhotoViewComputedScale.contained,
-                  maxScale: PhotoViewComputedScale.covered * 4,
-                  onTapUp: (_, __, ___) =>
-                      setState(() => showControls = !showControls),
-                ),
-                backgroundDecoration:
-                    const BoxDecoration(color: Colors.transparent),
-                loadingBuilder: (_, __) => const Center(
-                    child: M3ELoadingIndicator.large()),
+    return GalleryPreload(
+      index: _index,
+      providers: [
+        for (final image in widget.images)
+          CachedNetworkImageProvider(image.url),
+      ],
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: bgOpacity),
               ),
             ),
-          ),
-          AnimatedOpacity(
-            opacity: showControls && drag.abs() < 8 ? 1 : 0,
-            duration: const Duration(milliseconds: 150),
-            child: _ViewerControls(
-              title: widget.title,
-              center: '${_index + 1} / ${widget.images.length}',
-              sourceUrl: widget.images[_index].url,
-              downloadUrl: widget.images[_index].url,
+            Transform.translate(
+              offset: Offset(0, drag),
+              child: GestureDetector(
+                onVerticalDragUpdate: onDragUpdate,
+                onVerticalDragEnd: onDragEnd,
+                child: PhotoViewGallery.builder(
+                  pageController: _controller,
+                  itemCount: widget.images.length,
+                  onPageChanged: (i) => setState(() => _index = i),
+                  scaleStateChangedCallback: (s) =>
+                      setState(() => zoomed = s != PhotoViewScaleState.initial),
+                  builder: (_, i) => PhotoViewGalleryPageOptions(
+                    imageProvider: CachedNetworkImageProvider(
+                      widget.images[i].url,
+                    ),
+                    minScale: PhotoViewComputedScale.contained,
+                    maxScale: PhotoViewComputedScale.covered * 4,
+                    onTapUp: (_, __, ___) =>
+                        setState(() => showControls = !showControls),
+                  ),
+                  backgroundDecoration: const BoxDecoration(
+                    color: Colors.transparent,
+                  ),
+                  loadingBuilder: (_, __) =>
+                      const Center(child: M3ELoadingIndicator.large()),
+                ),
+              ),
             ),
-          ),
-          const _EdgeBack(),
-        ],
+            AnimatedOpacity(
+              opacity: showControls && drag.abs() < 8 ? 1 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: _ViewerControls(
+                title: widget.title,
+                center: '${_index + 1} / ${widget.images.length}',
+                sourceUrl: widget.images[_index].url,
+                downloadUrl: widget.images[_index].url,
+              ),
+            ),
+            const _EdgeBack(),
+          ],
+        ),
       ),
     );
   }

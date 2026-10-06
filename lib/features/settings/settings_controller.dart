@@ -40,7 +40,8 @@ class Settings {
     required this.offlineCache,
     required this.checkUpdates,
     required this.forYouFeed,
-    required this.autoHideReadForYou,
+    required this.hideReadPosts,
+    this.resumeFeeds = true,
     required this.midResThumbnails,
     required this.subsCacheEnabled,
     required this.subsCacheMinutes,
@@ -62,7 +63,8 @@ class Settings {
   final bool offlineCache;
   final bool checkUpdates;
   final bool forYouFeed; // frontpage uses the "For You (Beta)" feed
-  final bool autoHideReadForYou; // hide already-read items in For You
+  final bool hideReadPosts; // presentation filter across post feeds
+  final bool resumeFeeds;
   final bool midResThumbnails; // load smaller preview images in feeds
   final bool subsCacheEnabled; // cache subscription list in memory
   final int subsCacheMinutes; // how long to keep the subs cache
@@ -84,7 +86,8 @@ class Settings {
     bool? offlineCache,
     bool? checkUpdates,
     bool? forYouFeed,
-    bool? autoHideReadForYou,
+    bool? hideReadPosts,
+    bool? resumeFeeds,
     bool? midResThumbnails,
     bool? subsCacheEnabled,
     int? subsCacheMinutes,
@@ -105,7 +108,8 @@ class Settings {
     offlineCache: offlineCache ?? this.offlineCache,
     checkUpdates: checkUpdates ?? this.checkUpdates,
     forYouFeed: forYouFeed ?? this.forYouFeed,
-    autoHideReadForYou: autoHideReadForYou ?? this.autoHideReadForYou,
+    hideReadPosts: hideReadPosts ?? this.hideReadPosts,
+    resumeFeeds: resumeFeeds ?? this.resumeFeeds,
     midResThumbnails: midResThumbnails ?? this.midResThumbnails,
     subsCacheEnabled: subsCacheEnabled ?? this.subsCacheEnabled,
     subsCacheMinutes: subsCacheMinutes ?? this.subsCacheMinutes,
@@ -150,7 +154,11 @@ class SettingsController extends Notifier<Settings> {
       offlineCache: p.getBool('offlineCache') ?? true,
       checkUpdates: p.getBool('checkUpdates') ?? true,
       forYouFeed: p.getBool('forYouFeed') ?? false,
-      autoHideReadForYou: p.getBool('autoHideReadForYou') ?? false,
+      hideReadPosts:
+          p.getBool('hideReadPosts') ??
+          p.getBool('autoHideReadForYou') ??
+          false,
+      resumeFeeds: p.getBool('resumeFeeds') ?? true,
       midResThumbnails: p.getBool('midResThumbnails') ?? true,
       subsCacheEnabled: p.getBool('subsCacheEnabled') ?? true,
       subsCacheMinutes: minutes is int ? minutes.clamp(1, 1440) : 10,
@@ -223,9 +231,14 @@ class SettingsController extends Notifier<Settings> {
     state = state.copyWith(forYouFeed: v);
   }
 
-  void setAutoHideReadForYou(bool v) {
-    _prefs.setBool('autoHideReadForYou', v);
-    state = state.copyWith(autoHideReadForYou: v);
+  void setHideReadPosts(bool v) {
+    _prefs.setBool('hideReadPosts', v);
+    state = state.copyWith(hideReadPosts: v);
+  }
+
+  void setResumeFeeds(bool v) {
+    _prefs.setBool('resumeFeeds', v);
+    state = state.copyWith(resumeFeeds: v);
   }
 
   void setMidResThumbnails(bool v) {
