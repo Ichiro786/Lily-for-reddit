@@ -557,7 +557,7 @@ void main() {
       expect(find.byType(CommentContent), findsOneWidget);
       expect(find.byType(CachedNetworkImage), findsNWidgets(2));
       expect(find.textContaining('giphy|', findRichText: true), findsNothing);
-      await tester.tap(find.text('u/alice'));
+      await tester.tap(find.byTooltip('Collapse comment'));
       await tester.pumpAndSettle();
       expect(find.byType(CachedNetworkImage), findsNothing);
     },

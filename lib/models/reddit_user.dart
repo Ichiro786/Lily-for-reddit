@@ -8,6 +8,7 @@ class RedditUser with _$RedditUser {
 
   const factory RedditUser({
     required String name,
+    @Default('') String displayName,
     String? iconUrl,
     String? bannerUrl,
     @Default(0) int linkKarma,
@@ -17,14 +18,22 @@ class RedditUser with _$RedditUser {
   }) = _RedditUser;
 
   factory RedditUser.fromData(Map<String, dynamic> d) {
-    String? clean(String? s) =>
-        (s == null || s.isEmpty) ? null : s.replaceAll('&amp;', '&').split('?').first;
+    String? clean(String? value) {
+      final trimmed = value?.trim();
+      return trimmed == null || trimmed.isEmpty
+          ? null
+          : trimmed.replaceAll('&amp;', '&');
+    }
+
     final sub = d['subreddit'] as Map<String, dynamic>?;
     return RedditUser(
       name: d['name'] as String? ?? '',
-      iconUrl: clean(d['icon_img'] as String?) ??
-          clean(sub?['icon_img'] as String?),
-      bannerUrl: clean(sub?['banner_img'] as String?),
+      displayName: (sub?['title'] as String? ?? '').trim(),
+      iconUrl:
+          clean(d['icon_img'] as String?) ?? clean(sub?['icon_img'] as String?),
+      bannerUrl:
+          clean(sub?['banner_background_image'] as String?) ??
+          clean(sub?['banner_img'] as String?),
       linkKarma: (d['link_karma'] as num?)?.toInt() ?? 0,
       commentKarma: (d['comment_karma'] as num?)?.toInt() ?? 0,
       created: DateTime.fromMillisecondsSinceEpoch(

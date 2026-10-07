@@ -1,6 +1,6 @@
-# Lily for Reddit 2.0.1: Smoother Comments and Continuous Feeds
+# Lily for Reddit 2.0.1: Smoother Comments, Profiles and Settings
 
-This update fixes the navigation, comment composer, feed continuity, back navigation, and gallery issues reported after Lily 2.0.
+This update fixes the navigation, comment composer, feed continuity, back navigation, community search, and image zoom issues reported after Lily 2.0, with refreshed comments, profiles, and Settings.
 
 ## What's fixed
 
@@ -11,6 +11,13 @@ This update fixes the navigation, comment composer, feed continuity, back naviga
 - **New posts** appears only when fresh items have been confirmed. Tapping it reveals those posts, and filtered pagination continues looking for unread content without changing Reddit's sort order.
 - Android Back returns Discover, Inbox, and Profile to Home. Posts, settings, subreddits, and media viewers still close first when open.
 - Galleries prepare and decode the next and previous images using the existing cache. The preload window follows your swipes and releases its image listeners on memory pressure or disposal.
+
+- Community names now show live autocomplete suggestions while you type, including `r/` prefixes. Results handle empty/error states, clear stale requests, and open the selected community.
+- Tapping the comment input closes the media tray without losing your draft or keyboard focus.
+- Pinch zoom works in image and gallery viewers, including when the first finger moves before the second is placed. Zoomed images stay pannable; paging and single-finger dismissal remain available.
+- Comments now use a clean canvas, neutral nesting guides, clear reply/vote actions, and separate profile and collapse controls.
+- Your profile and public profiles share spacious headers, real Reddit avatars/banners, bio, karma, and account age. Saved and Upvoted are restricted to your own profile. Account switching and custom feeds remain available.
+- Settings now opens with a compact profile entry, useful search, and seven dedicated categories. Existing preferences and saved values are preserved; search opens and scrolls to the matching control.
 
 ## Downloads
 

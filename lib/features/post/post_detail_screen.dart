@@ -286,8 +286,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         '';
     final thread = async.valueOrNull;
 
+    final canvas = Theme.of(context).brightness == Brightness.dark
+        ? Colors.black
+        : Theme.of(context).colorScheme.surface;
     return Scaffold(
+      backgroundColor: canvas,
       appBar: AppBar(
+        backgroundColor: canvas,
         title: Tooltip(
           message: 'Double-tap to search comments',
           child: Semantics(
@@ -1275,6 +1280,11 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
             replyCount: comment.replies.length,
             isCollapsed: widget.collapsed,
             onToggleCollapse: widget.onToggle,
+            onViewProfile:
+                comment.author.isEmpty || comment.author == '[deleted]'
+                ? null
+                : () =>
+                      context.push('/u/${Uri.encodeComponent(comment.author)}'),
             onVote: _vote,
             onReply: widget.onReply,
             onSave: _toggleSave,

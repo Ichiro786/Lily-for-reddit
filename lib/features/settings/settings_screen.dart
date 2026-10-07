@@ -18,7 +18,7 @@ import '../profile/profile_header.dart';
 import '../updates/update_checker.dart';
 import 'backup_service.dart';
 import 'settings_controller.dart';
-import 'settings_panels.dart';
+import 'settings_catalog.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -30,11 +30,61 @@ class SettingsScreen extends StatelessWidget {
   );
 }
 
+class SettingsCategoryScreen extends StatelessWidget {
+  const SettingsCategoryScreen({
+    super.key,
+    required this.category,
+    this.target,
+  });
+  final SettingsCategory category;
+  final SettingId? target;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(category.title)),
+    body: SettingsList(category: category, target: target),
+  );
+}
+
+class SettingsNavigationRow extends StatelessWidget {
+  const SettingsNavigationRow({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.onTap,
+  });
+  final String title, description;
+  final IconData icon;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+    minVerticalPadding: 12,
+    leading: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 28),
+    title: Text(title, style: Theme.of(context).textTheme.titleMedium),
+    subtitle: Text(
+      description,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+    trailing: const Icon(Icons.chevron_right_rounded),
+    onTap: onTap,
+  );
+}
+
 /// The settings list — reusable both as the full Settings screen and embedded
 /// (e.g. inside the Account tab). Pass [embedded] when nesting in a scroll view.
 class SettingsList extends ConsumerStatefulWidget {
-  const SettingsList({super.key, this.embedded = false});
+  const SettingsList({
+    super.key,
+    this.embedded = false,
+    this.category,
+    this.target,
+  });
   final bool embedded;
+  final SettingsCategory? category;
+  final SettingId? target;
 
   @override
   ConsumerState<SettingsList> createState() => _SettingsListState();
@@ -42,20 +92,37 @@ class SettingsList extends ConsumerStatefulWidget {
 
 class _SettingsListState extends ConsumerState<SettingsList> {
   String _query = '';
+  final _search = TextEditingController();
+  final _scroll = ScrollController();
+  final _keys = {for (final item in SettingId.values) item: GlobalKey()};
 
-  /// Searches a tile's title/subtitle text. Non-tile widgets (dividers,
-  /// sliders, section headers) are dropped from search results.
-  bool _matches(Widget w, String q) {
-    String t(Object? x) => x is Text ? (x.data ?? '') : '';
-    String text;
-    if (w is ListTile) {
-      text = '${t(w.title)} ${t(w.subtitle)}';
-    } else if (w is SwitchListTile) {
-      text = '${t(w.title)} ${t(w.subtitle)}';
-    } else {
-      return false;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.target != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final target = _keys[widget.target]?.currentContext;
+        if (target != null) Scrollable.ensureVisible(target, alignment: .12);
+      });
     }
-    return text.toLowerCase().contains(q);
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _openCategory(SettingsCategory category, [SettingId? target]) {
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            SettingsCategoryScreen(category: category, target: target),
+      ),
+    );
   }
 
   @override
@@ -64,9 +131,8 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     final ctrl = ref.read(settingsControllerProvider.notifier);
     final cs = Theme.of(context).colorScheme;
 
-    final all = <Widget>[
-      _section(context, 'Appearance'),
-      ListTile(
+    final controls = <SettingId, Widget>{
+      SettingId.theme: ListTile(
         leading: const Icon(Icons.brightness_6_rounded),
         title: const Text('Theme'),
         subtitle: Text(switch (s.themeMode) {
@@ -76,21 +142,21 @@ class _SettingsListState extends ConsumerState<SettingsList> {
         }),
         onTap: () => _pickTheme(context, ctrl, s.themeMode),
       ),
-      SwitchListTile(
+      SettingId.amoled: SwitchListTile(
         secondary: const Icon(Icons.dark_mode_rounded),
         title: const Text('AMOLED black'),
         subtitle: const Text('Pure black surfaces in dark mode'),
         value: s.amoled,
         onChanged: ctrl.setAmoled,
       ),
-      SwitchListTile(
+      SettingId.dynamicColor: SwitchListTile(
         secondary: const Icon(Icons.palette_rounded),
         title: const Text('Dynamic color'),
         subtitle: const Text('Use colors from your wallpaper'),
         value: s.useDynamicColor,
         onChanged: ctrl.setUseDynamicColor,
       ),
-      AnimatedOpacity(
+      SettingId.accent: AnimatedOpacity(
         opacity: s.useDynamicColor ? 0.38 : 1,
         duration: const Duration(milliseconds: 200),
         child: IgnorePointer(
@@ -112,13 +178,14 @@ class _SettingsListState extends ConsumerState<SettingsList> {
                     for (final c in AppTheme.accentSwatches)
                       Semantics(
                         button: true,
+                        enabled: !s.useDynamicColor,
                         label: 'Theme color ${c.toARGB32()}',
                         child: GestureDetector(
                           key: ValueKey<String>('theme-swatch-${c.toARGB32()}'),
                           onTap: () => ctrl.setSeedColor(c.toARGB32()),
                           child: Container(
-                            width: 40,
-                            height: 40,
+                            width: 48,
+                            height: 48,
                             decoration: BoxDecoration(
                               color: c,
                               shape: BoxShape.circle,
@@ -166,66 +233,68 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ),
         ),
       ),
-      ListTile(
-        leading: const Icon(Icons.format_size_rounded),
-        title: const Text('Font size'),
-        subtitle: Text('${(s.textScale * 100).round()}% of normal'),
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-        child: Row(
-          children: [
-            const Text('A', style: TextStyle(fontSize: 13)),
-            Expanded(
-              child: Slider(
-                value: s.textScale,
-                min: 0.8,
-                max: 1.4,
-                divisions: 12,
-                label: '${(s.textScale * 100).round()}%',
-                onChanged: ctrl.setTextScale,
-              ),
+      SettingId.font: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.format_size_rounded),
+            title: const Text('Font size'),
+            subtitle: Text('${(s.textScale * 100).round()}% of normal'),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Row(
+              children: [
+                const Text('A', style: TextStyle(fontSize: 13)),
+                Expanded(
+                  child: Slider(
+                    value: s.textScale,
+                    min: 0.8,
+                    max: 1.4,
+                    divisions: 12,
+                    label: '${(s.textScale * 100).round()}%',
+                    onChanged: ctrl.setTextScale,
+                  ),
+                ),
+                const Text('A', style: TextStyle(fontSize: 22)),
+              ],
             ),
-            const Text('A', style: TextStyle(fontSize: 22)),
-          ],
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              'The quick brown fox jumps over the lazy dog.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
       ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        child: Text(
-          'The quick brown fox jumps over the lazy dog.',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-      ),
-      SwitchListTile(
+      SettingId.navLabels: SwitchListTile(
         secondary: const Icon(Icons.label_outline_rounded),
         title: const Text('Bottom bar labels'),
         subtitle: const Text('Show text labels under the navigation icons'),
         value: s.navLabels,
         onChanged: ctrl.setNavLabels,
       ),
-      const Divider(),
-      _section(context, 'Feed'),
-      ListTile(
+      SettingId.sort: ListTile(
         leading: const Icon(Icons.sort_rounded),
         title: const Text('Default sort'),
         subtitle: Text(s.defaultSort.label),
         onTap: () => _pickSort(context, ctrl, s.defaultSort),
       ),
-      ListTile(
+      SettingId.display: ListTile(
         leading: Icon(s.postDisplay.icon),
         title: const Text('Post display'),
         subtitle: Text(s.postDisplay.label),
         onTap: () => _pickDisplay(context, ctrl, s.postDisplay),
       ),
-      SwitchListTile(
+      SettingId.nsfw: SwitchListTile(
         secondary: const Icon(Icons.blur_on_rounded),
         title: const Text('Blur NSFW media'),
         subtitle: const Text('Tap to reveal blurred images'),
         value: s.blurNsfw,
         onChanged: ctrl.setBlurNsfw,
       ),
-      SwitchListTile(
+      SettingId.dataSaver: SwitchListTile(
         secondary: const Icon(Icons.image_outlined),
         title: const Text('Data-saver thumbnails'),
         subtitle: const Text(
@@ -234,78 +303,71 @@ class _SettingsListState extends ConsumerState<SettingsList> {
         value: s.midResThumbnails,
         onChanged: ctrl.setMidResThumbnails,
       ),
-      SwitchListTile(
+      SettingId.hideRead: SwitchListTile(
         secondary: const Icon(Icons.mark_email_read_outlined),
         title: const Text('Hide read posts automatically'),
         subtitle: const Text('Hide seen or opened posts across your feeds'),
         value: s.hideReadPosts,
         onChanged: ctrl.setHideReadPosts,
       ),
-      SwitchListTile(
+      SettingId.resume: SwitchListTile(
         secondary: const Icon(Icons.restore_rounded),
         title: const Text('Resume feeds where I left off'),
         subtitle: const Text('Restore your sort and position on short returns'),
         value: s.resumeFeeds,
         onChanged: ctrl.setResumeFeeds,
       ),
-      ListTile(
+      SettingId.forYou: ListTile(
         leading: const Icon(Icons.tune_rounded),
         title: const Text('Manage "For You" subreddits'),
         subtitle: const Text('Review and undo muted / show-less subreddits'),
         onTap: () => context.push('/manage_for_you'),
       ),
-      SwitchListTile(
+      SettingId.swipe: SwitchListTile(
         secondary: const Icon(Icons.swipe_rounded),
         title: const Text('Swipe to vote'),
         subtitle: const Text('Swipe posts/comments right=up, left=down'),
         value: s.swipeActions,
         onChanged: ctrl.setSwipeActions,
       ),
-      SwitchListTile(
+      SettingId.autoplay: SwitchListTile(
         secondary: const Icon(Icons.play_circle_outline_rounded),
         title: const Text('Autoplay videos'),
         subtitle: const Text('Play videos muted as you scroll the feed'),
         value: s.autoplayMedia,
         onChanged: ctrl.setAutoplayMedia,
       ),
-      const Divider(),
-      _section(context, 'Power-user features'),
-      _RateLimitTile(),
-      const Divider(),
-      _section(context, 'Notifications'),
-      SwitchListTile(
+      SettingId.apiUsage: _RateLimitTile(),
+      SettingId.notifications: SwitchListTile(
         secondary: const Icon(Icons.notifications_active_outlined),
         title: const Text('Inbox notifications'),
         subtitle: const Text(
-          'Check for replies & messages in the background (~every 15 min) '
-          'and notify you. No Firebase — polling only.',
+          'Get alerts for replies and messages, checked about every 15 minutes.',
         ),
         value: s.notifyInbox,
         onChanged: (v) => _toggleInboxNotifications(context, ref, v),
       ),
-      const Divider(),
-      _section(context, 'History & data'),
-      ListTile(
+      SettingId.history: ListTile(
         leading: const Icon(Icons.history_rounded),
         title: const Text('History'),
         subtitle: const Text('Recently viewed (stored on this device)'),
         onTap: () => context.push('/history'),
       ),
-      SwitchListTile(
+      SettingId.trackHistory: SwitchListTile(
         secondary: const Icon(Icons.visibility_outlined),
         title: const Text('Track history'),
         subtitle: const Text('Remember and dim viewed posts (local only)'),
         value: s.trackHistory,
         onChanged: ctrl.setTrackHistory,
       ),
-      SwitchListTile(
+      SettingId.offline: SwitchListTile(
         secondary: const Icon(Icons.cloud_off_rounded),
         title: const Text('Offline cache'),
         subtitle: const Text('Show the last loaded content when offline'),
         value: s.offlineCache,
         onChanged: ctrl.setOfflineCache,
       ),
-      SwitchListTile(
+      SettingId.subscriptions: SwitchListTile(
         secondary: const Icon(Icons.dns_outlined),
         title: const Text('Cache subscriptions'),
         subtitle: const Text(
@@ -314,14 +376,14 @@ class _SettingsListState extends ConsumerState<SettingsList> {
         value: s.subsCacheEnabled,
         onChanged: ctrl.setSubsCacheEnabled,
       ),
-      ListTile(
+      SettingId.cacheTime: ListTile(
         enabled: s.subsCacheEnabled,
         leading: const Icon(Icons.timer_outlined),
         title: const Text('Subscriptions cache time'),
         subtitle: Text('${s.subsCacheMinutes} minutes'),
         onTap: () => _pickCacheMinutes(context, ctrl, s.subsCacheMinutes),
       ),
-      ListTile(
+      SettingId.clearCache: ListTile(
         leading: const Icon(Icons.cached_rounded),
         title: const Text('Clear cache'),
         onTap: () async {
@@ -333,9 +395,7 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           }
         },
       ),
-      const Divider(),
-      _section(context, 'Data & Backup'),
-      ListTile(
+      SettingId.export: ListTile(
         leading: const Icon(Icons.backup_rounded),
         title: const Text('Export backup'),
         subtitle: const Text(
@@ -343,43 +403,23 @@ class _SettingsListState extends ConsumerState<SettingsList> {
         ),
         onTap: () => _exportBackup(context, ref),
       ),
-      ListTile(
+      SettingId.restore: ListTile(
         leading: const Icon(Icons.settings_backup_restore_rounded),
         title: const Text('Restore backup'),
         subtitle: const Text('Paste a previously exported JSON backup'),
         onTap: () => _restoreBackup(context, ref),
       ),
-      const Divider(),
-      _section(context, 'About'),
-      SwitchListTile(
-        secondary: const Icon(Icons.system_update_rounded),
-        title: const Text('Check for updates'),
-        subtitle: const Text('Check GitHub releases on launch'),
-        value: s.checkUpdates,
-        onChanged: ctrl.setCheckUpdates,
-      ),
-      ListTile(
-        leading: const Icon(Icons.update_rounded),
-        title: const Text('Check now'),
-        onTap: () => _checkUpdatesNow(context, ref),
-      ),
-      const ListTile(
-        leading: Icon(Icons.link_rounded),
-        title: Text('Open reddit links in Lily for Reddit'),
-        subtitle: Text(
-          'Already supported via the Android "open with" chooser. To make '
-          'Lily for Reddit the verified default, enable it under system app settings '
-          '› Open by default.',
+      SettingId.manageAccounts: ListTile(
+        leading: const Icon(Icons.manage_accounts_outlined),
+        title: const Text('Manage accounts'),
+        subtitle: const Text('Switch, add or remove an account'),
+        onTap: () => showAccountBottomSheet(
+          context,
+          ref,
+          ref.read(authControllerProvider).valueOrNull?.username ?? '',
         ),
       ),
-      ListTile(
-        leading: const Icon(Icons.gavel_rounded),
-        title: const Text('Content & conduct policy'),
-        onTap: () => context.push('/policy'),
-      ),
-      const Divider(),
-      _section(context, 'Account'),
-      ListTile(
+      SettingId.loginMethod: ListTile(
         leading: Icon(
           ref.watch(authModeProvider).valueOrNull == 'web'
               ? Icons.public_rounded
@@ -396,13 +436,13 @@ class _SettingsListState extends ConsumerState<SettingsList> {
           ref.read(authModeProvider).valueOrNull == 'web',
         ),
       ),
-      ListTile(
+      SettingId.credentials: ListTile(
         leading: const Icon(Icons.vpn_key_rounded),
         title: const Text('Reddit API credentials'),
         subtitle: const Text('Re-enter your Client ID / Redirect URI'),
         onTap: () => _reenterCredentials(context, ref),
       ),
-      ListTile(
+      SettingId.clearAll: ListTile(
         leading: Icon(
           Icons.delete_forever_rounded,
           color: Theme.of(context).colorScheme.error,
@@ -414,41 +454,124 @@ class _SettingsListState extends ConsumerState<SettingsList> {
         subtitle: const Text('Wipes credentials, tokens and login'),
         onTap: () => _clearAll(context, ref),
       ),
-      const SizedBox(height: 24),
-    ];
+      SettingId.updates: SwitchListTile(
+        secondary: const Icon(Icons.system_update_rounded),
+        title: const Text('Check for updates'),
+        subtitle: const Text('Check GitHub releases on launch'),
+        value: s.checkUpdates,
+        onChanged: ctrl.setCheckUpdates,
+      ),
+      SettingId.checkNow: ListTile(
+        leading: const Icon(Icons.update_rounded),
+        title: const Text('Check now'),
+        onTap: () => _checkUpdatesNow(context, ref),
+      ),
+      SettingId.links: const ListTile(
+        leading: Icon(Icons.link_rounded),
+        title: Text('Open reddit links in Lily for Reddit'),
+        subtitle: Text(
+          'Already supported via the Android "open with" chooser. To make '
+          'Lily for Reddit the verified default, enable it under system app settings '
+          '› Open by default.',
+        ),
+      ),
+      SettingId.policy: ListTile(
+        leading: const Icon(Icons.gavel_rounded),
+        title: const Text('Content & conduct policy'),
+        onTap: () => context.push('/policy'),
+      ),
+    };
 
-    final q = _query.trim().toLowerCase();
-    final shown = q.isEmpty
-        ? _groupedSettings(all)
-        : all.where((w) => _matches(w, q)).toList();
-    final topProfileCard = _buildTopProfileCard(context, ref);
+    assert(controls.length == SettingId.values.length);
+    if (widget.category != null) {
+      // Category pages are deliberately small. Build all controls so search can
+      // scroll directly to any target without guessing row heights.
+      return SingleChildScrollView(
+        controller: _scroll,
+        padding: const EdgeInsets.fromLTRB(8, 12, 8, 32),
+        child: Column(
+          children: [
+            for (final item in SettingId.values.where(
+              (item) => item.category == widget.category,
+            ))
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: KeyedSubtree(
+                  key: _keys[item],
+                  child: Container(
+                    key: ValueKey('setting-${item.name}'),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: widget.target == item
+                          ? Border.all(color: cs.primary)
+                          : null,
+                    ),
+                    child: controls[item],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+    final q = _query.trim();
+    final results = SettingId.values.where((item) => item.matches(q)).toList();
+    final profile = _buildTopProfileCard(context, ref);
     return ListView(
+      controller: _scroll,
       shrinkWrap: widget.embedded,
       physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
+      padding: const EdgeInsets.only(bottom: 32),
       children: [
-        if (topProfileCard != null && q.isEmpty) topProfileCard,
+        if (profile != null && q.isEmpty) profile,
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
           child: TextField(
-            onChanged: (v) => setState(() => _query = v),
+            controller: _search,
+            onChanged: (value) => setState(() => _query = value),
             decoration: InputDecoration(
-              isDense: true,
               hintText: 'Search settings',
               prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: q.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear settings search',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () {
+                        _search.clear();
+                        setState(() => _query = '');
+                      },
+                    ),
               filled: true,
-              fillColor: cs.surfaceContainerHigh,
+              fillColor: cs.surfaceContainerLow,
               border: OutlineInputBorder(
-                borderRadius: ShapeTokens.large,
+                borderRadius: BorderRadius.circular(32),
                 borderSide: BorderSide.none,
               ),
             ),
           ),
         ),
-        ...shown,
-        if (q.isNotEmpty && shown.isEmpty)
+        if (q.isEmpty)
+          for (final category in SettingsCategory.values)
+            SettingsNavigationRow(
+              title: category.title,
+              description: category.description,
+              icon: category.icon,
+              onTap: () => _openCategory(category),
+            )
+        else
+          for (final item in results)
+            SettingsNavigationRow(
+              key: ValueKey('search-${item.name}'),
+              title: item.title,
+              description: item.category.title,
+              icon: item.category.icon,
+              onTap: () => _openCategory(item.category, item),
+            ),
+        if (q.isNotEmpty && results.isEmpty)
           const Padding(
-            padding: EdgeInsets.all(40),
-            child: Center(child: Text('No settings found')),
+            padding: EdgeInsets.all(32),
+            child: Text('No settings found', textAlign: TextAlign.center),
           ),
       ],
     );
@@ -459,10 +582,9 @@ class _SettingsListState extends ConsumerState<SettingsList> {
     final username =
         ref.watch(authControllerProvider).valueOrNull?.username ?? '';
     if (username.isNotEmpty) {
-      return M3EProfileHeader(
+      return CurrentProfileEntry(
         username: username,
-        onSwitchAccount: () => showAccountBottomSheet(context, ref, username),
-        onViewProfile: () => context.push('/u/$username'),
+        onTap: () => context.push('/u/${Uri.encodeComponent(username)}'),
       );
     }
     return _buildGuestCard(context);
@@ -470,6 +592,37 @@ class _SettingsListState extends ConsumerState<SettingsList> {
 
   Widget _buildGuestCard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final avatar = CircleAvatar(
+      radius: 28,
+      backgroundColor: cs.surfaceContainerHighest,
+      child: Icon(
+        Icons.person_outline_rounded,
+        size: 28,
+        color: cs.onSurfaceVariant,
+      ),
+    );
+    final identity = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Guest',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Sign in to customize and sync',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
+    );
+    final signIn = FilledButton.tonal(
+      onPressed: () => context.push('/login'),
+      child: const Text('Sign in'),
+    );
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       padding: const EdgeInsets.all(16),
@@ -477,49 +630,34 @@ class _SettingsListState extends ConsumerState<SettingsList> {
         color: cs.surfaceContainerLow,
         borderRadius: ShapeTokens.medium,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.person_outline_rounded,
-              size: 28,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 340 &&
+              MediaQuery.textScalerOf(context).scale(14) <= 20) {
+            return Row(
               children: [
-                Text(
-                  'Guest',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Sign in to customize and sync',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                ),
+                avatar,
+                const SizedBox(width: 14),
+                Expanded(child: identity),
+                signIn,
               ],
-            ),
-          ),
-          FilledButton.tonal(
-            onPressed: () => context.push('/login'),
-            child: const Text('Sign in'),
-          ),
-        ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  avatar,
+                  const SizedBox(width: 14),
+                  Expanded(child: identity),
+                ],
+              ),
+              const SizedBox(height: 12),
+              signIn,
+            ],
+          );
+        },
       ),
     );
   }
@@ -704,35 +842,6 @@ class _SettingsListState extends ConsumerState<SettingsList> {
       ),
     );
   }
-
-  List<Widget> _groupedSettings(List<Widget> all) {
-    final panels = <Widget>[];
-    String? title;
-    final items = <Widget>[];
-
-    void flush() {
-      final currentTitle = title;
-      if (currentTitle == null || items.isEmpty) return;
-      panels.add(
-        M3ESettingsPanel(title: currentTitle, children: List<Widget>.of(items)),
-      );
-      items.clear();
-    }
-
-    for (final widget in all) {
-      if (widget is M3ESettingsSectionHeader) {
-        flush();
-        title = widget.title;
-      } else if (widget is! Divider) {
-        items.add(widget);
-      }
-    }
-    flush();
-    return panels;
-  }
-
-  Widget _section(BuildContext context, String title) =>
-      M3ESettingsSectionHeader(title: title);
 
   void _pickTheme(
     BuildContext context,

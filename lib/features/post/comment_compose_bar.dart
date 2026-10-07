@@ -48,6 +48,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
   late TextEditingController _controller;
   final _focusNode = FocusNode();
   bool _trayOpen = false;
+  bool _trayRequestedFocus = false;
   MediaAttachment? _media;
   bool _ownsController = false, _readingMedia = false;
   int _generation = 0;
@@ -59,6 +60,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
   void initState() {
     super.initState();
     _media = widget.media;
+    _focusNode.addListener(_focusChanged);
     _bindController();
   }
 
@@ -66,6 +68,19 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     _ownsController = widget.controller == null;
     _controller = widget.controller ?? TextEditingController();
     _controller.addListener(_changed);
+  }
+
+  void _closeTray() {
+    if (_trayOpen && mounted) setState(() => _trayOpen = false);
+  }
+
+  void _focusChanged() {
+    if (!_focusNode.hasFocus) return;
+    if (_trayRequestedFocus) {
+      _trayRequestedFocus = false;
+      return;
+    }
+    _closeTray();
   }
 
   void _changed() {
@@ -93,6 +108,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
     _generation++;
     _controller.removeListener(_changed);
     if (_ownsController) _controller.dispose();
+    _focusNode.removeListener(_focusChanged);
     _focusNode.dispose();
     super.dispose();
   }
@@ -172,6 +188,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
   void _toggleTray() {
     if (!_enabled) return;
     HapticFeedback.selectionClick();
+    _trayRequestedFocus = !_focusNode.hasFocus;
     _focusNode.requestFocus();
     setState(() => _trayOpen = !_trayOpen);
   }
@@ -210,6 +227,9 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
   Widget _buildBar(BuildContext context, BoxConstraints constraints) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final canvas = theme.brightness == Brightness.dark
+        ? Colors.black
+        : cs.surface;
     final hasContent = _controller.text.trim().isNotEmpty || _media != null;
     // Design decision: cap the tray and let its rows scroll in short windows.
     // The Scaffold already consumes viewInsets; adding them here would lift
@@ -248,7 +268,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
             ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: cs.surface,
+              color: canvas,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -275,7 +295,8 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                           constraints: const BoxConstraints(minHeight: 56),
                           padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
                           decoration: BoxDecoration(
-                            color: cs.surfaceContainerHighest,
+                            color: canvas,
+                            border: Border.all(color: cs.outlineVariant),
                             borderRadius: ShapeTokens.full,
                           ),
                           child: Row(
@@ -319,6 +340,7 @@ class _CommentComposeBarState extends State<CommentComposeBar> {
                                             keyboardImageMimeTypes,
                                         onContentInserted: _keyboardContent,
                                       ),
+                                  onTap: _closeTray,
                                   onSubmitted: (_) => _handleSend(),
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: cs.onSurface,
