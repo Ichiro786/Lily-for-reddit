@@ -23,11 +23,13 @@ import 'package:luli_for_reddit/models/subreddit.dart';
 
 class _TestInboxRepository extends RedditRepository {
   _TestInboxRepository()
-      : super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
+    : super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
 
   @override
-  Future<Listing<InboxItem>> getInbox(
-      {String where = 'inbox', String? after}) async {
+  Future<Listing<InboxItem>> getInbox({
+    String where = 'inbox',
+    String? after,
+  }) async {
     return Listing(
       items: [
         InboxItem(
@@ -63,9 +65,9 @@ class _FakeAuthenticatedAuthController extends AuthController {
 }
 
 Widget _app(Widget child) => MaterialApp(
-      theme: AppTheme.dark(null),
-      home: Scaffold(body: child),
-    );
+  theme: AppTheme.dark(null),
+  home: Scaffold(body: child),
+);
 
 Subreddit _subreddit({
   String name = 'flutter',
@@ -85,8 +87,9 @@ Subreddit _subreddit({
 }
 
 void main() {
-  testWidgets('Explore search dock and category filter selection work',
-      (tester) async {
+  testWidgets('Explore search dock and category filter selection work', (
+    tester,
+  ) async {
     final communities = [_subreddit(), _subreddit(name: 'dart')];
     await tester.pumpWidget(
       ProviderScope(
@@ -113,107 +116,125 @@ void main() {
     expect(find.byTooltip('Favorites'), findsOneWidget);
   });
 
-  testWidgets('Explore screen matches M3E blueprint with headline, chip row, and live stats',
-      (tester) async {
-    final visited = [
-      _subreddit(name: 'dart', accountsActive: 1240),
-    ];
-    final communities = [_subreddit(name: 'flutter'), _subreddit(name: 'dart')];
-    final popular = [_subreddit(name: 'technology', accountsActive: 4500)];
+  testWidgets(
+    'Explore screen matches M3E blueprint with headline, chip row, and live stats',
+    (tester) async {
+      final visited = [_subreddit(name: 'dart', accountsActive: 1240)];
+      final communities = [
+        _subreddit(name: 'flutter'),
+        _subreddit(name: 'dart'),
+      ];
+      final popular = [_subreddit(name: 'technology', accountsActive: 4500)];
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          subscribedSubredditsProvider.overrideWith((ref) async => communities),
-          popularSubredditsProvider.overrideWith((ref) async => popular),
-          visitedCommunityStoreProvider.overrideWith(
-            () => _FakeVisitedCommunityController(visited),
-          ),
-          historyControllerProvider.overrideWith(_FakeHistoryController.new),
-        ],
-        child: _app(const ExploreScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            subscribedSubredditsProvider.overrideWith(
+              (ref) async => communities,
+            ),
+            popularSubredditsProvider.overrideWith((ref) async => popular),
+            visitedCommunityStoreProvider.overrideWith(
+              () => _FakeVisitedCommunityController(visited),
+            ),
+            historyControllerProvider.overrideWith(_FakeHistoryController.new),
+          ],
+          child: _app(const ExploreScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    // 1. "Explore" headline sliver
-    expect(find.text('Explore'), findsOneWidget);
+      // 1. "Explore" headline sliver
+      expect(find.text('Explore'), findsOneWidget);
 
-    // 2. Search dock hint
-    expect(find.text('Search communities & posts'), findsOneWidget);
+      // 2. Search dock hint
+      expect(find.text('Search communities & posts'), findsOneWidget);
 
-    // 3. Filter chips
-    expect(find.text('Filter'), findsOneWidget);
-    expect(find.text('All'), findsOneWidget);
-    expect(find.text('Communities'), findsOneWidget);
-    expect(find.text('Posts'), findsOneWidget);
-    expect(find.byTooltip('Favorites'), findsOneWidget);
+      // 3. Filter chips
+      expect(find.text('Filter'), findsOneWidget);
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Communities'), findsOneWidget);
+      expect(find.text('Posts'), findsOneWidget);
+      expect(find.byTooltip('Favorites'), findsOneWidget);
 
-    // 4. Section hierarchy: "Recently visited" precedes "Popular near you"
-    final recentPos = tester.getTopLeft(find.text('Recently visited')).dy;
-    final popularPos = tester.getTopLeft(find.text('Popular near you')).dy;
-    expect(recentPos, lessThan(popularPos));
+      // 4. Section hierarchy: "Recently visited" precedes "Popular near you"
+      final recentPos = tester.getTopLeft(find.text('Recently visited')).dy;
+      final popularPos = tester.getTopLeft(find.text('Popular near you')).dy;
+      expect(recentPos, lessThan(popularPos));
 
-    // 5. "See all" action button
-    expect(find.text('See all'), findsOneWidget);
+      // 5. "See all" action button
+      expect(find.text('See all'), findsOneWidget);
 
-    // 6. Live online count indicator
-    expect(find.textContaining('online'), findsWidgets);
-  });
+      // 6. Live online count indicator
+      expect(find.textContaining('online'), findsWidgets);
+    },
+  );
 
-  testWidgets('VisitedCommunityController persists and deduplicates community visits',
-      (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [
-        sharedPrefsProvider.overrideWithValue(prefs),
-      ],
-    );
-    addTearDown(container.dispose);
+  testWidgets(
+    'VisitedCommunityController persists and deduplicates community visits',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
 
-    final ctrl = container.read(visitedCommunityStoreProvider.notifier);
-    expect(container.read(visitedCommunityStoreProvider), isEmpty);
+      final ctrl = container.read(visitedCommunityStoreProvider.notifier);
+      expect(container.read(visitedCommunityStoreProvider), isEmpty);
 
-    final sub1 = _subreddit(name: 'flutter');
-    final sub2 = _subreddit(name: 'dart', accountsActive: 350);
+      final sub1 = _subreddit(name: 'flutter');
+      final sub2 = _subreddit(name: 'dart', accountsActive: 350);
 
-    ctrl.recordVisit(sub1);
-    expect(container.read(visitedCommunityStoreProvider).length, 1);
-    expect(container.read(visitedCommunityStoreProvider).first.name, 'flutter');
+      ctrl.recordVisit(sub1);
+      expect(container.read(visitedCommunityStoreProvider).length, 1);
+      expect(
+        container.read(visitedCommunityStoreProvider).first.name,
+        'flutter',
+      );
 
-    ctrl.recordVisit(sub2);
-    expect(container.read(visitedCommunityStoreProvider).length, 2);
-    expect(container.read(visitedCommunityStoreProvider).first.name, 'dart');
+      ctrl.recordVisit(sub2);
+      expect(container.read(visitedCommunityStoreProvider).length, 2);
+      expect(container.read(visitedCommunityStoreProvider).first.name, 'dart');
 
-    // Re-visiting sub1 moves it back to top
-    ctrl.recordVisit(sub1);
-    expect(container.read(visitedCommunityStoreProvider).length, 2);
-    expect(container.read(visitedCommunityStoreProvider).first.name, 'flutter');
+      // Re-visiting sub1 moves it back to top
+      ctrl.recordVisit(sub1);
+      expect(container.read(visitedCommunityStoreProvider).length, 2);
+      expect(
+        container.read(visitedCommunityStoreProvider).first.name,
+        'flutter',
+      );
 
-    // Favorite toggle updates in state
-    ctrl.setFavorite('flutter', true);
-    expect(container.read(visitedCommunityStoreProvider).first.userHasFavorited, isTrue);
+      // Favorite toggle updates in state
+      ctrl.setFavorite('flutter', true);
+      expect(
+        container.read(visitedCommunityStoreProvider).first.userHasFavorited,
+        isTrue,
+      );
 
-    // Subscribed toggle updates in state
-    ctrl.setSubscribed('flutter', false);
-    expect(container.read(visitedCommunityStoreProvider).first.userIsSubscriber, isFalse);
+      // Subscribed toggle updates in state
+      ctrl.setSubscribed('flutter', false);
+      expect(
+        container.read(visitedCommunityStoreProvider).first.userIsSubscriber,
+        isFalse,
+      );
 
-    // Remove
-    ctrl.remove('flutter');
-    expect(container.read(visitedCommunityStoreProvider).length, 1);
-    expect(container.read(visitedCommunityStoreProvider).first.name, 'dart');
+      // Remove
+      ctrl.remove('flutter');
+      expect(container.read(visitedCommunityStoreProvider).length, 1);
+      expect(container.read(visitedCommunityStoreProvider).first.name, 'dart');
 
-    // Clear
-    ctrl.clear();
-    expect(container.read(visitedCommunityStoreProvider), isEmpty);
+      // Clear
+      ctrl.clear();
+      expect(container.read(visitedCommunityStoreProvider), isEmpty);
 
-    // Drain any pending debounce timers
-    await tester.pump(const Duration(seconds: 1));
-  });
+      // Drain any pending debounce timers
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
 
-  testWidgets('Inbox category tabs switch and unread dot renders',
-      (tester) async {
+  testWidgets('Inbox category tabs switch and unread dot renders', (
+    tester,
+  ) async {
     var selected = -1;
     await tester.pumpWidget(
       _app(
@@ -240,14 +261,18 @@ void main() {
       ),
     );
 
-    expect(find.byKey(const ValueKey<String>('inbox-unread-dot')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('inbox-unread-dot')),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Mentions'));
     await tester.pumpAndSettle();
     expect(selected, 2);
   });
 
-  testWidgets('grouped Settings panels toggle AMOLED and select palette color',
-      (tester) async {
+  testWidgets('Appearance page toggles AMOLED and selects palette color', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
@@ -262,6 +287,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Appearance'), findsOneWidget);
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
     final amoled = find.byType(SwitchListTile).first;
     expect(tester.widget<SwitchListTile>(amoled).value, isFalse);
     await tester.tap(amoled);
@@ -277,120 +304,142 @@ void main() {
     }
 
     final targetColor = AppTheme.accentSwatches[1];
-    final swatch = find.byKey(ValueKey<String>('theme-swatch-${targetColor.toARGB32()}'));
+    final swatch = find.byKey(
+      ValueKey<String>('theme-swatch-${targetColor.toARGB32()}'),
+    );
     expect(swatch, findsOneWidget);
+    await tester.ensureVisible(swatch);
     await tester.tap(swatch);
     await tester.pumpAndSettle();
     expect(
       ProviderScope.containerOf(
-        tester.element(find.byType(SettingsList)),
+        tester.element(find.byType(SettingsList).last),
       ).read(settingsControllerProvider).seedColor,
       targetColor.toARGB32(),
     );
   });
 
-  testWidgets('dynamic color switch dims accent swatches and displays helper note',
-      (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPrefsProvider.overrideWithValue(prefs),
-          authModeProvider.overrideWith((ref) async => 'oauth'),
-        ],
-        child: _app(const SettingsList()),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'dynamic color switch dims accent swatches and displays helper note',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPrefsProvider.overrideWithValue(prefs),
+            authModeProvider.overrideWith((ref) async => 'oauth'),
+          ],
+          child: _app(const SettingsList()),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(
-      find.text('Wallpaper colors override custom accents when Dynamic color is enabled'),
-      findsNothing,
-    );
+      await tester.tap(find.text('Appearance'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'Wallpaper colors override custom accents when Dynamic color is enabled',
+        ),
+        findsNothing,
+      );
 
-    final dynamicSwitch = find.widgetWithText(SwitchListTile, 'Dynamic color');
-    expect(dynamicSwitch, findsOneWidget);
-    await tester.tap(dynamicSwitch);
-    await tester.pumpAndSettle();
+      final dynamicSwitch = find.widgetWithText(
+        SwitchListTile,
+        'Dynamic color',
+      );
+      expect(dynamicSwitch, findsOneWidget);
+      await tester.tap(dynamicSwitch);
+      await tester.pumpAndSettle();
 
-    expect(
-      find.text('Wallpaper colors override custom accents when Dynamic color is enabled'),
-      findsOneWidget,
-    );
-    expect(
-      ProviderScope.containerOf(
-        tester.element(find.byType(SettingsList)),
-      ).read(settingsControllerProvider).useDynamicColor,
-      isTrue,
-    );
-  });
+      expect(
+        find.text(
+          'Wallpaper colors override custom accents when Dynamic color is enabled',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        ProviderScope.containerOf(
+          tester.element(find.byType(SettingsList).last),
+        ).read(settingsControllerProvider).useDynamicColor,
+        isTrue,
+      );
+    },
+  );
 
-  testWidgets('SettingsList renders guest card when unauthenticated and standalone',
-      (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
+  testWidgets(
+    'SettingsList renders guest card when unauthenticated and standalone',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPrefsProvider.overrideWithValue(prefs),
-          authModeProvider.overrideWith((ref) async => 'oauth'),
-        ],
-        child: _app(const SettingsList(embedded: false)),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPrefsProvider.overrideWithValue(prefs),
+            authModeProvider.overrideWith((ref) async => 'oauth'),
+          ],
+          child: _app(const SettingsList(embedded: false)),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Guest'), findsOneWidget);
-    expect(find.text('Sign in to customize and sync'), findsOneWidget);
-    expect(find.text('Sign in'), findsOneWidget);
-  });
+      expect(find.text('Guest'), findsOneWidget);
+      expect(find.text('Sign in to customize and sync'), findsOneWidget);
+      expect(find.text('Sign in'), findsOneWidget);
+    },
+  );
 
-  testWidgets('SettingsList renders profile header when authenticated and standalone',
-      (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
+  testWidgets(
+    'SettingsList renders profile header when authenticated and standalone',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPrefsProvider.overrideWithValue(prefs),
-          authModeProvider.overrideWith((ref) async => 'oauth'),
-          authControllerProvider
-              .overrideWith(_FakeAuthenticatedAuthController.new),
-        ],
-        child: _app(const SettingsList(embedded: false)),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPrefsProvider.overrideWithValue(prefs),
+            authModeProvider.overrideWith((ref) async => 'oauth'),
+            authControllerProvider.overrideWith(
+              _FakeAuthenticatedAuthController.new,
+            ),
+          ],
+          child: _app(const SettingsList(embedded: false)),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('u/testuser'), findsOneWidget);
-    expect(find.text('Guest'), findsNothing);
-  });
+      expect(find.text('u/testuser'), findsOneWidget);
+      expect(find.text('Guest'), findsNothing);
+    },
+  );
 
-  testWidgets('SettingsList does not render profile or guest header when embedded',
-      (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
+  testWidgets(
+    'SettingsList does not render profile or guest header when embedded',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPrefsProvider.overrideWithValue(prefs),
-          authModeProvider.overrideWith((ref) async => 'oauth'),
-        ],
-        child: _app(const SettingsList(embedded: true)),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPrefsProvider.overrideWithValue(prefs),
+            authModeProvider.overrideWith((ref) async => 'oauth'),
+          ],
+          child: _app(const SettingsList(embedded: true)),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Guest'), findsNothing);
-    expect(find.text('u/testuser'), findsNothing);
-  });
+      expect(find.text('Guest'), findsNothing);
+      expect(find.text('u/testuser'), findsNothing);
+    },
+  );
 
-  testWidgets('Inbox empty state and guest view render correctly',
-      (tester) async {
+  testWidgets('Inbox empty state and guest view render correctly', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _app(
         const Column(
@@ -406,44 +455,46 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Sign in'), findsOneWidget);
   });
 
-  testWidgets('InboxScreen renders M3E app bar overflow menu, single category row, and items',
-      (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final repo = _TestInboxRepository();
+  testWidgets(
+    'InboxScreen renders M3E app bar overflow menu, single category row, and items',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repo = _TestInboxRepository();
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          sharedPrefsProvider.overrideWithValue(prefs),
-          redditRepositoryProvider.overrideWith((ref) => repo),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.dark(null),
-          home: const InboxScreen(),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPrefsProvider.overrideWithValue(prefs),
+            redditRepositoryProvider.overrideWith((ref) => repo),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(null),
+            home: const InboxScreen(),
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Inbox'), findsOneWidget);
-    expect(find.byTooltip('Mark this tab read'), findsOneWidget);
-    expect(find.byTooltip('More options'), findsOneWidget);
-    expect(find.byTooltip('New message'), findsOneWidget);
+      expect(find.text('Inbox'), findsOneWidget);
+      expect(find.byTooltip('Mark this tab read'), findsOneWidget);
+      expect(find.byTooltip('More options'), findsOneWidget);
+      expect(find.byTooltip('New message'), findsOneWidget);
 
-    expect(find.byType(TabBar), findsOneWidget);
-    expect(find.text('All'), findsOneWidget);
-    expect(find.text('Filter'), findsNothing);
-    expect(find.text('Replies'), findsNothing);
-    expect(find.text('Hello there'), findsOneWidget);
+      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Filter'), findsNothing);
+      expect(find.text('Replies'), findsNothing);
+      expect(find.text('Hello there'), findsOneWidget);
 
-    // Verify overflow menu
-    await tester.tap(find.byTooltip('More options'));
-    await tester.pumpAndSettle();
+      // Verify overflow menu
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Refresh'), findsOneWidget);
-    expect(find.text('Sent messages'), findsOneWidget);
-    expect(find.text('Notification settings'), findsOneWidget);
-  });
+      expect(find.text('Refresh'), findsOneWidget);
+      expect(find.text('Sent messages'), findsOneWidget);
+      expect(find.text('Notification settings'), findsOneWidget);
+    },
+  );
 }

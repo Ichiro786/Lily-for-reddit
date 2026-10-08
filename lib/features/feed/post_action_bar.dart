@@ -96,7 +96,7 @@ class M3EPostActionBar extends StatelessWidget {
         HapticFeedback.selectionClick();
         onShareTap?.call();
       },
-      child: Icon(Icons.shortcut_rounded, size: frontpageStyle ? 20 : 17),
+      child: Icon(Icons.ios_share_rounded, size: frontpageStyle ? 20 : 17),
     );
 
     final saveButton = _CompactAction(
@@ -243,7 +243,7 @@ class _VoteGroup extends StatelessWidget {
         ? upvoteColor.withValues(alpha: 0.40)
         : (isDownvoted
               ? downvoteColor.withValues(alpha: 0.40)
-              : cs.outlineVariant.withValues(alpha: roomy ? 1 : 0.20));
+              : cs.outline);
 
     final scoreColor = isUpvoted
         ? upvoteColor
@@ -358,14 +358,14 @@ class _CommentAction extends StatelessWidget {
             color: roomy
                 ? cs.surfaceContainerLowest
                 : cs.surfaceContainerHigh.withValues(alpha: 0.70),
-            borderColor: cs.outlineVariant.withValues(alpha: roomy ? 1 : 0.20),
+            borderColor: cs.outline,
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: roomy ? 6 : 10),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.chat_bubble_outline_rounded,
+                    Icons.mode_comment_outlined,
                     size: roomy ? 20 : 17,
                     color: cs.onSurfaceVariant,
                   ),
@@ -422,7 +422,7 @@ class _CompactAction extends StatelessWidget {
 
     final borderColor = isHighlighted
         ? cs.primary.withValues(alpha: 0.35)
-        : cs.outlineVariant.withValues(alpha: roomy ? 1 : 0.20);
+        : cs.outline;
 
     return Semantics(
       button: true,

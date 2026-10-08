@@ -21,34 +21,41 @@ class Subreddit with _$Subreddit {
   }) = _Subreddit;
 
   Map<String, dynamic> toJson() => {
-        'display_name': name,
-        'display_name_prefixed': namePrefixed,
-        'title': title,
-        'public_description': description,
-        'subscribers': subscribers,
-        if (accountsActive != null) 'accounts_active': accountsActive,
-        if (iconUrl != null) 'community_icon': iconUrl,
-        if (bannerUrl != null) 'banner_background_image': bannerUrl,
-        'over18': over18,
-        'user_has_favorited': userHasFavorited,
-        if (userIsSubscriber != null) 'user_is_subscriber': userIsSubscriber,
-      };
+    'display_name': name,
+    'display_name_prefixed': namePrefixed,
+    'title': title,
+    'public_description': description,
+    'subscribers': subscribers,
+    if (accountsActive != null) 'accounts_active': accountsActive,
+    if (iconUrl != null) 'community_icon': iconUrl,
+    if (bannerUrl != null) 'banner_background_image': bannerUrl,
+    'over18': over18,
+    'user_has_favorited': userHasFavorited,
+    if (userIsSubscriber != null) 'user_is_subscriber': userIsSubscriber,
+  };
 
   factory Subreddit.fromData(Map<String, dynamic> d) {
-    String? clean(String? s) =>
-        (s == null || s.isEmpty) ? null : s.replaceAll('&amp;', '&');
-    final icon = clean(d['community_icon'] as String?) ??
+    String? clean(String? s) => (s == null || s.trim().isEmpty)
+        ? null
+        : s.trim().replaceAll('&amp;', '&');
+    final icon =
+        clean(d['community_icon'] as String?) ??
         clean(d['icon_img'] as String?);
-    final banner = clean(d['banner_background_image'] as String?) ??
+    final banner =
+        clean(d['banner_background_image'] as String?) ??
         clean(d['banner_img'] as String?);
-    final accountsActive = (d['accounts_active'] as num?)?.toInt() ??
+    final accountsActive =
+        (d['accounts_active'] as num?)?.toInt() ??
         (d['active_user_count'] as num?)?.toInt();
     return Subreddit(
       name: d['display_name'] as String? ?? d['name'] as String? ?? '',
-      namePrefixed: d['display_name_prefixed'] as String? ??
+      namePrefixed:
+          d['display_name_prefixed'] as String? ??
           'r/${d['display_name'] ?? d['name'] ?? ''}',
       title: (d['title'] as String? ?? '').trim(),
-      description: ((d['public_description'] ?? d['description']) as String? ?? '').trim(),
+      description:
+          ((d['public_description'] ?? d['description']) as String? ?? '')
+              .trim(),
       subscribers: (d['subscribers'] as num?)?.toInt() ?? 0,
       accountsActive: accountsActive,
       iconUrl: icon,

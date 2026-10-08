@@ -9,6 +9,73 @@ import '../explore/explore_screen.dart';
 import '../feed/feed_controller.dart';
 import '../inbox/inbox_controller.dart';
 import '../multireddit/multireddit_providers.dart';
+import 'profile_media.dart';
+import 'profile_providers.dart';
+
+/// The compact Settings entry shares profile media and keeps a stable fallback
+/// while account details load or the connection is unavailable.
+class CurrentProfileEntry extends ConsumerWidget {
+  const CurrentProfileEntry({
+    super.key,
+    required this.username,
+    required this.onTap,
+  });
+  final String username;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(userAboutProvider(username)).valueOrNull;
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Material(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(28),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                ProfileAvatar(username: username, url: user?.iconUrl, size: 64),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user == null || user.displayName.isEmpty
+                            ? username
+                            : user.displayName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'u/$username',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class M3EProfileHeader extends StatelessWidget {
   const M3EProfileHeader({
@@ -51,9 +118,9 @@ class M3EProfileHeader extends StatelessWidget {
             child: Text(
               initial,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
           const SizedBox(width: 14),
@@ -74,9 +141,7 @@ class M3EProfileHeader extends StatelessWidget {
                             'u/$username',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
+                            style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(
                                   color: colorScheme.onSurface,
                                   fontWeight: FontWeight.w800,
@@ -97,15 +162,15 @@ class M3EProfileHeader extends StatelessWidget {
                   Text(
                     subtitle!,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 if (details != null)
                   Text(
                     details!,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 TextButton(
                   onPressed: onViewProfile,
@@ -142,7 +207,10 @@ void resetAccountData(WidgetRef ref) {
 
 /// Displays the M3E bottom sheet to manage, switch, or add accounts.
 void showAccountBottomSheet(
-    BuildContext context, WidgetRef ref, String current) {
+  BuildContext context,
+  WidgetRef ref,
+  String current,
+) {
   showModalBottomSheet(
     context: context,
     showDragHandle: true,
@@ -150,7 +218,8 @@ void showAccountBottomSheet(
       builder: (ctx, ref2, _) {
         final cs = Theme.of(ctx).colorScheme;
         final accounts =
-            ref2.watch(accountsProvider).valueOrNull ?? [current];
+            ref2.watch(accountsProvider).valueOrNull ??
+            (current.isEmpty ? <String>[] : [current]);
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -159,9 +228,10 @@ void showAccountBottomSheet(
                 padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Accounts',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    'Accounts',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
               for (final a in accounts)
@@ -178,8 +248,7 @@ void showAccountBottomSheet(
                       : IconButton(
                           tooltip: 'Remove',
                           icon: const Icon(Icons.close_rounded),
-                          onPressed: () =>
-                              _confirmRemove(context, ref, a),
+                          onPressed: () => _confirmRemove(context, ref, a),
                         ),
                   onTap: a == current
                       ? null
@@ -202,8 +271,10 @@ void showAccountBottomSheet(
               ),
               ListTile(
                 leading: Icon(Icons.logout_rounded, color: cs.error),
-                title: Text('Log out of u/$current',
-                    style: TextStyle(color: cs.error)),
+                title: Text(
+                  'Log out of u/$current',
+                  style: TextStyle(color: cs.error),
+                ),
                 onTap: () async {
                   Navigator.pop(ctx);
                   await _confirmRemove(context, ref, current);
@@ -225,37 +296,50 @@ Future<void> _addAccount(BuildContext context, WidgetRef ref) async {
     if (isWeb) {
       final cookie = await Navigator.of(context).push<String>(
         MaterialPageRoute(
-            builder: (_) => const WebLoginScreen(clearFirst: true)),
+          builder: (_) => const WebLoginScreen(clearFirst: true),
+        ),
       );
       if (cookie == null || cookie.isEmpty) return;
-      await ref.read(authControllerProvider.notifier).loginWithWebSession(cookie);
+      await ref
+          .read(authControllerProvider.notifier)
+          .loginWithWebSession(cookie);
     } else {
       await ref.read(authControllerProvider.notifier).addAccount();
     }
     resetAccountData(ref);
   } catch (e) {
-    messenger.showSnackBar(SnackBar(
+    messenger.showSnackBar(
+      SnackBar(
         content: Text(
-            'Could not add account: ${'$e'.replaceFirst('Exception: ', '')}')));
+          'Could not add account: ${'$e'.replaceFirst('Exception: ', '')}',
+        ),
+      ),
+    );
   }
 }
 
 Future<void> _confirmRemove(
-    BuildContext context, WidgetRef ref, String username) async {
+  BuildContext context,
+  WidgetRef ref,
+  String username,
+) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: Text('Log out of u/$username?'),
       content: const Text(
-          'This removes the account from this device. Your saved API '
-          'credentials stay so you can add it again.'),
+        'This removes the account from this device. Your saved API '
+        'credentials stay so you can add it again.',
+      ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel')),
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Log out')),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Log out'),
+        ),
       ],
     ),
   );
@@ -264,4 +348,3 @@ Future<void> _confirmRemove(
     resetAccountData(ref);
   }
 }
-

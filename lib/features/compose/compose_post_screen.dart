@@ -11,6 +11,7 @@ import 'package:video_thumbnail/video_thumbnail.dart';
 import '../../core/drafts.dart';
 import '../../core/providers.dart';
 import '../../models/flair.dart';
+import '../search/community_suggestions.dart';
 import '../media/giphy_picker.dart';
 import '../media/attachment.dart';
 
@@ -34,6 +35,8 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   late final _subreddit = TextEditingController(
     text: widget.initialSubreddit ?? '',
   );
+  final _subredditFocus = FocusNode();
+  final _titleFocus = FocusNode();
   final _title = TextEditingController();
   final _body = TextEditingController();
   final _url = TextEditingController();
@@ -114,6 +117,8 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   void dispose() {
     _flairRevision++;
     _pickerRevision++;
+    _subredditFocus.dispose();
+    _titleFocus.dispose();
     _subreddit.dispose();
     _title.dispose();
     _body.dispose();
@@ -122,7 +127,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
   }
 
   Future<void> _loadFlairs() async {
-    final sr = _subreddit.text.trim();
+    final sr = normalizeCommunityQuery(_subreddit.text);
     if (sr == _flairsFor) return;
     final revision = ++_flairRevision;
     _flairsFor = sr;
@@ -136,7 +141,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
       final flairs = await ref.read(redditRepositoryProvider).getLinkFlairs(sr);
       if (!mounted ||
           revision != _flairRevision ||
-          sr != _subreddit.text.trim()) {
+          sr != normalizeCommunityQuery(_subreddit.text)) {
         return;
       }
       setState(() {
@@ -234,7 +239,7 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
 
   Future<void> _submit() async {
     if (_busy) return;
-    final sr = _subreddit.text.trim();
+    final sr = normalizeCommunityQuery(_subreddit.text);
     final title = _title.text.trim();
     if (sr.isEmpty || title.isEmpty) {
       setState(() => _error = 'Subreddit and title are required.');
@@ -460,10 +465,14 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
           children: [
             TextField(
               controller: _subreddit,
+              focusNode: _subredditFocus,
               autocorrect: false,
               textInputAction: TextInputAction.next,
               onChanged: (_) => _saveDraft(),
-              onEditingComplete: _loadFlairs,
+              onEditingComplete: () {
+                _loadFlairs();
+                _titleFocus.requestFocus();
+              },
               onTapOutside: (_) => _loadFlairs(),
               decoration: const InputDecoration(
                 labelText: 'Subreddit',
@@ -471,8 +480,19 @@ class _ComposePostScreenState extends ConsumerState<ComposePostScreen> {
                 prefixIcon: Icon(Icons.forum_rounded),
               ),
             ),
+            CommunitySuggestions(
+              controller: _subreddit,
+              focusNode: _subredditFocus,
+              onSelected: (community) {
+                _subreddit.text = community.name;
+                _saveDraft();
+                _loadFlairs();
+                _titleFocus.requestFocus();
+              },
+            ),
             const SizedBox(height: 12),
             TextField(
+              focusNode: _titleFocus,
               controller: _title,
               onChanged: (_) => _saveDraft(),
               decoration: const InputDecoration(

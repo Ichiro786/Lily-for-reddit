@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
-import 'package:luli_for_reddit/core/theme/thread_colors.dart';
 import 'package:luli_for_reddit/features/post/comment_card.dart';
 import 'package:luli_for_reddit/features/post/comment_compose_bar.dart';
 
@@ -29,52 +28,44 @@ M3ECommentCard _card({required int depth, bool collapsed = false}) {
 }
 
 void main() {
-  testWidgets(
-    'depth rails use harmonized rainbow tokens and fill the reply height',
-    (tester) async {
-      const seed = Color(0xFF00695C); // deliberately not the legacy purple
-      final scheme = ColorScheme.fromSeed(seedColor: seed);
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(scheme),
-          home: Scaffold(
-            body: ListView(
-              children: [
-                _card(depth: 1),
-                _card(depth: 2),
-                _card(depth: 3),
-                _card(depth: 4),
-              ],
-            ),
+  testWidgets('depth connectors use theme outlines and fill the reply height', (
+    tester,
+  ) async {
+    const seed = Color(0xFF00695C); // deliberately not the legacy purple
+    final scheme = ColorScheme.fromSeed(seedColor: seed);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(scheme),
+        home: Scaffold(
+          body: ListView(
+            children: [
+              _card(depth: 1),
+              _card(depth: 2),
+              _card(depth: 3),
+              _card(depth: 4),
+            ],
           ),
         ),
+      ),
+    );
+
+    final context = tester.element(find.byType(M3ECommentCard).first);
+    final expected = Theme.of(context).colorScheme.outlineVariant;
+
+    for (var depth = 1; depth <= 4; depth++) {
+      final rail = tester.widget<Container>(
+        find.byKey(ValueKey<String>('comment-depth-rail-$depth')),
       );
-
-      final context = tester.element(find.byType(M3ECommentCard).first);
-      final expectedAccents = Theme.of(
-        context,
-      ).extension<ThreadColors>()!.rails;
-
-      for (var depth = 1; depth <= 4; depth++) {
-        final rail = tester.widget<Container>(
-          find.byKey(ValueKey<String>('comment-depth-rail-$depth')),
-        );
-        final decoration = rail.decoration! as BoxDecoration;
-        final expected = expectedAccents[(depth - 1) % expectedAccents.length];
-        expect(decoration.color, expected);
-        expect(
-          tester
-              .getSize(
-                find.byKey(ValueKey<String>('comment-depth-rail-$depth')),
-              )
-              .height,
-          greaterThan(100),
-        );
-      }
-      // Nesting remains distinguishable while cycling.
-      expect(expectedAccents.toSet().length, 7);
-    },
-  );
+      final decoration = rail.decoration! as BoxDecoration;
+      expect(decoration.color, expected);
+      expect(
+        tester
+            .getSize(find.byKey(ValueKey<String>('comment-depth-rail-$depth')))
+            .height,
+        greaterThan(100),
+      );
+    }
+  });
 
   testWidgets('tapping the comment header collapses and expands the body', (
     tester,
@@ -302,11 +293,11 @@ void main() {
   });
 
   testWidgets(
-    'vote controls render inside an M3E segmented capsule container',
+    'contained actions stay ordered while the comment canvas stays open',
     (tester) async {
       await tester.pumpWidget(
         _harness(
-          M3ECommentCard(
+          const M3ECommentCard(
             author: 'alice',
             timeAgo: '1h',
             body: 'Comment body',
@@ -314,35 +305,23 @@ void main() {
           ),
         ),
       );
-
-      // Verify presence of M3E capsule containing upvote, score, and downvote.
-      final capsuleFinder = find.byWidgetPredicate((widget) {
-        if (widget is Container && widget.decoration is BoxDecoration) {
-          final box = widget.decoration as BoxDecoration;
-          return box.borderRadius == BorderRadius.circular(18);
-        }
-        return false;
-      });
-
-      expect(capsuleFinder, findsOneWidget);
+      expect(find.byType(Card), findsNothing);
       expect(
-        find.descendant(
-          of: capsuleFinder,
-          matching: find.byIcon(Icons.arrow_upward_rounded),
+        tester.getCenter(find.byTooltip('Upvote')).dx,
+        lessThan(tester.getCenter(find.text('15')).dx),
+      );
+      expect(
+        tester.getCenter(find.text('15')).dx,
+        lessThan(tester.getCenter(find.byTooltip('Downvote')).dx),
+      );
+      expect(find.byType(OutlinedButton), findsOneWidget);
+      final more = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byTooltip('More comment options'),
+          matching: find.byType(IconButton),
         ),
-        findsOneWidget,
       );
-      expect(
-        find.descendant(of: capsuleFinder, matching: find.text('15')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: capsuleFinder,
-          matching: find.byIcon(Icons.arrow_downward_rounded),
-        ),
-        findsOneWidget,
-      );
+      expect(more.style!.side!.resolve({})!.style, BorderStyle.solid);
     },
   );
 }

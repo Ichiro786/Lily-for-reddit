@@ -18,6 +18,7 @@ final _privateConstructorUsedError = UnsupportedError(
 /// @nodoc
 mixin _$RedditUser {
   String get name => throw _privateConstructorUsedError;
+  String get displayName => throw _privateConstructorUsedError;
   String? get iconUrl => throw _privateConstructorUsedError;
   String? get bannerUrl => throw _privateConstructorUsedError;
   int get linkKarma => throw _privateConstructorUsedError;
@@ -41,6 +42,7 @@ abstract class $RedditUserCopyWith<$Res> {
   @useResult
   $Res call({
     String name,
+    String displayName,
     String? iconUrl,
     String? bannerUrl,
     int linkKarma,
@@ -66,6 +68,7 @@ class _$RedditUserCopyWithImpl<$Res, $Val extends RedditUser>
   @override
   $Res call({
     Object? name = null,
+    Object? displayName = null,
     Object? iconUrl = freezed,
     Object? bannerUrl = freezed,
     Object? linkKarma = null,
@@ -78,6 +81,10 @@ class _$RedditUserCopyWithImpl<$Res, $Val extends RedditUser>
             name: null == name
                 ? _value.name
                 : name // ignore: cast_nullable_to_non_nullable
+                      as String,
+            displayName: null == displayName
+                ? _value.displayName
+                : displayName // ignore: cast_nullable_to_non_nullable
                       as String,
             iconUrl: freezed == iconUrl
                 ? _value.iconUrl
@@ -120,6 +127,7 @@ abstract class _$$RedditUserImplCopyWith<$Res>
   @useResult
   $Res call({
     String name,
+    String displayName,
     String? iconUrl,
     String? bannerUrl,
     int linkKarma,
@@ -144,6 +152,7 @@ class __$$RedditUserImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? name = null,
+    Object? displayName = null,
     Object? iconUrl = freezed,
     Object? bannerUrl = freezed,
     Object? linkKarma = null,
@@ -156,6 +165,10 @@ class __$$RedditUserImplCopyWithImpl<$Res>
         name: null == name
             ? _value.name
             : name // ignore: cast_nullable_to_non_nullable
+                  as String,
+        displayName: null == displayName
+            ? _value.displayName
+            : displayName // ignore: cast_nullable_to_non_nullable
                   as String,
         iconUrl: freezed == iconUrl
             ? _value.iconUrl
@@ -191,6 +204,7 @@ class __$$RedditUserImplCopyWithImpl<$Res>
 class _$RedditUserImpl extends _RedditUser {
   const _$RedditUserImpl({
     required this.name,
+    this.displayName = '',
     this.iconUrl,
     this.bannerUrl,
     this.linkKarma = 0,
@@ -201,6 +215,9 @@ class _$RedditUserImpl extends _RedditUser {
 
   @override
   final String name;
+  @override
+  @JsonKey()
+  final String displayName;
   @override
   final String? iconUrl;
   @override
@@ -219,7 +236,7 @@ class _$RedditUserImpl extends _RedditUser {
 
   @override
   String toString() {
-    return 'RedditUser(name: $name, iconUrl: $iconUrl, bannerUrl: $bannerUrl, linkKarma: $linkKarma, commentKarma: $commentKarma, created: $created, description: $description)';
+    return 'RedditUser(name: $name, displayName: $displayName, iconUrl: $iconUrl, bannerUrl: $bannerUrl, linkKarma: $linkKarma, commentKarma: $commentKarma, created: $created, description: $description)';
   }
 
   @override
@@ -228,6 +245,8 @@ class _$RedditUserImpl extends _RedditUser {
         (other.runtimeType == runtimeType &&
             other is _$RedditUserImpl &&
             (identical(other.name, name) || other.name == name) &&
+            (identical(other.displayName, displayName) ||
+                other.displayName == displayName) &&
             (identical(other.iconUrl, iconUrl) || other.iconUrl == iconUrl) &&
             (identical(other.bannerUrl, bannerUrl) ||
                 other.bannerUrl == bannerUrl) &&
@@ -244,6 +263,7 @@ class _$RedditUserImpl extends _RedditUser {
   int get hashCode => Object.hash(
     runtimeType,
     name,
+    displayName,
     iconUrl,
     bannerUrl,
     linkKarma,
@@ -264,6 +284,7 @@ class _$RedditUserImpl extends _RedditUser {
 abstract class _RedditUser extends RedditUser {
   const factory _RedditUser({
     required final String name,
+    final String displayName,
     final String? iconUrl,
     final String? bannerUrl,
     final int linkKarma,
@@ -275,6 +296,8 @@ abstract class _RedditUser extends RedditUser {
 
   @override
   String get name;
+  @override
+  String get displayName;
   @override
   String? get iconUrl;
   @override
