@@ -18,6 +18,7 @@ import '../feed/post_card.dart';
 import '../post/post_actions.dart';
 import '../profile/profile_header.dart';
 import '../profile/profile_hero.dart';
+import '../profile/profile_tabs.dart';
 import '../profile/profile_providers.dart';
 import '../multireddit/custom_feeds_sheet.dart';
 
@@ -37,6 +38,9 @@ class UserScreen extends ConsumerWidget {
     final isSelf = me != null && me.toLowerCase() == username.toLowerCase();
     final repo = ref.watch(redditRepositoryProvider);
     final cs = Theme.of(context).colorScheme;
+    final bottomPadding = embedded
+        ? 130.0
+        : 24 + MediaQuery.paddingOf(context).bottom;
     final tabs = <Tab>[
       const Tab(text: 'Posts'),
       const Tab(text: 'Comments'),
@@ -114,21 +118,7 @@ class UserScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(28),
                   border: Border.all(color: cs.outlineVariant),
                 ),
-                child: TabBar(
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  dividerColor: Colors.transparent,
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  padding: const EdgeInsets.all(4),
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 20),
-                  indicator: BoxDecoration(
-                    color: cs.primaryContainer,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  labelColor: cs.onPrimaryContainer,
-                  unselectedLabelColor: cs.onSurfaceVariant,
-                  tabs: tabs,
-                ),
+                child: ProfileTabs(tabs: tabs),
               ),
             ),
           ],
@@ -137,6 +127,7 @@ class UserScreen extends ConsumerWidget {
               PagedList<Post>(
                 key: PageStorageKey('$username-posts'),
                 primary: true,
+                padding: EdgeInsets.fromLTRB(10, 0, 10, bottomPadding),
                 requestKey: (username, repo, 'posts'),
                 fetch: (a) => repo.getUserPosts(username, after: a),
                 itemBuilder: (_, p) => PostCard(post: p),
@@ -145,6 +136,7 @@ class UserScreen extends ConsumerWidget {
               PagedList<Comment>(
                 key: PageStorageKey('$username-comments'),
                 primary: true,
+                padding: EdgeInsets.fromLTRB(10, 0, 10, bottomPadding),
                 requestKey: (username, repo, 'comments'),
                 fetch: (a) => repo.getUserComments(username, after: a),
                 itemBuilder: (_, c) => _ProfileCommentCard(comment: c),
@@ -154,6 +146,7 @@ class UserScreen extends ConsumerWidget {
                 PagedList<Object>(
                   key: PageStorageKey('$username-saved'),
                   primary: true,
+                  padding: EdgeInsets.fromLTRB(10, 0, 10, bottomPadding),
                   requestKey: (username, repo, 'saved'),
                   fetch: (a) => repo.getUserSaved(username, after: a),
                   itemBuilder: (_, item) => item is Post
@@ -165,6 +158,7 @@ class UserScreen extends ConsumerWidget {
                 PagedList<Post>(
                   key: PageStorageKey('$username-upvoted'),
                   primary: true,
+                  padding: EdgeInsets.fromLTRB(10, 0, 10, bottomPadding),
                   requestKey: (username, repo, 'upvoted'),
                   fetch: (a) =>
                       repo.getUserPosts(username, where: 'upvoted', after: a),
@@ -174,7 +168,7 @@ class UserScreen extends ConsumerWidget {
               ListView(
                 key: PageStorageKey('$username-about'),
                 primary: true,
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 130),
+                padding: EdgeInsets.fromLTRB(24, 8, 24, bottomPadding),
                 children: [
                   Text(
                     'About u/$username',
@@ -219,6 +213,7 @@ class _ProfileCommentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     return Card(
       child: InkWell(
         borderRadius: ShapeTokens.extraLarge,

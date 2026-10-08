@@ -12,11 +12,11 @@ This update fixes the navigation, comment composer, feed continuity, back naviga
 - Android Back returns Discover, Inbox, and Profile to Home. Posts, settings, subreddits, and media viewers still close first when open.
 - Galleries prepare and decode the next and previous images using the existing cache. The preload window follows your swipes and releases its image listeners on memory pressure or disposal.
 
-- Community names now show live autocomplete suggestions while you type, including `r/` prefixes. Results handle empty/error states, clear stale requests, and open the selected community.
+- Community names show live suggestions in Search and the new-post Subreddit field, including `r/` prefixes. Choosing a writing suggestion fills the community, loads its flairs, and moves to the title. Stale replies, clearing, errors, and account changes are handled.
 - Tapping the comment input closes the media tray without losing your draft or keyboard focus.
 - Pinch zoom works in image and gallery viewers, including when the first finger moves before the second is placed. Zoomed images stay pannable; paging and single-finger dismissal remain available.
-- Comments now use a clean canvas, neutral nesting guides, clear reply/vote actions, and separate profile and collapse controls.
-- Your profile and public profiles share spacious headers, real Reddit avatars/banners, bio, karma, and account age. Saved and Upvoted are restricted to your own profile. Account switching and custom feeds remain available.
+- Comments use a clean canvas, neutral nesting guides, real user avatars, and outlined action controls. The menu stays beside voting in deep threads, with deliberate compact rows for large text. Post and comment controls use refreshed rounded Material icons; community avatars now load in feeds and post details.
+- Your profile and public profiles share spacious headers, real Reddit avatars/banners, bio, karma, and account age. Responsive section controls keep every label, including Upvoted and About, fully visible. Saved and Upvoted are restricted to your own profile. Account switching and custom feeds remain available.
 - Settings now opens with a compact profile entry, useful search, and seven dedicated categories. Existing preferences and saved values are preserved; search opens and scrolls to the matching control.
 
 ## Downloads

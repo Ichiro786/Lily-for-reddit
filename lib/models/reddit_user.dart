@@ -30,7 +30,9 @@ class RedditUser with _$RedditUser {
       name: d['name'] as String? ?? '',
       displayName: (sub?['title'] as String? ?? '').trim(),
       iconUrl:
-          clean(d['icon_img'] as String?) ?? clean(sub?['icon_img'] as String?),
+          clean(d['icon_img'] as String?) ??
+          clean(d['snoovatar_img'] as String?) ??
+          clean(sub?['icon_img'] as String?),
       bannerUrl:
           clean(sub?['banner_background_image'] as String?) ??
           clean(sub?['banner_img'] as String?),

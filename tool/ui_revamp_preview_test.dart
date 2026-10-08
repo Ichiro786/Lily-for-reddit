@@ -14,6 +14,7 @@ import 'package:luli_for_reddit/core/providers.dart';
 import 'package:luli_for_reddit/core/theme/app_theme.dart';
 import 'package:luli_for_reddit/features/auth/auth_controller.dart';
 import 'package:luli_for_reddit/features/post/comment_card.dart';
+import 'package:luli_for_reddit/features/profile/profile_tabs.dart';
 import 'package:luli_for_reddit/features/post/comment_compose_bar.dart';
 import 'package:luli_for_reddit/features/settings/settings_controller.dart';
 import 'package:luli_for_reddit/features/settings/settings_screen.dart';
@@ -170,6 +171,22 @@ void main() {
         );
         await tester.pumpAndSettle();
         await capture(name == 'alice' ? 'my-profile' : 'public-profile');
+        for (
+          var step = 0;
+          step < 8 && find.byType(ProfileTabs).evaluate().isEmpty;
+          step++
+        ) {
+          await tester.drag(
+            find.byType(NestedScrollView),
+            const Offset(0, -300),
+          );
+          await tester.pumpAndSettle();
+        }
+        await tester.ensureVisible(find.byType(ProfileTabs));
+        await tester.pumpAndSettle();
+        await capture(
+          name == 'alice' ? 'my-profile-tabs' : 'public-profile-tabs',
+        );
         await tester.pumpWidget(const SizedBox());
         await tester.pumpAndSettle();
         router.dispose();
@@ -184,7 +201,8 @@ void main() {
                   author: ['alice', 'bob', 'charlie'][depth],
                   timeAgo: '${depth + 1}h',
                   depth: depth,
-                  score: 184 - depth * 60,
+                  score: depth == 0 ? 13859 : 3773,
+                  voteState: depth == 0 ? 1 : 0,
                   body: [
                     'A quiet night in the city. Really love the atmosphere.',
                     'The lighting is beautiful. Thanks for sharing!',
@@ -209,6 +227,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
+      container.dispose();
     });
   }
 }

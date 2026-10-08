@@ -16,6 +16,8 @@ import '../../models/post.dart';
 import '../../models/reddit_user.dart';
 import '../../models/subreddit.dart';
 import '../feed/post_card.dart';
+import '../profile/profile_media.dart';
+import 'community_suggestions.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key, this.initialSubreddit, this.initialQuery});
@@ -181,10 +183,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _onQueryChanged(String text) {
     _revision++;
     _cancelSuggestions();
-    final query = text
-        .trim()
-        .replaceFirst(RegExp(r'^/?r/', caseSensitive: false), '')
-        .toLowerCase();
+    final query = normalizeCommunityQuery(text);
     setState(() {
       _loading = false;
       _suggestionsOpen =
@@ -274,10 +273,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         else
           for (final s in _suggestions)
             ListTile(
-              leading: CircleAvatar(
-                backgroundColor: cs.secondaryContainer,
-                foregroundColor: cs.onSecondaryContainer,
-                child: Text(s.name[0].toUpperCase()),
+              leading: ProfileAvatar(
+                username: s.name,
+                url: s.iconUrl,
+                size: 36,
               ),
               title: Text(s.namePrefixed),
               subtitle: Text('${compactNumber(s.subscribers)} members'),
@@ -500,7 +499,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   );
 
   Widget _subsTab() {
-    final cs = Theme.of(context).colorScheme;
     return M3ERefreshIndicator(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _subs.isEmpty
@@ -518,12 +516,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               itemBuilder: (_, i) {
                 final s = _subs[i];
                 return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: cs.secondaryContainer,
-                    foregroundColor: cs.onSecondaryContainer,
-                    child: Text(
-                      s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
-                    ),
+                  leading: ProfileAvatar(
+                    username: s.name,
+                    url: s.iconUrl,
+                    size: 36,
                   ),
                   title: Text(s.namePrefixed),
                   subtitle: Text('${compactNumber(s.subscribers)} members'),
@@ -535,7 +531,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _usersTab() {
-    final cs = Theme.of(context).colorScheme;
     return M3ERefreshIndicator(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _users.isEmpty
@@ -553,12 +548,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               itemBuilder: (_, i) {
                 final u = _users[i];
                 return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: cs.secondaryContainer,
-                    foregroundColor: cs.onSecondaryContainer,
-                    child: Text(
-                      u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
-                    ),
+                  leading: ProfileAvatar(
+                    username: u.name,
+                    url: u.iconUrl,
+                    size: 36,
                   ),
                   title: Text('u/${u.name}'),
                   subtitle: Text(

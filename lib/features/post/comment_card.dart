@@ -1,9 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/widgets/m3e_animated_size.dart';
+import 'comment_actions.dart';
 
 /// Controlled presenter; voting, saving and collapse remain parent-owned.
 class M3ECommentCard extends StatelessWidget {
@@ -13,6 +12,7 @@ class M3ECommentCard extends StatelessWidget {
     required this.timeAgo,
     required this.body,
     this.richBody,
+    this.avatar,
     this.score = 0,
     this.voteState = 0,
     this.isSaved = false,
@@ -30,7 +30,7 @@ class M3ECommentCard extends StatelessWidget {
     this.onLoadMoreReplies,
   });
   final String author, timeAgo, body;
-  final Widget? richBody;
+  final Widget? richBody, avatar;
   final int score, voteState, depth, replyCount;
   final bool isSaved, isOp, isCollapsed;
   final VoidCallback? onToggleCollapse,
@@ -46,9 +46,6 @@ class M3ECommentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final votes = theme.extension<VoteColors>();
-    final up = votes?.up ?? cs.primary;
-    final down = votes?.down ?? cs.tertiary;
     final profileAction = onViewProfile ?? onToggleCollapse;
     // App layout decision: cap visual indentation so deep threads stay readable.
     final levels = math.min(math.max(depth, 0), 4);
@@ -124,18 +121,21 @@ class M3ECommentCard extends StatelessWidget {
                                 width: 48,
                                 height: 48,
                                 child: Center(
-                                  child: CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: cs.surfaceContainerHighest,
-                                    foregroundColor: cs.onSurface,
-                                    child: Text(
-                                      author.isEmpty
-                                          ? 'U'
-                                          : author.characters.first
-                                                .toUpperCase(),
-                                      style: theme.textTheme.titleSmall,
-                                    ),
-                                  ),
+                                  child:
+                                      avatar ??
+                                      CircleAvatar(
+                                        radius: 16,
+                                        backgroundColor:
+                                            cs.surfaceContainerHighest,
+                                        foregroundColor: cs.onSurface,
+                                        child: Text(
+                                          author.isEmpty
+                                              ? 'U'
+                                              : author.characters.first
+                                                    .toUpperCase(),
+                                          style: theme.textTheme.titleSmall,
+                                        ),
+                                      ),
                                 ),
                               ),
                             ),
@@ -221,111 +221,15 @@ class M3ECommentCard extends StatelessWidget {
                                     ),
                                   ),
                               const SizedBox(height: 4),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Wrap(
-                                      crossAxisAlignment:
-                                          WrapCrossAlignment.center,
-                                      children: [
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            action(
-                                              'Upvote',
-                                              Icons.arrow_upward_rounded,
-                                              onVote == null
-                                                  ? null
-                                                  : () {
-                                                      HapticFeedback.selectionClick();
-                                                      onVote!(1);
-                                                    },
-                                              color: voteState == 1 ? up : null,
-                                              selected: voteState == 1,
-                                            ),
-                                            Flexible(
-                                              child: ConstrainedBox(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                      maxWidth: 64,
-                                                    ),
-                                                child: Text(
-                                                  '$score',
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: theme
-                                                      .textTheme
-                                                      .labelLarge
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color: voteState == 1
-                                                            ? up
-                                                            : voteState == -1
-                                                            ? down
-                                                            : cs.onSurfaceVariant,
-                                                      ),
-                                                ),
-                                              ),
-                                            ),
-                                            action(
-                                              'Downvote',
-                                              Icons.arrow_downward_rounded,
-                                              onVote == null
-                                                  ? null
-                                                  : () {
-                                                      HapticFeedback.selectionClick();
-                                                      onVote!(-1);
-                                                    },
-                                              color: voteState == -1
-                                                  ? down
-                                                  : null,
-                                              selected: voteState == -1,
-                                            ),
-                                          ],
-                                        ),
-                                        TextButton.icon(
-                                          onPressed: onReply,
-                                          icon: const Icon(
-                                            Icons.reply_rounded,
-                                            size: 22,
-                                          ),
-                                          label: const Text('Reply'),
-                                          style: TextButton.styleFrom(
-                                            foregroundColor:
-                                                cs.onSurfaceVariant,
-                                            minimumSize: const Size(0, 48),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                            ),
-                                          ),
-                                        ),
-                                        action(
-                                          'More comment options',
-                                          Icons.more_horiz_rounded,
-                                          onOverflow,
-                                        ),
-                                        if (onAward != null)
-                                          action(
-                                            'Award',
-                                            Icons.military_tech_outlined,
-                                            onAward,
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  action(
-                                    isSaved ? 'Unsave comment' : 'Save comment',
-                                    isSaved
-                                        ? Icons.bookmark_rounded
-                                        : Icons.bookmark_outline_rounded,
-                                    onSave,
-                                    color: isSaved ? cs.primary : null,
-                                    selected: isSaved,
-                                  ),
-                                ],
+                              CommentActions(
+                                score: score,
+                                voteState: voteState,
+                                isSaved: isSaved,
+                                onVote: onVote,
+                                onReply: onReply,
+                                onSave: onSave,
+                                onOverflow: onOverflow,
+                                onAward: onAward,
                               ),
                             ],
                           ),

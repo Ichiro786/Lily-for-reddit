@@ -26,9 +26,10 @@ class ProfileAvatar extends StatelessWidget {
       child: Center(
         child: Text(
           username.isEmpty ? '?' : username.characters.first.toUpperCase(),
-          style: Theme.of(
-            context,
-          ).textTheme.headlineSmall?.copyWith(color: cs.onPrimaryContainer),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: cs.onPrimaryContainer,
+            fontSize: size * .4,
+          ),
         ),
       ),
     );
@@ -42,6 +43,8 @@ class ProfileAvatar extends StatelessWidget {
           child: validProfileImage(url)
               ? CachedNetworkImage(
                   imageUrl: url!,
+                  memCacheWidth: (size * MediaQuery.devicePixelRatioOf(context))
+                      .round(),
                   width: size,
                   height: size,
                   fit: BoxFit.cover,

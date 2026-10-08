@@ -241,7 +241,7 @@ void main() {
   });
 
   testWidgets(
-    'bookmarks stay aligned, visible and tappable at large text in both directions',
+    'narrow actions keep More aligned with voting and bookmarks beside Reply',
     (tester) async {
       tester.view.physicalSize = const Size(320, 900);
       tester.view.devicePixelRatio = 1;
@@ -275,7 +275,7 @@ void main() {
         );
         final save = find.byTooltip('Save comment');
         expect(
-          tester.getRect(save).center.dy,
+          tester.getRect(find.byTooltip('More comment options')).center.dy,
           tester.getRect(find.byTooltip('Upvote')).center.dy,
         );
         expect(tester.getSize(save).height, greaterThanOrEqualTo(48));

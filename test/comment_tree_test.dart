@@ -292,35 +292,36 @@ void main() {
     expect(find.text('7'), findsOneWidget);
   });
 
-  testWidgets('vote controls stay lightweight and ordered on the open canvas', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _harness(
-        const M3ECommentCard(
-          author: 'alice',
-          timeAgo: '1h',
-          body: 'Comment body',
-          score: 15,
+  testWidgets(
+    'contained actions stay ordered while the comment canvas stays open',
+    (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          const M3ECommentCard(
+            author: 'alice',
+            timeAgo: '1h',
+            body: 'Comment body',
+            score: 15,
+          ),
         ),
-      ),
-    );
-    expect(find.byType(Card), findsNothing);
-    expect(
-      tester.getCenter(find.byTooltip('Upvote')).dx,
-      lessThan(tester.getCenter(find.text('15')).dx),
-    );
-    expect(
-      tester.getCenter(find.text('15')).dx,
-      lessThan(tester.getCenter(find.byTooltip('Downvote')).dx),
-    );
-    final filledSurfaces = find.descendant(
-      of: find.byType(M3ECommentCard),
-      matching: find.byWidgetPredicate(
-        (w) =>
-            w is Material && w.color != null && w.color != Colors.transparent,
-      ),
-    );
-    expect(filledSurfaces, findsNothing);
-  });
+      );
+      expect(find.byType(Card), findsNothing);
+      expect(
+        tester.getCenter(find.byTooltip('Upvote')).dx,
+        lessThan(tester.getCenter(find.text('15')).dx),
+      );
+      expect(
+        tester.getCenter(find.text('15')).dx,
+        lessThan(tester.getCenter(find.byTooltip('Downvote')).dx),
+      );
+      expect(find.byType(OutlinedButton), findsOneWidget);
+      final more = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byTooltip('More comment options'),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(more.style!.side!.resolve({})!.style, BorderStyle.solid);
+    },
+  );
 }

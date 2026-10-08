@@ -35,11 +35,7 @@ class _DetailPostActions extends StatelessWidget {
             child: DecoratedBox(
               decoration: ShapeDecoration(
                 color: cs.surfaceContainerHigh,
-                shape: StadiumBorder(
-                  side: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.2),
-                  ),
-                ),
+                shape: StadiumBorder(side: BorderSide(color: cs.outline)),
               ),
             ),
           ),
@@ -127,7 +123,7 @@ class _DetailPostActions extends StatelessWidget {
                   child: Row(
                     children: [
                       Icon(
-                        Icons.chat_bubble_outline_rounded,
+                        Icons.mode_comment_outlined,
                         size: 22,
                         color: cs.onSurfaceVariant,
                       ),
@@ -155,7 +151,7 @@ class _DetailPostActions extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          pill(icon('Share', Icons.shortcut_rounded, onShare)),
+          pill(icon('Share', Icons.ios_share_rounded, onShare)),
         ],
       ),
     );

@@ -162,7 +162,13 @@ void main() {
       final repo = ProfileRepo();
       await mount(tester, repo, username: 'bob');
       expect(find.byType(ProfileBanner), findsOneWidget);
-      expect(find.byType(ProfileAvatar), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ProfileHero),
+          matching: find.byType(ProfileAvatar),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('A display name'), findsOneWidget);
       expect(find.text('Saved'), findsNothing);
       expect(find.text('Upvoted'), findsNothing);
@@ -248,7 +254,13 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(ProfileBanner), findsOneWidget);
-      expect(find.byType(ProfileAvatar), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ProfileHero),
+          matching: find.byType(ProfileAvatar),
+        ),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );

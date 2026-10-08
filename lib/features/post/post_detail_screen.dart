@@ -1,3 +1,4 @@
+import '../profile/reddit_avatar.dart';
 import 'package:flutter/material.dart';
 import '../../core/widgets/m3e_refresh_indicator.dart';
 
@@ -782,21 +783,10 @@ class _PostHeaderState extends ConsumerState<_PostHeader> {
             children: [
               GestureDetector(
                 onTap: () => context.push('/r/${p.subreddit}'),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: cs.secondaryContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    p.subreddit.isEmpty ? '?' : p.subreddit[0].toUpperCase(),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: cs.onSecondaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                child: RedditAvatar(
+                  name: p.subreddit,
+                  community: true,
+                  size: 36,
                 ),
               ),
               const SizedBox(width: 10),
@@ -1269,6 +1259,7 @@ class _CommentTileState extends ConsumerState<_CommentTile> {
               );
           return M3ECommentCard(
             author: comment.author,
+            avatar: RedditAvatar(name: comment.author),
             timeAgo: timeAgo(comment.created),
             body: comment.body,
             richBody: widget.richBody,
