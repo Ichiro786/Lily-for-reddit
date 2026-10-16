@@ -1,3 +1,4 @@
+import '../profile/reddit_avatar.dart';
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -777,21 +778,10 @@ class _PostCardState extends ConsumerState<PostCard>
             child: Center(
               widthFactor: 1,
               heightFactor: 1,
-              child: CircleAvatar(
-                radius: widget.frontpageStyle ? 16 : 14,
-                backgroundColor: widget.frontpageStyle
-                    ? cs.primaryContainer
-                    : cs.secondaryContainer,
-                child: Text(
-                  p.subreddit.isNotEmpty ? p.subreddit[0].toUpperCase() : '?',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontSize: 13,
-                    color: widget.frontpageStyle
-                        ? cs.onPrimaryContainer
-                        : cs.onSecondaryContainer,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+              child: RedditAvatar(
+                name: p.subreddit,
+                community: true,
+                size: widget.frontpageStyle ? 32 : 28,
               ),
             ),
           ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/widgets/m3e_refresh_indicator.dart';
 
@@ -14,6 +16,8 @@ import '../../models/post.dart';
 import '../../models/reddit_user.dart';
 import '../../models/subreddit.dart';
 import '../feed/post_card.dart';
+import '../profile/profile_media.dart';
+import 'community_suggestions.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key, this.initialSubreddit, this.initialQuery});
@@ -26,6 +30,12 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  Timer? _suggestionTimer;
+  int _suggestionRevision = 0;
+  bool _suggestionsOpen = false, _suggestionsLoading = false;
+  Object? _suggestionError;
+  List<Subreddit> _suggestions = [];
   bool _loading = false;
   String _query = '';
   Object? _error;
@@ -57,6 +67,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void initState() {
     super.initState();
+    _focusNode.addListener(_focusChanged);
     _recent = ref.read(sharedPrefsProvider).getStringList(_recentKey) ?? [];
     final q = widget.initialQuery?.trim() ?? '';
     if (q.isNotEmpty) {
@@ -74,12 +85,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void dispose() {
     _revision++;
+    _cancelSuggestions();
+    _focusNode.removeListener(_focusChanged);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   void _clear() {
     _revision++;
+    _cancelSuggestions();
     _controller.clear();
     setState(() {
       _query = '';
@@ -95,6 +110,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (!mounted) return;
     q = q.trim();
     if (q.isEmpty) return;
+    _cancelSuggestions();
     final revision = ++_revision;
     final epoch = ref.read(authSessionEpochProvider);
     if (_controller.text != q) _controller.text = q;
@@ -146,6 +162,135 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
+  void _cancelSuggestions() {
+    _suggestionTimer?.cancel();
+    _suggestionRevision++;
+    _suggestionsOpen = false;
+    _suggestionsLoading = false;
+    _suggestionError = null;
+    _suggestions = [];
+  }
+
+  void _focusChanged() {
+    if (!mounted) return;
+    if (_focusNode.hasFocus) {
+      _onQueryChanged(_controller.text);
+    } else {
+      setState(_cancelSuggestions);
+    }
+  }
+
+  void _onQueryChanged(String text) {
+    _revision++;
+    _cancelSuggestions();
+    final query = normalizeCommunityQuery(text);
+    setState(() {
+      _loading = false;
+      _suggestionsOpen =
+          widget.initialSubreddit == null &&
+          _focusNode.hasFocus &&
+          query.isNotEmpty;
+      _suggestionsLoading = _suggestionsOpen;
+    });
+    if (!_suggestionsOpen) return;
+    final revision = _suggestionRevision;
+    final epoch = ref.read(authSessionEpochProvider);
+    // Network debounce is an app decision, independent of motion tokens.
+    _suggestionTimer = Timer(const Duration(milliseconds: 250), () async {
+      try {
+        final results = await ref
+            .read(redditRepositoryProvider)
+            .searchSubreddits(query);
+        if (!mounted ||
+            revision != _suggestionRevision ||
+            epoch != ref.read(authSessionEpochProvider)) {
+          return;
+        }
+        final names = <String>{};
+        setState(() {
+          _suggestions = results
+              .where(
+                (s) => s.name.isNotEmpty && names.add(s.name.toLowerCase()),
+              )
+              .take(8)
+              .toList();
+          _suggestionsLoading = false;
+        });
+      } catch (error) {
+        if (!mounted ||
+            revision != _suggestionRevision ||
+            epoch != ref.read(authSessionEpochProvider)) {
+          return;
+        }
+        setState(() {
+          _suggestionsLoading = false;
+          _suggestionError = error;
+        });
+      }
+    });
+  }
+
+  Widget _communitySuggestions(ColorScheme cs) => Material(
+    key: const ValueKey('community-suggestions'),
+    color: cs.surfaceContainerLow,
+    borderRadius: BorderRadius.circular(28),
+    clipBehavior: Clip.antiAlias,
+    child: ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Semantics(
+            liveRegion: true,
+            child: Text(
+              _suggestionsLoading
+                  ? 'Finding communities…'
+                  : '${_suggestions.length} community suggestions',
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ),
+        ),
+        if (_suggestionsLoading)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: M3ELoadingIndicator()),
+          )
+        else if (_suggestionError != null)
+          ListTile(
+            leading: Icon(Icons.wifi_off_rounded, color: cs.onSurfaceVariant),
+            title: const Text('Could not load communities'),
+            subtitle: const Text('Tap to retry, or submit your search.'),
+            onTap: () => _onQueryChanged(_controller.text),
+          )
+        else if (_suggestions.isEmpty)
+          const ListTile(
+            leading: Icon(Icons.search_off_rounded),
+            title: Text('No matching communities'),
+            subtitle: Text('Submit your search to find posts and users.'),
+          )
+        else
+          for (final s in _suggestions)
+            ListTile(
+              leading: ProfileAvatar(
+                username: s.name,
+                url: s.iconUrl,
+                size: 36,
+              ),
+              title: Text(s.namePrefixed),
+              subtitle: Text('${compactNumber(s.subscribers)} members'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                setState(_cancelSuggestions);
+                _focusNode.unfocus();
+                context.push('/r/${Uri.encodeComponent(s.name)}');
+              },
+            ),
+      ],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     ref.listen(authSessionEpochProvider, (_, __) => _clear());
@@ -158,10 +303,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           titleSpacing: 8,
           title: TextField(
             controller: _controller,
+            focusNode: _focusNode,
             autofocus: (widget.initialQuery?.trim().isEmpty ?? true),
             textInputAction: TextInputAction.search,
             onSubmitted: _search,
-            onChanged: (_) => setState(() {}),
+            onChanged: _onQueryChanged,
             decoration: InputDecoration(
               hintText: restricted
                   ? 'Search in r/${widget.initialSubreddit}'
@@ -173,6 +319,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               suffixIcon: _controller.text.isEmpty
                   ? null
                   : IconButton(
+                      tooltip: 'Clear search',
                       icon: const Icon(Icons.clear_rounded),
                       onPressed: _clear,
                     ),
@@ -191,7 +338,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
           ),
-          bottom: restricted
+          bottom: restricted || _suggestionsOpen
               ? null
               : const TabBar(
                   tabs: [
@@ -201,7 +348,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ],
                 ),
         ),
-        body: _loading
+        body: _suggestionsOpen
+            ? Padding(
+                padding: const EdgeInsets.all(12),
+                child: _communitySuggestions(cs),
+              )
+            : _loading
             ? const Center(child: M3ELoadingIndicator())
             : _query.isEmpty
             ? _empty(cs)
@@ -347,7 +499,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   );
 
   Widget _subsTab() {
-    final cs = Theme.of(context).colorScheme;
     return M3ERefreshIndicator(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _subs.isEmpty
@@ -365,12 +516,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               itemBuilder: (_, i) {
                 final s = _subs[i];
                 return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: cs.secondaryContainer,
-                    foregroundColor: cs.onSecondaryContainer,
-                    child: Text(
-                      s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
-                    ),
+                  leading: ProfileAvatar(
+                    username: s.name,
+                    url: s.iconUrl,
+                    size: 36,
                   ),
                   title: Text(s.namePrefixed),
                   subtitle: Text('${compactNumber(s.subscribers)} members'),
@@ -382,7 +531,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _usersTab() {
-    final cs = Theme.of(context).colorScheme;
     return M3ERefreshIndicator(
       onRefresh: () => _search(_query, saveRecent: false),
       child: _users.isEmpty
@@ -400,12 +548,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               itemBuilder: (_, i) {
                 final u = _users[i];
                 return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: cs.secondaryContainer,
-                    foregroundColor: cs.onSecondaryContainer,
-                    child: Text(
-                      u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
-                    ),
+                  leading: ProfileAvatar(
+                    username: u.name,
+                    url: u.iconUrl,
+                    size: 36,
                   ),
                   title: Text('u/${u.name}'),
                   subtitle: Text(

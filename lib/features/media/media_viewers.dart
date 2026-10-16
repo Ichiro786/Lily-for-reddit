@@ -18,6 +18,7 @@ import '../../core/widgets/m3e_loading_indicator.dart';
 import '../../core/url_launcher_helper.dart';
 import '../../models/post.dart';
 import 'gallery_preload.dart';
+import 'image_viewer_gestures.dart';
 
 /// A left-edge swipe-to-go-back strip (iOS-style), safe to overlay on viewers
 /// without stealing PhotoView pan / gallery paging (only the left 24px).
@@ -43,39 +44,58 @@ class _EdgeBack extends StatelessWidget {
 /// A transparent, fade-in route so the viewer feels like an overlay above the
 /// content rather than a separate page.
 Route<T> _overlayRoute<T>(Widget page) => PageRouteBuilder<T>(
-      opaque: false,
-      barrierColor: Colors.transparent,
-      transitionDuration: const Duration(milliseconds: 220),
-      reverseTransitionDuration: const Duration(milliseconds: 180),
-      pageBuilder: (_, __, ___) => page,
-      transitionsBuilder: (_, anim, __, child) =>
-          FadeTransition(opacity: anim, child: child),
-    );
+  opaque: false,
+  barrierColor: Colors.transparent,
+  transitionDuration: const Duration(milliseconds: 220),
+  reverseTransitionDuration: const Duration(milliseconds: 180),
+  pageBuilder: (_, __, ___) => page,
+  transitionsBuilder: (_, anim, __, child) =>
+      FadeTransition(opacity: anim, child: child),
+);
 
 void openImageViewer(BuildContext context, String url, {String? title}) {
-  Navigator.of(context).push(_overlayRoute(_ImageViewer(url: url, title: title)));
+  Navigator.of(
+    context,
+  ).push(_overlayRoute(_ImageViewer(url: url, title: title)));
 }
 
-void openGalleryViewer(BuildContext context, List<GalleryImage> images,
-    {String? title, int initialIndex = 0}) {
+void openGalleryViewer(
+  BuildContext context,
+  List<GalleryImage> images, {
+  String? title,
+  int initialIndex = 0,
+}) {
   if (images.isEmpty) return;
-  Navigator.of(context).push(_overlayRoute(
-      _GalleryViewer(images: images, title: title, initialIndex: initialIndex)));
+  Navigator.of(context).push(
+    _overlayRoute(
+      _GalleryViewer(images: images, title: title, initialIndex: initialIndex),
+    ),
+  );
 }
 
-void openVideoViewer(BuildContext context, String url,
-    {String? title, String? downloadUrl, String? externalUrl}) {
+void openVideoViewer(
+  BuildContext context,
+  String url, {
+  String? title,
+  String? downloadUrl,
+  String? externalUrl,
+}) {
   if (isYouTubeUrl(url)) {
-    Navigator.of(context).push(
-      _overlayRoute(_YouTubePreview(url: url, title: title)),
-    );
+    Navigator.of(
+      context,
+    ).push(_overlayRoute(_YouTubePreview(url: url, title: title)));
     return;
   }
-  Navigator.of(context).push(_overlayRoute(_VideoViewer(
-      url: url,
-      title: title,
-      downloadUrl: downloadUrl,
-      externalUrl: externalUrl)));
+  Navigator.of(context).push(
+    _overlayRoute(
+      _VideoViewer(
+        url: url,
+        title: title,
+        downloadUrl: downloadUrl,
+        externalUrl: externalUrl,
+      ),
+    ),
+  );
 }
 
 /// Normalizes common host quirks to a directly-playable video URL
@@ -87,8 +107,11 @@ String resolveVideoUrl(String url) {
 
 /// Downloads a media file to the device gallery/Photos, with a cancellable
 /// progress dialog showing downloaded / total size.
-Future<void> saveMediaToGallery(BuildContext context, String url,
-    {required bool isVideo}) async {
+Future<void> saveMediaToGallery(
+  BuildContext context,
+  String url, {
+  required bool isVideo,
+}) async {
   final messenger = ScaffoldMessenger.of(context);
   final nav = Navigator.of(context, rootNavigator: true);
   final cancel = CancelToken();
@@ -98,8 +121,9 @@ Future<void> saveMediaToGallery(BuildContext context, String url,
     barrierDismissible: false,
     useRootNavigator: true,
     builder: (_) => _SavingDialog(
-        progress: progress,
-        onCancel: () => cancel.cancel('cancelled')),
+      progress: progress,
+      onCancel: () => cancel.cancel('cancelled'),
+    ),
   );
   try {
     final dir = await getTemporaryDirectory();
@@ -118,7 +142,7 @@ Future<void> saveMediaToGallery(BuildContext context, String url,
         headers: const {
           'User-Agent':
               'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
-                  '(KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+              '(KHTML, like Gecko) Chrome/124.0 Safari/537.36',
         },
         receiveTimeout: const Duration(seconds: 90),
       ),
@@ -131,19 +155,26 @@ Future<void> saveMediaToGallery(BuildContext context, String url,
     }
     nav.pop();
     messenger.showSnackBar(
-        const SnackBar(content: Text('Saved to your gallery')));
+      const SnackBar(content: Text('Saved to your gallery')),
+    );
   } on DioException catch (e) {
     nav.pop();
     if (CancelToken.isCancel(e)) {
       messenger.showSnackBar(
-          const SnackBar(content: Text('Download cancelled')));
+        const SnackBar(content: Text('Download cancelled')),
+      );
     } else {
       messenger.showSnackBar(const SnackBar(content: Text('Could not save')));
     }
   } catch (e) {
     nav.pop();
-    messenger.showSnackBar(SnackBar(
-        content: Text('Could not save: ${'$e'.replaceFirst('Exception: ', '')}')));
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Could not save: ${'$e'.replaceFirst('Exception: ', '')}',
+        ),
+      ),
+    );
   }
 }
 
@@ -172,25 +203,29 @@ class _SavingDialog extends StatelessWidget {
               ),
               const SizedBox(width: 18),
               Flexible(
-                child: Text(total > 0
-                    ? 'Saving… ${_mb(received)} / ${_mb(total)} MB'
-                    : 'Saving…'),
+                child: Text(
+                  total > 0
+                      ? 'Saving… ${_mb(received)} / ${_mb(total)} MB'
+                      : 'Saving…',
+                ),
               ),
             ],
           );
         },
       ),
-      actions: [
-        TextButton(onPressed: onCancel, child: const Text('Cancel')),
-      ],
+      actions: [TextButton(onPressed: onCancel, child: const Text('Cancel'))],
     );
   }
 }
 
 /// Floating translucent controls (close + download + share + open) over a scrim.
 class _ViewerControls extends StatelessWidget {
-  const _ViewerControls(
-      {this.title, this.sourceUrl, this.center, this.downloadUrl});
+  const _ViewerControls({
+    this.title,
+    this.sourceUrl,
+    this.center,
+    this.downloadUrl,
+  });
   final String? title;
   final String? sourceUrl;
   final String? center;
@@ -198,66 +233,82 @@ class _ViewerControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: 120,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0x99000000), Color(0x00000000)],
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            children: [
-              _RoundBtn(
-                icon: Platform.isIOS
-                    ? CupertinoIcons.xmark
-                    : Icons.close_rounded,
-                onTap: () => Navigator.of(context).maybePop(),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  center ?? title ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600),
+      child: Stack(
+        children: [
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x99000000), Color(0x00000000)],
+                  ),
                 ),
               ),
-              if (downloadUrl != null) ...[
-                _RoundBtn(
-                  icon: Platform.isIOS
-                      ? CupertinoIcons.cloud_download
-                      : Icons.download_rounded,
-                  onTap: () => saveMediaToGallery(context, downloadUrl!,
-                      isVideo: false),
-                ),
-                const SizedBox(width: 4),
-              ],
-              if (sourceUrl != null) ...[
-                _RoundBtn(
-                  icon: Platform.isIOS
-                      ? CupertinoIcons.share
-                      : Icons.ios_share,
-                  onTap: () => shareUrl(context, sourceUrl!),
-                ),
-                const SizedBox(width: 4),
-                _RoundBtn(
-                  icon: Platform.isIOS
-                      ? CupertinoIcons.arrow_up_right_square
-                      : Icons.open_in_new_rounded,
-                  onTap: () => launchSmartUrl(sourceUrl!),
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  _RoundBtn(
+                    icon: Platform.isIOS
+                        ? CupertinoIcons.xmark
+                        : Icons.close_rounded,
+                    onTap: () => Navigator.of(context).maybePop(),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: IgnorePointer(
+                      child: Text(
+                        center ?? title ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (downloadUrl != null) ...[
+                    _RoundBtn(
+                      icon: Platform.isIOS
+                          ? CupertinoIcons.cloud_download
+                          : Icons.download_rounded,
+                      onTap: () => saveMediaToGallery(
+                        context,
+                        downloadUrl!,
+                        isVideo: false,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  if (sourceUrl != null) ...[
+                    _RoundBtn(
+                      icon: Platform.isIOS
+                          ? CupertinoIcons.share
+                          : Icons.ios_share,
+                      onTap: () => shareUrl(context, sourceUrl!),
+                    ),
+                    const SizedBox(width: 4),
+                    _RoundBtn(
+                      icon: Platform.isIOS
+                          ? CupertinoIcons.arrow_up_right_square
+                          : Icons.open_in_new_rounded,
+                      onTap: () => launchSmartUrl(sourceUrl!),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -350,33 +401,39 @@ class _ImageViewerState extends State<_ImageViewer> with _ImmersiveDismiss {
           ),
           Transform.translate(
             offset: Offset(0, drag),
-            child: GestureDetector(
-              onVerticalDragUpdate: onDragUpdate,
-              onVerticalDragEnd: onDragEnd,
+            child: ImageViewerGestures(
+              zoomed: zoomed,
+              onDragChanged: (value) => setState(() => drag = value),
+              onDismiss: () => Navigator.of(context).maybePop(),
               child: PhotoView(
                 imageProvider: CachedNetworkImageProvider(widget.url),
-                backgroundDecoration:
-                    const BoxDecoration(color: Colors.transparent),
+                backgroundDecoration: const BoxDecoration(
+                  color: Colors.transparent,
+                ),
+                gestureDetectorBehavior: HitTestBehavior.opaque,
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 4,
                 onTapUp: (_, __, ___) =>
                     setState(() => showControls = !showControls),
                 scaleStateChangedCallback: (s) =>
                     setState(() => zoomed = s != PhotoViewScaleState.initial),
-                loadingBuilder: (_, __) => const Center(
-                    child: M3ELoadingIndicator.large()),
+                loadingBuilder: (_, __) =>
+                    const Center(child: M3ELoadingIndicator.large()),
               ),
             ),
           ),
           AnimatedOpacity(
             opacity: showControls && drag.abs() < 8 ? 1 : 0,
             duration: const Duration(milliseconds: 150),
-            child: _ViewerControls(
+            child: IgnorePointer(
+              ignoring: !showControls || drag.abs() >= 8,
+              child: _ViewerControls(
                 title: widget.title,
                 sourceUrl: widget.url,
-                downloadUrl: widget.url),
+                downloadUrl: widget.url,
+              ),
+            ),
           ),
-          const _EdgeBack(),
         ],
       ),
     );
@@ -384,8 +441,11 @@ class _ImageViewerState extends State<_ImageViewer> with _ImmersiveDismiss {
 }
 
 class _GalleryViewer extends StatefulWidget {
-  const _GalleryViewer(
-      {required this.images, this.title, this.initialIndex = 0});
+  const _GalleryViewer({
+    required this.images,
+    this.title,
+    this.initialIndex = 0,
+  });
   final List<GalleryImage> images;
   final String? title;
   final int initialIndex;
@@ -423,9 +483,10 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
             ),
             Transform.translate(
               offset: Offset(0, drag),
-              child: GestureDetector(
-                onVerticalDragUpdate: onDragUpdate,
-                onVerticalDragEnd: onDragEnd,
+              child: ImageViewerGestures(
+                zoomed: zoomed,
+                onDragChanged: (value) => setState(() => drag = value),
+                onDismiss: () => Navigator.of(context).maybePop(),
                 child: PhotoViewGallery.builder(
                   pageController: _controller,
                   itemCount: widget.images.length,
@@ -436,6 +497,7 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
                     imageProvider: CachedNetworkImageProvider(
                       widget.images[i].url,
                     ),
+                    gestureDetectorBehavior: HitTestBehavior.opaque,
                     minScale: PhotoViewComputedScale.contained,
                     maxScale: PhotoViewComputedScale.covered * 4,
                     onTapUp: (_, __, ___) =>
@@ -452,14 +514,16 @@ class _GalleryViewerState extends State<_GalleryViewer> with _ImmersiveDismiss {
             AnimatedOpacity(
               opacity: showControls && drag.abs() < 8 ? 1 : 0,
               duration: const Duration(milliseconds: 150),
-              child: _ViewerControls(
-                title: widget.title,
-                center: '${_index + 1} / ${widget.images.length}',
-                sourceUrl: widget.images[_index].url,
-                downloadUrl: widget.images[_index].url,
+              child: IgnorePointer(
+                ignoring: !showControls || drag.abs() >= 8,
+                child: _ViewerControls(
+                  title: widget.title,
+                  center: '${_index + 1} / ${widget.images.length}',
+                  sourceUrl: widget.images[_index].url,
+                  downloadUrl: widget.images[_index].url,
+                ),
               ),
             ),
-            const _EdgeBack(),
           ],
         ),
       ),
@@ -489,8 +553,11 @@ class _YouTubePreview extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.play_circle_fill_rounded,
-                          color: Colors.redAccent, size: 64),
+                      const Icon(
+                        Icons.play_circle_fill_rounded,
+                        color: Colors.redAccent,
+                        size: 64,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         title?.isNotEmpty == true ? title! : 'YouTube video',
@@ -537,8 +604,12 @@ class _YouTubePreview extends StatelessWidget {
 }
 
 class _VideoViewer extends StatefulWidget {
-  const _VideoViewer(
-      {required this.url, this.title, this.downloadUrl, this.externalUrl});
+  const _VideoViewer({
+    required this.url,
+    this.title,
+    this.downloadUrl,
+    this.externalUrl,
+  });
   final String url;
   final String? title;
   final String? downloadUrl; // direct mp4 for saving (HLS can't be saved)
@@ -570,18 +641,9 @@ class _VideoViewerState extends State<_VideoViewer>
       duration: const Duration(milliseconds: 600),
     );
     _seekOpacity = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 0, end: 1),
-        weight: 18,
-      ),
-      TweenSequenceItem(
-        tween: ConstantTween<double>(1),
-        weight: 55,
-      ),
-      TweenSequenceItem(
-        tween: Tween(begin: 1, end: 0),
-        weight: 27,
-      ),
+      TweenSequenceItem(tween: Tween(begin: 0, end: 1), weight: 18),
+      TweenSequenceItem(tween: ConstantTween<double>(1), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1, end: 0), weight: 27),
     ]).animate(_seekAnimation);
     _seekScale = Tween<double>(begin: 0.78, end: 1).animate(
       CurvedAnimation(parent: _seekAnimation, curve: Curves.easeOutBack),
@@ -735,10 +797,14 @@ class _VideoViewerState extends State<_VideoViewer>
         ? Duration.zero
         : duration;
     final hours = safeDuration.inHours;
-    final minutes =
-        safeDuration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds =
-        safeDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final minutes = safeDuration.inMinutes
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
+    final seconds = safeDuration.inSeconds
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
     return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
   }
 
@@ -775,8 +841,8 @@ class _VideoViewerState extends State<_VideoViewer>
     final bufferedMs = value.buffered.isEmpty
         ? 0.0
         : value.buffered.last.end.inMilliseconds
-            .clamp(0, duration.inMilliseconds)
-            .toDouble();
+              .clamp(0, duration.inMilliseconds)
+              .toDouble();
 
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 12, 6),
@@ -804,10 +870,8 @@ class _VideoViewerState extends State<_VideoViewer>
                 inactiveTrackColor: Colors.white.withValues(alpha: 0.24),
                 thumbColor: Colors.white,
                 overlayColor: Colors.white.withValues(alpha: 0.16),
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape:
-                    const RoundSliderOverlayShape(overlayRadius: 16),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
               ),
               child: Slider(
                 min: 0,
@@ -826,9 +890,9 @@ class _VideoViewerState extends State<_VideoViewer>
           Text(
             '${_formatDuration(position)} / ${_formatDuration(duration)}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+              color: Colors.white.withValues(alpha: 0.9),
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
         ],
       ),
@@ -912,10 +976,7 @@ class _VideoViewerState extends State<_VideoViewer>
                 left: 12,
                 right: 12,
                 bottom: 12,
-                child: SafeArea(
-                  top: false,
-                  child: _bottomControls(context),
-                ),
+                child: SafeArea(top: false, child: _bottomControls(context)),
               ),
             ],
           ),
@@ -965,7 +1026,11 @@ class _VideoViewerState extends State<_VideoViewer>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.videocam_off_rounded, color: Colors.white54, size: 48),
+          const Icon(
+            Icons.videocam_off_rounded,
+            color: Colors.white54,
+            size: 48,
+          ),
           const SizedBox(height: 14),
           const Text(
             "This video can't be played in the app — its format isn't "
@@ -987,8 +1052,9 @@ class _VideoViewerState extends State<_VideoViewer>
   @override
   Widget build(BuildContext context) {
     final video = _video;
-    final initializedVideo =
-        video != null && video.value.isInitialized ? video : null;
+    final initializedVideo = video != null && video.value.isInitialized
+        ? video
+        : null;
     final aspectRatio = initializedVideo?.value.aspectRatio ?? 16 / 9;
     final seekFeedback = _seekFeedback;
     return Scaffold(
@@ -1000,20 +1066,18 @@ class _VideoViewerState extends State<_VideoViewer>
             child: _error != null
                 ? _errorView(context)
                 : initializedVideo == null
-                    ? const SizedBox.expand(
-                        child: ColoredBox(
-                          color: Colors.black,
-                          child: Center(
-                            child: M3ELoadingIndicator.large(),
-                          ),
-                        ),
-                      )
-                    : AspectRatio(
-                        aspectRatio: aspectRatio,
-                        child: RepaintBoundary(
-                          child: VideoPlayer(initializedVideo),
-                        ),
-                      ),
+                ? const SizedBox.expand(
+                    child: ColoredBox(
+                      color: Colors.black,
+                      child: Center(child: M3ELoadingIndicator.large()),
+                    ),
+                  )
+                : AspectRatio(
+                    aspectRatio: aspectRatio,
+                    child: RepaintBoundary(
+                      child: VideoPlayer(initializedVideo),
+                    ),
+                  ),
           ),
           if (initializedVideo != null) _gestureOverlay(),
           if (initializedVideo != null && seekFeedback != null)
@@ -1033,11 +1097,14 @@ class _VideoViewerState extends State<_VideoViewer>
                           color: Colors.black.withValues(alpha: 0.56),
                           borderRadius: BorderRadius.circular(28),
                           border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2)),
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 12),
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
                           child: Text(
                             seekFeedback,
                             style: const TextStyle(

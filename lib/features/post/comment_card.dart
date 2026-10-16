@@ -1,9 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/widgets/m3e_animated_size.dart';
-import '../../core/theme/shape_tokens.dart';
-import '../../core/theme/thread_colors.dart';
+import 'comment_actions.dart';
 
 /// Controlled presenter; voting, saving and collapse remain parent-owned.
 class M3ECommentCard extends StatelessWidget {
@@ -13,6 +12,7 @@ class M3ECommentCard extends StatelessWidget {
     required this.timeAgo,
     required this.body,
     this.richBody,
+    this.avatar,
     this.score = 0,
     this.voteState = 0,
     this.isSaved = false,
@@ -20,6 +20,7 @@ class M3ECommentCard extends StatelessWidget {
     this.isOp = false,
     this.isCollapsed = false,
     this.onToggleCollapse,
+    this.onViewProfile,
     this.onReply,
     this.onSave,
     this.onAward,
@@ -29,10 +30,11 @@ class M3ECommentCard extends StatelessWidget {
     this.onLoadMoreReplies,
   });
   final String author, timeAgo, body;
-  final Widget? richBody;
+  final Widget? richBody, avatar;
   final int score, voteState, depth, replyCount;
   final bool isSaved, isOp, isCollapsed;
   final VoidCallback? onToggleCollapse,
+      onViewProfile,
       onReply,
       onSave,
       onAward,
@@ -44,18 +46,10 @@ class M3ECommentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final votes = theme.extension<VoteColors>();
-    final up = votes?.up ?? cs.primary;
-    final down = votes?.down ?? cs.tertiary;
-    final accents =
-        theme.extension<ThreadColors>() ?? ThreadColors.fromScheme(cs);
-    final pairs = [
-      (cs.primaryContainer, cs.onPrimaryContainer),
-      (cs.secondaryContainer, cs.onSecondaryContainer),
-      (cs.tertiaryContainer, cs.onTertiaryContainer),
-    ];
-    final avatar =
-        pairs[author.codeUnits.fold(0, (a, b) => a + b) % pairs.length];
+    final profileAction = onViewProfile ?? onToggleCollapse;
+    // App layout decision: cap visual indentation so deep threads stay readable.
+    final levels = math.min(math.max(depth, 0), 4);
+    final inset = levels * 16.0;
     Widget action(
       String label,
       IconData icon,
@@ -71,253 +65,179 @@ class M3ECommentCard extends StatelessWidget {
       icon: Icon(icon, size: 22, color: color ?? cs.onSurfaceVariant),
     );
     return Padding(
-      padding: EdgeInsetsDirectional.only(
-        start: depth > 0 ? (depth * 12.0).clamp(16.0, 40.0) : 12,
-        end: 12,
-        top: 4,
-        bottom: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Stack(
         children: [
-          if (depth > 0)
+          for (var level = 0; level < levels; level++)
             PositionedDirectional(
-              start: 0,
-              top: 4,
-              bottom: 4,
+              start: level * 16 + 8,
+              top: 0,
+              bottom: 0,
               child: Container(
-                key: ValueKey<String>('comment-depth-rail-$depth'),
-                width: 3.5,
+                key: level == levels - 1
+                    ? ValueKey('comment-depth-rail-$depth')
+                    : null,
+                width: 1,
+                decoration: BoxDecoration(color: cs.outlineVariant),
+              ),
+            ),
+          if (levels > 0)
+            PositionedDirectional(
+              start: inset - 8,
+              top: 12,
+              child: Container(
+                width: 12,
+                height: 20,
                 decoration: BoxDecoration(
-                  color: accents.atDepth(depth),
-                  borderRadius: ShapeTokens.full,
+                  border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+                  borderRadius: const BorderRadiusDirectional.only(
+                    bottomStart: Radius.circular(12),
+                  ),
                 ),
               ),
             ),
           Padding(
-            padding: EdgeInsetsDirectional.only(start: depth > 0 ? 11.5 : 0),
-            child: Container(
-              decoration: BoxDecoration(
-                color: cs.surfaceContainer,
-                borderRadius: ShapeTokens.medium,
-                border: Border.all(
-                  color: cs.outlineVariant.withValues(alpha: 0.18),
-                ),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                borderRadius: ShapeTokens.medium,
-                child: M3EAnimatedSize(
-                  alignment: Alignment.topCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          button: onToggleCollapse != null,
-                          expanded: !isCollapsed,
-                          label:
-                              '${isCollapsed ? 'Expand' : 'Collapse'} comment by $author',
-                          child: InkWell(
-                            onTap: onToggleCollapse,
-                            borderRadius: ShapeTokens.small,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minHeight: 48),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor: avatar.$1,
-                                    child: Text(
-                                      author.isEmpty
-                                          ? 'U'
-                                          : author.characters.first
-                                                .toUpperCase(),
-                                      style: theme.textTheme.labelMedium
-                                          ?.copyWith(
-                                            color: avatar.$2,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'u/$author',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            color: isOp
-                                                ? cs.primary
-                                                : cs.onSurface,
-                                          ),
-                                    ),
-                                  ),
-                                  if (isOp) ...[
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'OP',
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(color: cs.primary),
-                                    ),
-                                  ],
-                                  const SizedBox(width: 6),
-                                  ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 100,
-                                    ),
-                                    child: Text(
-                                      '· $timeAgo',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: cs.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ),
-                                  if (isCollapsed && replyCount > 0) ...[
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '+$replyCount',
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(color: cs.primary),
-                                    ),
-                                  ],
-                                ],
+            padding: EdgeInsetsDirectional.only(start: inset),
+            child: Material(
+              color: Colors.transparent,
+              child: M3EAnimatedSize(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Semantics(
+                            button: profileAction != null,
+                            label: 'View profile of $author',
+                            onTap: profileAction,
+                            excludeSemantics: true,
+                            child: InkResponse(
+                              onTap: profileAction,
+                              radius: 24,
+                              child: SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: Center(
+                                  child:
+                                      avatar ??
+                                      CircleAvatar(
+                                        radius: 16,
+                                        backgroundColor:
+                                            cs.surfaceContainerHighest,
+                                        foregroundColor: cs.onSurface,
+                                        child: Text(
+                                          author.isEmpty
+                                              ? 'U'
+                                              : author.characters.first
+                                                    .toUpperCase(),
+                                          style: theme.textTheme.titleSmall,
+                                        ),
+                                      ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        if (!isCollapsed) ...[
-                          const SizedBox(height: 4),
-                          richBody ??
-                              Text(
-                                body,
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  height: 1.45,
+                          Expanded(
+                            child: InkWell(
+                              onTap: profileAction,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
                                 ),
-                              ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
+                                child: Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: Wrap(
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    spacing: 6,
+                                    runSpacing: 2,
                                     children: [
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            18,
-                                          ),
-                                          color: cs.surfaceContainerHigh
-                                              .withValues(alpha: 0.35),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            action(
-                                              'Upvote',
-                                              Icons.arrow_upward_rounded,
-                                              onVote == null
-                                                  ? null
-                                                  : () {
-                                                      HapticFeedback.selectionClick();
-                                                      onVote!(1);
-                                                    },
-                                              color: voteState == 1 ? up : null,
-                                              selected: voteState == 1,
+                                      Text(
+                                        'u/$author',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                              color: isOp
+                                                  ? cs.primary
+                                                  : cs.onSurface,
+                                              fontWeight: FontWeight.w600,
                                             ),
-                                            ConstrainedBox(
-                                              constraints: const BoxConstraints(
-                                                maxWidth: 64,
-                                              ),
-                                              child: Text(
-                                                '$score',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: theme
-                                                    .textTheme
-                                                    .labelLarge
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      color: voteState == 1
-                                                          ? up
-                                                          : voteState == -1
-                                                          ? down
-                                                          : cs.onSurfaceVariant,
-                                                    ),
-                                              ),
+                                      ),
+                                      if (isOp)
+                                        Text(
+                                          'OP',
+                                          style: theme.textTheme.labelSmall
+                                              ?.copyWith(color: cs.primary),
+                                        ),
+                                      Text(
+                                        '· $timeAgo',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: cs.onSurfaceVariant,
                                             ),
-                                            action(
-                                              'Downvote',
-                                              Icons.arrow_downward_rounded,
-                                              onVote == null
-                                                  ? null
-                                                  : () {
-                                                      HapticFeedback.selectionClick();
-                                                      onVote!(-1);
-                                                    },
-                                              color: voteState == -1
-                                                  ? down
-                                                  : null,
-                                              selected: voteState == -1,
-                                            ),
-                                          ],
-                                        ),
                                       ),
-                                      TextButton.icon(
-                                        onPressed: onReply,
-                                        icon: const Icon(
-                                          Icons.reply_rounded,
-                                          size: 22,
+                                      if (isCollapsed && replyCount > 0)
+                                        Text(
+                                          '+$replyCount',
+                                          style: theme.textTheme.labelSmall
+                                              ?.copyWith(color: cs.primary),
                                         ),
-                                        label: const Text('Reply'),
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: cs.onSurfaceVariant,
-                                          minimumSize: const Size(0, 48),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                        ),
-                                      ),
-                                      action(
-                                        'More comment options',
-                                        Icons.more_horiz_rounded,
-                                        onOverflow,
-                                      ),
                                     ],
                                   ),
                                 ),
                               ),
-                              action(
-                                isSaved ? 'Unsave comment' : 'Save comment',
-                                isSaved
-                                    ? Icons.bookmark_rounded
-                                    : Icons.bookmark_outline_rounded,
-                                onSave,
-                                color: isSaved ? cs.primary : null,
-                                selected: isSaved,
+                            ),
+                          ),
+                          if (onToggleCollapse != null)
+                            Semantics(
+                              expanded: !isCollapsed,
+                              child: action(
+                                isCollapsed
+                                    ? 'Expand comment'
+                                    : 'Collapse comment',
+                                isCollapsed
+                                    ? Icons.unfold_more_rounded
+                                    : Icons.unfold_less_rounded,
+                                onToggleCollapse,
                               ),
-                              if (onAward != null)
-                                action(
-                                  'Award',
-                                  Icons.military_tech_outlined,
-                                  onAward,
-                                ),
+                            ),
+                        ],
+                      ),
+                      if (!isCollapsed)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(start: 48),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              richBody ??
+                                  Text(
+                                    body,
+                                    style: theme.textTheme.bodyLarge?.copyWith(
+                                      height: 1.5,
+                                    ),
+                                  ),
+                              const SizedBox(height: 4),
+                              CommentActions(
+                                score: score,
+                                voteState: voteState,
+                                isSaved: isSaved,
+                                onVote: onVote,
+                                onReply: onReply,
+                                onSave: onSave,
+                                onOverflow: onOverflow,
+                                onAward: onAward,
+                              ),
                             ],
                           ),
-                        ],
-                        if (replyCount > 0 && onLoadMoreReplies != null)
-                          TextButton.icon(
+                        ),
+                      if (replyCount > 0 && onLoadMoreReplies != null)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(start: 48),
+                          child: TextButton.icon(
                             onPressed: onLoadMoreReplies,
                             icon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
@@ -325,13 +245,12 @@ class M3ECommentCard extends StatelessWidget {
                             ),
                             label: Text('View $replyCount more replies'),
                             style: TextButton.styleFrom(
-                              backgroundColor: cs.surfaceContainerHigh,
-                              foregroundColor: cs.onSurfaceVariant,
+                              foregroundColor: cs.primary,
                               minimumSize: const Size(0, 48),
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
                 ),
               ),

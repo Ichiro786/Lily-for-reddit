@@ -33,8 +33,8 @@ void main() {
       expect(find.text('182'), findsOneWidget);
       expect(find.byIcon(Icons.arrow_upward_rounded), findsOneWidget);
       expect(find.byIcon(Icons.arrow_downward_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.shortcut_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.mode_comment_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.ios_share_rounded), findsOneWidget);
       expect(find.byIcon(Icons.bookmark_outline_rounded), findsOneWidget);
     });
 
@@ -83,10 +83,10 @@ void main() {
       await tester.tap(find.byIcon(Icons.arrow_downward_rounded));
       expect(vote, -1);
 
-      await tester.tap(find.byIcon(Icons.chat_bubble_outline_rounded));
+      await tester.tap(find.byIcon(Icons.mode_comment_outlined));
       expect(commentTapped, isTrue);
 
-      await tester.tap(find.byIcon(Icons.shortcut_rounded));
+      await tester.tap(find.byIcon(Icons.ios_share_rounded));
       expect(shareTapped, isTrue);
 
       await tester.tap(find.byIcon(Icons.bookmark_outline_rounded));

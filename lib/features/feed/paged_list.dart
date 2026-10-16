@@ -15,6 +15,7 @@ class PagedList<T> extends StatefulWidget {
     this.padding = const EdgeInsets.fromLTRB(10, 8, 10, 130),
     this.emptyLabel = 'Nothing here',
     this.requestKey,
+    this.primary = false,
   });
 
   final Future<Listing<T>> Function(String? after) fetch;
@@ -22,6 +23,7 @@ class PagedList<T> extends StatefulWidget {
   final EdgeInsets padding;
   final String emptyLabel;
   final Object? requestKey;
+  final bool primary;
 
   @override
   State<PagedList<T>> createState() => _PagedListState<T>();
@@ -41,11 +43,13 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(() {
-      if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 500) {
-        _loadMore();
-      }
-    });
+    if (!widget.primary) {
+      _scroll.addListener(() {
+        if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 500) {
+          _loadMore();
+        }
+      });
+    }
     _load();
   }
 
@@ -145,10 +149,25 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (widget.primary &&
+              notification.depth == 0 &&
+              notification.metrics.pixels >=
+                  notification.metrics.maxScrollExtent - 500) {
+            _loadMore();
+          }
+          return false;
+        },
+        child: _buildList(context),
+      );
+
+  Widget _buildList(BuildContext context) {
     if (_loading) return const Center(child: M3ELoadingIndicator());
     if (_error != null) {
       return ListView(
+        primary: widget.primary,
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           Padding(
@@ -168,6 +187,7 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
       return M3ERefreshIndicator(
         onRefresh: _load,
         child: ListView(
+          primary: widget.primary,
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             const SizedBox(height: 120),
@@ -180,7 +200,8 @@ class _PagedListState<T> extends State<PagedList<T>> with RouteAware {
       onRefresh: _load,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        controller: _scroll,
+        controller: widget.primary ? null : _scroll,
+        primary: widget.primary,
         padding: widget.padding,
         itemCount: _items.length + 1,
         separatorBuilder: (_, __) => const SizedBox(height: 8),

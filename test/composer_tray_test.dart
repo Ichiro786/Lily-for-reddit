@@ -124,6 +124,32 @@ void main() {
     );
   }
 
+  testWidgets(
+    'tapping an already focused editor closes the tray and keeps the draft',
+    (tester) async {
+      phone(tester);
+      final controller = TextEditingController(text: 'keep my draft');
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(app(CommentComposeBar(controller: controller)));
+      await tester.tap(find.byTooltip('Add media'));
+      await tester.pumpAndSettle();
+      expect(find.text('Photo'), findsOneWidget);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.focusNode!.hasFocus, isTrue);
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.text('Photo'), findsNothing);
+      expect(controller.text, 'keep my draft');
+      expect(field.focusNode!.hasFocus, isTrue);
+      await tester.tap(find.byTooltip('Add media'));
+      await tester.pumpAndSettle();
+      expect(find.text('Photo'), findsOneWidget);
+      await tester.tap(find.byTooltip('Close media'));
+      await tester.pumpAndSettle();
+      expect(find.text('Photo'), findsNothing);
+    },
+  );
+
   testWidgets('send stays in place when draft content changes', (tester) async {
     phone(tester);
     var sends = 0;

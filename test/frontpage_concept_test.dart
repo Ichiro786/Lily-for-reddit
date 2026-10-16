@@ -251,8 +251,8 @@ void main() {
       final icons = [
         Icons.arrow_upward_rounded,
         Icons.arrow_downward_rounded,
-        Icons.chat_bubble_outline_rounded,
-        Icons.shortcut_rounded,
+        Icons.mode_comment_outlined,
+        Icons.ios_share_rounded,
         Icons.bookmark_outline_rounded,
         Icons.more_vert_rounded,
       ];

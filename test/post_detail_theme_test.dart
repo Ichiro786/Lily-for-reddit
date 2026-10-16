@@ -18,36 +18,36 @@ import 'package:luli_for_reddit/models/comment.dart';
 import 'package:luli_for_reddit/models/post.dart';
 
 Comment _comment() => Comment(
-      id: 'c1',
-      fullname: 't1_c1',
-      author: 'alice',
-      body: 'A tokenized comment',
-      score: 5,
-      created: DateTime.utc(2026, 1, 2),
-      depth: 0,
-    );
+  id: 'c1',
+  fullname: 't1_c1',
+  author: 'alice',
+  body: 'A tokenized comment',
+  score: 5,
+  created: DateTime.utc(2026, 1, 2),
+  depth: 0,
+);
 
 Post _post() => Post(
-      id: 'm3e',
-      fullname: 't3_m3e',
-      title: 'Theme probe post',
-      subreddit: 'flutter',
-      subredditPrefixed: 'r/flutter',
-      author: 'lily',
-      score: 10,
-      numComments: 1,
-      upvoteRatio: 0.9,
-      created: DateTime.utc(2026, 1, 1),
-      permalink: '/r/flutter/comments/m3e',
-      url: 'https://www.reddit.com/r/flutter/comments/m3e',
-      domain: 'reddit.com',
-      type: PostType.self,
-      isSelf: true,
-    );
+  id: 'm3e',
+  fullname: 't3_m3e',
+  title: 'Theme probe post',
+  subreddit: 'flutter',
+  subredditPrefixed: 'r/flutter',
+  author: 'lily',
+  score: 10,
+  numComments: 1,
+  upvoteRatio: 0.9,
+  created: DateTime.utc(2026, 1, 1),
+  permalink: '/r/flutter/comments/m3e',
+  url: 'https://www.reddit.com/r/flutter/comments/m3e',
+  domain: 'reddit.com',
+  type: PostType.self,
+  isSelf: true,
+);
 
 class _FixedThreadRepository extends RedditRepository {
   _FixedThreadRepository()
-      : super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
+    : super(RedditClient(SecureStore(), AuthRepository(SecureStore())));
 
   @override
   Future<(Post, List<Comment>)> getComments({
@@ -61,61 +61,63 @@ class _FixedThreadRepository extends RedditRepository {
 }
 
 Widget _cardHarness(ThemeData theme) => MaterialApp(
-      theme: theme,
-      home: const Scaffold(
-        body: M3ECommentCard(
-          author: 'alice',
-          timeAgo: '1h',
-          body: 'body',
-          score: 42,
-        ),
-      ),
-    );
+  theme: theme,
+  home: const Scaffold(
+    body: M3ECommentCard(
+      author: 'alice',
+      timeAgo: '1h',
+      body: 'body',
+      score: 42,
+      depth: 1,
+    ),
+  ),
+);
 
-/// The card surface must come from the active scheme's [ColorScheme
-/// .surfaceContainer] — never a widget-local constant — across light, dark,
-/// AMOLED, and seeded schemes. The card is located by its distinctive
-/// medium-radius decorated box rather than text internals.
+/// Comments keep the canvas visible while text and reply guides adapt to the
+/// active light/dark/seeded scheme.
 Future<void> _expectTokenizedCardSurface(
   WidgetTester tester,
   ThemeData theme,
 ) async {
   await tester.pumpWidget(_cardHarness(theme));
-  final context = tester.element(find.byType(M3ECommentCard));
-  final expected = Theme.of(context).colorScheme.surfaceContainer;
-  final card = find.byWidgetPredicate(
-    (widget) =>
-        widget is Container &&
-        widget.decoration is BoxDecoration &&
-        (widget.decoration! as BoxDecoration).borderRadius ==
-            ShapeTokens.medium &&
-        (widget.decoration! as BoxDecoration).color != null,
+  final card = find.byType(M3ECommentCard);
+  final cs = Theme.of(tester.element(card)).colorScheme;
+  final material = find
+      .ancestor(of: find.text('body'), matching: find.byType(Material))
+      .first;
+  expect(material, findsOneWidget);
+  expect(tester.widget<Material>(material).color, Colors.transparent);
+  expect(tester.widget<Text>(find.text('body')).style?.color, cs.onSurface);
+  final guide = tester.widget<Container>(
+    find.byKey(const ValueKey('comment-depth-rail-1')),
   );
-  expect(card, findsOneWidget);
-  expect(
-    ((tester.widget<Container>(card).decoration!) as BoxDecoration).color,
-    expected,
-  );
+  expect((guide.decoration as BoxDecoration).color, cs.outlineVariant);
 }
 
 void main() {
-  testWidgets('comment card consumes the active scheme in light mode',
-      (tester) async {
+  testWidgets('comment card consumes the active scheme in light mode', (
+    tester,
+  ) async {
     await _expectTokenizedCardSurface(tester, AppTheme.light(null));
   });
 
-  testWidgets('comment card consumes the active scheme in dark mode',
-      (tester) async {
+  testWidgets('comment card consumes the active scheme in dark mode', (
+    tester,
+  ) async {
     await _expectTokenizedCardSurface(tester, AppTheme.dark(null));
   });
 
-  testWidgets('AMOLED appearance is inherited from AppTheme, not hardcoded',
-      (tester) async {
-    await _expectTokenizedCardSurface(tester, AppTheme.dark(null, amoled: true));
-  });
+  testWidgets(
+    'AMOLED comments keep the canvas visible and use theme-aware guides',
+    (tester) async {
+      await _expectTokenizedCardSurface(
+        tester,
+        AppTheme.dark(null, amoled: true),
+      );
+    },
+  );
 
-  testWidgets('seeded schemes propagate into the comment card',
-      (tester) async {
+  testWidgets('seeded schemes propagate into the comment card', (tester) async {
     // A deliberately non-purple seed proves no stubborn legacy hue remains.
     const seed = Color(0xFF00695C);
     await _expectTokenizedCardSurface(
@@ -124,13 +126,15 @@ void main() {
     );
   });
 
-  testWidgets('upvote accent follows VoteColors under a seeded scheme',
-      (tester) async {
+  testWidgets('upvote accent follows VoteColors under a seeded scheme', (
+    tester,
+  ) async {
     const seed = Color(0xFF00695C);
     await tester.pumpWidget(
       MaterialApp(
-        theme:
-            AppTheme.dark(ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark)),
+        theme: AppTheme.dark(
+          ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark),
+        ),
         home: const Scaffold(
           body: M3ECommentCard(
             author: 'alice',
@@ -144,13 +148,13 @@ void main() {
     );
     final context = tester.element(find.byType(M3ECommentCard));
     final theme = Theme.of(context);
-    final up =
-        tester.widget<Icon>(find.byIcon(Icons.arrow_upward_rounded));
+    final up = tester.widget<Icon>(find.byIcon(Icons.arrow_upward_rounded));
     expect(up.color, theme.extension<VoteColors>()!.up);
   });
 
-  testWidgets('compose bar surfaces follow the active scheme in light mode',
-      (tester) async {
+  testWidgets('compose bar surfaces follow the active scheme in light mode', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(null),
@@ -162,29 +166,27 @@ void main() {
     final context = tester.element(find.byType(CommentComposeBar));
     final cs = Theme.of(context).colorScheme;
 
-    // Field pill: canonical filled-input surface (surfaceContainerHighest).
+    // The outlined input stays on the light theme canvas.
     final fieldPill = find.byWidgetPredicate(
       (widget) =>
           widget is Container &&
           widget.decoration is BoxDecoration &&
-          (widget.decoration! as BoxDecoration).color ==
-              cs.surfaceContainerHighest &&
+          (widget.decoration! as BoxDecoration).color == cs.surface &&
           (widget.decoration! as BoxDecoration).borderRadius ==
               ShapeTokens.full,
     );
     expect(fieldPill, findsOneWidget);
 
-    // Dock canvas follows the active scaffold; the field remains an elevated pill.
+    // Dock canvas follows the active theme, with no heavy filled input card.
     final dock = find.byWidgetPredicate(
-      (widget) =>
-          widget is Container &&
-          widget.color == cs.surface,
+      (widget) => widget is Container && widget.color == cs.surface,
     );
     expect(dock, findsOneWidget);
   });
 
-  testWidgets('post detail screen renders on themed scaffold in light mode',
-      (tester) async {
+  testWidgets('post detail screen renders on themed scaffold in light mode', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
@@ -211,7 +213,7 @@ void main() {
     final scaffold = tester.widget<Scaffold>(
       find.ancestor(of: find.text('BEST'), matching: find.byType(Scaffold)),
     );
-    expect(scaffold.backgroundColor, isNull); // defers to ThemeData
+    expect(scaffold.backgroundColor, Theme.of(context).colorScheme.surface);
     expect(Theme.of(context).scaffoldBackgroundColor, isNot(Colors.black));
 
     // Sort header uses the scheme's primary rather than a fixed purple.
